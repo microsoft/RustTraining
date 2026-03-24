@@ -36,7 +36,7 @@ def fibonacci(n: int) -> int:
     return b
 
 start = time.perf_counter()
-results = [fibonacci(i) for i in range(10_000_000)]
+results = [fibonacci(40) for _ in range(10_000_000)]
 elapsed = time.perf_counter() - start
 print(f"Elapsed: {elapsed:.2f}s")  # ~45s on typical hardware
 ```
@@ -60,7 +60,7 @@ fn fibonacci(n: u64) -> u64 {
 
 fn main() {
     let start = Instant::now();
-    let results: Vec<u64> = (0..10_000_000).map(fibonacci).collect();
+    let results: Vec<u64> = (0..10_000_000).map(|_| fibonacci(40)).collect();
     println!("Elapsed: {:.2?}", start.elapsed());  // ~0.3s
 }
 ```
