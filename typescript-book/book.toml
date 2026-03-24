@@ -1,0 +1,11 @@
+[book]
+title = "Rust for TypeScript Programmers"
+description = "A comprehensive guide to learning Rust for developers with TypeScript experience"
+authors = ["Microsoft"]
+language = "en"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+git-repository-url = "https://github.com/microsoft/RustTraining"
