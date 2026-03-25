@@ -119,7 +119,6 @@ cargo expand module_name      # Expand specific module
 
 For deeper exploration of advanced topics mentioned in this guide, see the companion training documents:
 
-- **[Rust Patterns](../../source-docs/RUST_PATTERNS.md)** — Pin projections, custom allocators, arena patterns, lock-free data structures, and advanced unsafe patterns
-- **[Async Rust Training](../../source-docs/ASYNC_RUST_TRAINING.md)** — Deep dive into tokio, async cancellation safety, stream processing, and production async architectures
-- **[Rust Training for C++ Developers](./RUST_TRAINING_FOR_CPP.md)** — Useful if your team also has C++ experience; covers move semantics mapping, RAII differences, and template vs generics
-- **[Rust Training for C Developers](./RUST_TRAINING_FOR_C.md)** — Relevant for interop scenarios; covers FFI patterns, embedded Rust debugging, and `no_std` programming
+- **[Rust Patterns](../../rust-patterns-book/src/SUMMARY.md)** — Pin projections, custom allocators, arena patterns, lock-free data structures, and advanced unsafe patterns
+- **[Async Rust](../../async-book/src/SUMMARY.md)** — Deep dive into tokio, async cancellation safety, stream processing, and production async architectures
+- **[Rust for C/C++ Programmers](../../c-cpp-book/src/SUMMARY.md)** — Useful if your team also has C or C++ experience; covers move semantics, RAII, FFI, embedded, and `no_std`

@@ -98,6 +98,6 @@ cd c-cpp-book && mdbook serve --open    # http://localhost:3000
 
 ### Deployment
 
-The site auto-deploys to GitHub Pages on push to `master` via `.github/workflows/pages.yml`. No manual steps needed.
+To publish a unified site, run `cargo xtask deploy` (output in `docs/`), commit the result if your process keeps built HTML in git, and enable GitHub Pages **Deploy from a branch** using the `/docs` folder. You can automate this with a workflow under `.github/workflows/`; forks may or may not include that file, so check the repo you are contributing to.
 
 </details>

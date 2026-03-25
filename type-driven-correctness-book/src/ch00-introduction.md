@@ -8,7 +8,7 @@
 
 ---
 
-A practical guide to using Rust's type system to make entire classes of bugs **impossible to compile**. While the companion [Rust Patterns](../rust-patterns-book/index.html) book covers the mechanics (traits, associated types, type-state), this guide shows how to **apply** those mechanics to real-world domains — hardware diagnostics, cryptography, protocol validation, and embedded systems.
+A practical guide to using Rust's type system to make entire classes of bugs **impossible to compile**. While the companion [Rust Patterns](../rust-patterns-book/src/SUMMARY.md) book covers the mechanics (traits, associated types, type-state), this guide shows how to **apply** those mechanics to real-world domains — hardware diagnostics, cryptography, protocol validation, and embedded systems.
 
 Every pattern here follows one principle: **push invariants from runtime checks into the type system so the compiler enforces them.**
 
@@ -61,11 +61,11 @@ Every pattern here follows one principle: **push invariants from runtime checks 
 
 | Concept | Where to learn it |
 |---------|-------------------|
-| Ownership and borrowing | [Rust Patterns](../rust-patterns-book/index.html), ch01 |
-| Traits and associated types | [Rust Patterns](../rust-patterns-book/index.html), ch02 |
-| Newtypes and type-state | [Rust Patterns](../rust-patterns-book/index.html), ch03 |
-| PhantomData | [Rust Patterns](../rust-patterns-book/index.html), ch04 |
-| Generics and trait bounds | [Rust Patterns](../rust-patterns-book/index.html), ch01 |
+| Ownership and borrowing | [Rust Patterns](../rust-patterns-book/src/SUMMARY.md), ch01 |
+| Traits and associated types | [Rust Patterns](../rust-patterns-book/src/SUMMARY.md), ch02 |
+| Newtypes and type-state | [Rust Patterns](../rust-patterns-book/src/SUMMARY.md), ch03 |
+| PhantomData | [Rust Patterns](../rust-patterns-book/src/SUMMARY.md), ch04 |
+| Generics and trait bounds | [Rust Patterns](../rust-patterns-book/src/SUMMARY.md), ch01 |
 
 ## The Correct-by-Construction Spectrum
 

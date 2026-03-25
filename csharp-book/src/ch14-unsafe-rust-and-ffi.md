@@ -7,7 +7,7 @@
 
 Unsafe Rust allows you to perform operations that the borrow checker cannot verify. Use it sparingly and with clear documentation.
 
-> **Advanced coverage**: For safe abstraction patterns over unsafe code (arena allocators, lock-free structures, custom vtables), see [Rust Patterns](../../source-docs/RUST_PATTERNS.md).
+> **Advanced coverage**: For safe abstraction patterns over unsafe code (arena allocators, lock-free structures, custom vtables), see [Rust Patterns](../../rust-patterns-book/src/SUMMARY.md).
 
 ### When You Need Unsafe
 ```rust
