@@ -71,14 +71,13 @@ var result = await task; // Just waits for completion
 
 This is the single most important mental shift:
 
-| | C# / JavaScript / Python | Go | Rust |
-|---|---|---|---|
-| **Creation** | `Task` starts executing immediately | Goroutine starts immediately | `Future` does nothing until polled |
-| **Dropping** | Detached task continues running | Goroutine runs until return | Dropping a Future cancels it |
-| **Runtime** | Built into the language/VM | Built into the binary (M:N scheduler) | You choose (tokio, smol, etc.) |
-| **Scheduling** | Automatic (thread pool) | Automatic (GMP scheduler) | Explicit (`spawn`, `block_on`) |
-| **Cancellation** | `CancellationToken` (cooperative) | `context.Context` (cooperative) | Drop the future (immediate) |
-
+| | C# / JavaScript | Go | Python | Rust |
+| --- | --- | --- | --- | --- |
+| **Creation** | `Task`/`Promise` starts executing immediately | Goroutine starts immediately | Calling `async def` returns an inert coroutine — no code runs until awaited | `Future` does nothing until polled |
+| **Dropping** | Detached task continues running | Goroutine runs until return | Unawaited coroutine is GC'd (with a warning) | Dropping a Future cancels it |
+| **Runtime** | Built into the language/VM | Built into the binary (M:N scheduler) | `asyncio` event loop (must be started) | You choose (tokio, smol, etc.) |
+| **Scheduling** | Automatic (thread pool) | Automatic (GMP scheduler) | Explicit (`await`, `create_task`) | Explicit (`spawn`, `block_on`) |
+| **Cancellation** | `CancellationToken` (cooperative) | `context.Context` (cooperative) | `Task.cancel()` (cooperative) | Drop the future (immediate) |
 ```rust
 // To actually RUN a future, you need an executor:
 #[tokio::main]
