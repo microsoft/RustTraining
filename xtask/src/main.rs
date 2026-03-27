@@ -361,34 +361,46 @@ fn cmd_serve() {
 
     for stream in listener.incoming() {
         let Ok(mut stream) = stream else { continue };
-        let mut buf = [0u8; 4096];
-        let n = stream.read(&mut buf).unwrap_or(0);
-        let request = String::from_utf8_lossy(&buf[..n]);
+        
+        // Clone the pathbuf so we can move it into the thread
+        let site_canon = site_canon.clone();
 
-        let path = request
-            .lines()
-            .next()
-            .and_then(|line| line.split_whitespace().nth(1))
-            .unwrap_or("/");
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 4096];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let request = String::from_utf8_lossy(&buf[..n]);
 
-        if let Some(file_path) = resolve_site_file(&site_canon, path) {
-            let body = fs::read(&file_path).unwrap_or_default();
-            let mime = guess_mime(&file_path);
-            let header = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(&body);
-        } else {
-            let body = b"404 Not Found";
-            let header = format!(
-                "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(body);
-        }
+            let path = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("/");
+
+            if let Some(file_path) = resolve_site_file(&site_canon, path) {
+                let body = std::fs::read(&file_path).unwrap_or_default();
+                let mime = guess_mime(&file_path);
+                
+                // ADDED: Connection: close
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(&body);
+            } else {
+                let body = b"404 Not Found";
+                
+                // ADDED: Connection: close
+                let header = format!(
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(body);
+            }
+        });
     }
 }
 
