@@ -1,6 +1,6 @@
 <div style="background-color: #d9d9d9; padding: 16px; border-radius: 6px; color: #000000;">
 
-**License** This project is dual-licensed under the [MIT License](LICENSE) and [Creative Commons Attribution 4.0 International (CC-BY-4.0)](LICENSE-DOCS).
+**License** This project is dual-licensed under the [MIT License](LICENSE) and [Creative Commons Attribution-ShareAlike 4.0 International (CC-BY-SA-4.0)](LICENSE-DOCS).
 
 </div>
 
