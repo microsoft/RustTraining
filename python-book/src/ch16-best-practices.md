@@ -7,10 +7,10 @@
 
 ```mermaid
 flowchart LR
-    A["🟢 Week 1-2\nFoundations\n'Why won't this compile?'"] --> B["🟡 Week 3-4\nCore Concepts\n'Oh, it's protecting me'"] 
-    B --> C["🟡 Month 2\nIntermediate\n'I see why this matters'"] 
-    C --> D["🔴 Month 3+\nAdvanced\n'Caught a bug at compile time!'"] 
-    D --> E["🏆 Month 6\nFluent\n'Better programmer everywhere'"]
+    A["🟢 Week 1-2<br>Foundations<br>'Why won't this compile?'"] --> B["🟡 Week 3-4<br>Core Concepts<br>'Oh, it's protecting me'"]
+    B --> C["🟡 Month 2<br>Intermediate<br>'I see why this matters'"]
+    C --> D["🔴 Month 3+<br>Advanced<br>'Caught a bug at compile time!'"]
+    D --> E["🏆 Month 6<br>Fluent<br>'Better programmer everywhere'"]
     style A fill:#d4edda
     style B fill:#fff3cd
     style C fill:#fff3cd

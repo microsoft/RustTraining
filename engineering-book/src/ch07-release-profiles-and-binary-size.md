@@ -252,13 +252,13 @@ cargo shear --fix
 ```mermaid
 flowchart TD
     START["Binary too large?"] --> STRIP{"strip = true?"}
-    STRIP -->|"No"| DO_STRIP["Add strip = true\n-50 to -70% size"]
+    STRIP -->|"No"| DO_STRIP["Add strip = true<br>-50 to -70% size"]
     STRIP -->|"Yes"| LTO{"LTO enabled?"}
-    LTO -->|"No"| DO_LTO["Add lto = true\ncodegen-units = 1"]
-    LTO -->|"Yes"| BLOAT["Run cargo-bloat\n--crates"]
+    LTO -->|"No"| DO_LTO["Add lto = true<br>codegen-units = 1"]
+    LTO -->|"Yes"| BLOAT["Run cargo-bloat<br>--crates"]
     BLOAT --> BIG_DEP{"Large dependency?"}
-    BIG_DEP -->|"Yes"| REPLACE["Replace with lighter\nalternative or disable\ndefault features"]
-    BIG_DEP -->|"No"| UDEPS["cargo-udeps\nRemove unused deps"]
+    BIG_DEP -->|"Yes"| REPLACE["Replace with lighter<br>alternative or disable<br>default features"]
+    BIG_DEP -->|"No"| UDEPS["cargo-udeps<br>Remove unused deps"]
     UDEPS --> OPT_LEVEL{"Need smaller?"}
     OPT_LEVEL -->|"Yes"| SIZE_OPT["opt-level = 's' or 'z'"]
 

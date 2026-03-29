@@ -374,17 +374,17 @@ implementation is complete — catching `cfg` mistakes early.
 flowchart TD
     START["Platform-specific code?"] --> HOW_MANY{"How many platforms?"}
     
-    HOW_MANY -->|"2 (Linux + Windows)"| CFG_BLOCKS["#[cfg] blocks\nin leaf functions"]
-    HOW_MANY -->|"3+"| TRAIT_APPROACH["Platform trait\n+ per-platform impl"]
-    
+    HOW_MANY -->|"2 (Linux + Windows)"| CFG_BLOCKS["#[cfg] blocks<br>in leaf functions"]
+    HOW_MANY -->|"3+"| TRAIT_APPROACH["Platform trait<br>+ per-platform impl"]
+
     CFG_BLOCKS --> WINAPI{"Need Windows APIs?"}
-    WINAPI -->|"Minimal"| WIN_SYS["windows-sys\nRaw FFI bindings"]
-    WINAPI -->|"Rich (COM, etc)"| WIN_RS["windows crate\nSafe idiomatic wrappers"]
-    WINAPI -->|"None\n(just #[cfg])"| NATIVE["cfg(windows)\ncfg(unix)"]
-    
-    TRAIT_APPROACH --> CI_CHECK["cargo-hack\n--each-feature"]
+    WINAPI -->|"Minimal"| WIN_SYS["windows-sys<br>Raw FFI bindings"]
+    WINAPI -->|"Rich (COM, etc)"| WIN_RS["windows crate<br>Safe idiomatic wrappers"]
+    WINAPI -->|"None<br>(just #[cfg])"| NATIVE["cfg(windows)<br>cfg(unix)"]
+
+    TRAIT_APPROACH --> CI_CHECK["cargo-hack<br>--each-feature"]
     CFG_BLOCKS --> CI_CHECK
-    CI_CHECK --> XCOMPILE["Cross-compile in CI\ncargo-xwin or\nnative runners"]
+    CI_CHECK --> XCOMPILE["Cross-compile in CI<br>cargo-xwin or<br>native runners"]
     
     style CFG_BLOCKS fill:#91e5a3,color:#000
     style TRAIT_APPROACH fill:#ffd43b,color:#000

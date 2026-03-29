@@ -381,11 +381,11 @@ done
 flowchart TD
     START["Need code coverage?"] --> ACCURACY{"Priority?"}
     
-    ACCURACY -->|"Most accurate"| LLVM["cargo-llvm-cov\nSource-based, compiler-native"]
-    ACCURACY -->|"Quick check"| TARP["cargo-tarpaulin\nLinux only, fast"]
-    ACCURACY -->|"Multi-run aggregate"| GRCOV["grcov\nMozilla, combines profiles"]
-    
-    LLVM --> CI_GATE["CI coverage gate\n--fail-under-lines 80"]
+    ACCURACY -->|"Most accurate"| LLVM["cargo-llvm-cov<br>Source-based, compiler-native"]
+    ACCURACY -->|"Quick check"| TARP["cargo-tarpaulin<br>Linux only, fast"]
+    ACCURACY -->|"Multi-run aggregate"| GRCOV["grcov<br>Mozilla, combines profiles"]
+
+    LLVM --> CI_GATE["CI coverage gate<br>--fail-under-lines 80"]
     TARP --> CI_GATE
     
     CI_GATE --> UPLOAD{"Upload to?"}

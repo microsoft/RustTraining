@@ -18,17 +18,17 @@ A single `GET /redfish/v1/Systems/1` response must fuse data from many sources:
 ```mermaid
 flowchart LR
     subgraph Sources
-        SMBIOS["SMBIOS\nType 1, Type 17"]
-        SDR["IPMI Sensors\n(SDR + readings)"]
-        SEL["IPMI SEL\n(critical events)"]
-        PCIe["PCIe Config\nSpace"]
-        FW["Firmware\nVersion Table"]
-        PWR["Power State\nRegister"]
+        SMBIOS["SMBIOS<br>Type 1, Type 17"]
+        SDR["IPMI Sensors<br>(SDR + readings)"]
+        SEL["IPMI SEL<br>(critical events)"]
+        PCIe["PCIe Config<br>Space"]
+        FW["Firmware<br>Version Table"]
+        PWR["Power State<br>Register"]
     end
 
     subgraph Server["Redfish Server"]
         Handler["GET handler"]
-        Builder["ComputerSystem\nBuilder"]
+        Builder["ComputerSystem<br>Builder"]
     end
 
     SMBIOS -->|"Name, UUID, Serial"| Handler
@@ -38,7 +38,7 @@ flowchart LR
     FW -->|"BIOS version"| Handler
     PWR -->|"PowerState"| Handler
     Handler --> Builder
-    Builder -->|".build()"| JSON["Schema-compliant\nJSON response"]
+    Builder -->|".build()"| JSON["Schema-compliant<br>JSON response"]
 
     style JSON fill:#c8e6c9,color:#000
     style Builder fill:#e1f5fe,color:#000

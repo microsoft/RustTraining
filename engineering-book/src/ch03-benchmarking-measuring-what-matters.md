@@ -440,13 +440,13 @@ criterion_main!(benches);
 flowchart TD
     START["Want to measure performance?"] --> WHAT{"What level?"}
 
-    WHAT -->|"Single function"| CRITERION["Criterion.rs\nStatistical, regression detection"]
-    WHAT -->|"Quick function check"| DIVAN["Divan\nLighter, attribute macros"]
-    WHAT -->|"Whole binary"| HYPERFINE["hyperfine\nEnd-to-end, wall-clock"]
-    WHAT -->|"Find hot spots"| PERF["perf + flamegraph\nCPU sampling profiler"]
+    WHAT -->|"Single function"| CRITERION["Criterion.rs<br>Statistical, regression detection"]
+    WHAT -->|"Quick function check"| DIVAN["Divan<br>Lighter, attribute macros"]
+    WHAT -->|"Whole binary"| HYPERFINE["hyperfine<br>End-to-end, wall-clock"]
+    WHAT -->|"Find hot spots"| PERF["perf + flamegraph<br>CPU sampling profiler"]
 
-    CRITERION --> CI_BENCH["Continuous benchmarking\nin GitHub Actions"]
-    PERF --> OPTIMIZE["Profile-Guided\nOptimization (PGO)"]
+    CRITERION --> CI_BENCH["Continuous benchmarking<br>in GitHub Actions"]
+    PERF --> OPTIMIZE["Profile-Guided<br>Optimization (PGO)"]
 
     style CRITERION fill:#91e5a3,color:#000
     style DIVAN fill:#91e5a3,color:#000

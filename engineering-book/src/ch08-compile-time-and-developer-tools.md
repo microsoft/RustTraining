@@ -418,14 +418,14 @@ pub fn get_battery_status() -> Option<u8> {
 flowchart TD
     START["Compile too slow?"] --> WHERE{"Where's the time?"}
 
-    WHERE -->|"Recompiling\nunchanged crates"| SCCACHE["sccache\nShared compilation cache"]
-    WHERE -->|"Linking phase"| MOLD["mold linker\n3-10× faster linking"]
-    WHERE -->|"Running tests"| NEXTEST["cargo-nextest\nParallel test runner"]
-    WHERE -->|"Everything"| COMBO["All of the above +\ncargo-udeps to trim deps"]
+    WHERE -->|"Recompiling<br>unchanged crates"| SCCACHE["sccache<br>Shared compilation cache"]
+    WHERE -->|"Linking phase"| MOLD["mold linker<br>3-10× faster linking"]
+    WHERE -->|"Running tests"| NEXTEST["cargo-nextest<br>Parallel test runner"]
+    WHERE -->|"Everything"| COMBO["All of the above +<br>cargo-udeps to trim deps"]
 
     SCCACHE --> CI_CACHE{"CI or local?"}
     CI_CACHE -->|"CI"| S3["S3/GCS shared cache"]
-    CI_CACHE -->|"Local"| LOCAL["Local disk cache\nauto-configured"]
+    CI_CACHE -->|"Local"| LOCAL["Local disk cache<br>auto-configured"]
 
     style SCCACHE fill:#91e5a3,color:#000
     style MOLD fill:#e3f2fd,color:#000

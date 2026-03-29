@@ -113,10 +113,10 @@ enum Message {
 
 ```mermaid
 flowchart TD
-    E["enum Message"] --> T["Text(String)\n🏷️ tag=0 + String data"]
-    E --> I["Image { url, width, height }\n🏷️ tag=1 + 3 fields"]
-    E --> Q["Quit\n🏷️ tag=2 + no data"]
-    E --> M["Move { x, y }\n🏷️ tag=3 + 2 fields"]
+    E["enum Message"] --> T["Text(String)<br>🏷️ tag=0 + String data"]
+    E --> I["Image { url, width, height }<br>🏷️ tag=1 + 3 fields"]
+    E --> Q["Quit<br>🏷️ tag=2 + no data"]
+    E --> M["Move { x, y }<br>🏷️ tag=3 + 2 fields"]
     style E fill:#d4edda,stroke:#28a745
     style T fill:#fff3cd
     style I fill:#fff3cd

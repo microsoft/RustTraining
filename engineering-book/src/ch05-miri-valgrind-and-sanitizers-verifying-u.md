@@ -575,15 +575,15 @@ Least overhead                                          Most thorough
 
 ```mermaid
 flowchart TD
-    START["Have unsafe code?"] -->|No| SAFE["Safe Rust — no\nverification needed"]
+    START["Have unsafe code?"] -->|No| SAFE["Safe Rust — no<br>verification needed"]
     START -->|Yes| KIND{"What kind?"}
-    
-    KIND -->|"Pure Rust unsafe"| MIRI["Miri\nMIR interpreter\ncatches aliasing, UB, leaks"]
-    KIND -->|"FFI / C interop"| VALGRIND["Valgrind memcheck\nor ASan"]
+
+    KIND -->|"Pure Rust unsafe"| MIRI["Miri<br>MIR interpreter<br>catches aliasing, UB, leaks"]
+    KIND -->|"FFI / C interop"| VALGRIND["Valgrind memcheck<br>or ASan"]
     KIND -->|"Concurrent unsafe"| CONC{"Lock-free?"}
-    
-    CONC -->|"Atomics/lock-free"| LOOM["loom\nModel checker for atomics"]
-    CONC -->|"Mutex/shared state"| TSAN["TSan or\nMiri -Zmiri-check-number-validity"]
+
+    CONC -->|"Atomics/lock-free"| LOOM["loom<br>Model checker for atomics"]
+    CONC -->|"Mutex/shared state"| TSAN["TSan or<br>Miri -Zmiri-check-number-validity"]
     
     MIRI --> CI_MIRI["CI: cargo +nightly miri test"]
     VALGRIND --> CI_VALGRIND["CI: valgrind --leak-check=full"]

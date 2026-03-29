@@ -300,14 +300,14 @@ No functional equivalent is cleaner. The loop with `match state` is the natural 
 flowchart TB
     START{What are you doing?}
 
-    START -->|"Transforming a collection\ninto another collection"| PIPE[Use iterator chain]
-    START -->|"Computing a single value\nfrom a collection"| AGG{How complex?}
-    START -->|"Multiple outputs from\none pass"| LOOP[Use a for loop]
-    START -->|"State machine with\nI/O or side effects"| LOOP
-    START -->|"One Option/Result\ntransform + default"| COMB[Use combinators]
+    START -->|"Transforming a collection<br>into another collection"| PIPE[Use iterator chain]
+    START -->|"Computing a single value<br>from a collection"| AGG{How complex?}
+    START -->|"Multiple outputs from<br>one pass"| LOOP[Use a for loop]
+    START -->|"State machine with<br>I/O or side effects"| LOOP
+    START -->|"One Option/Result<br>transform + default"| COMB[Use combinators]
 
-    AGG -->|"Sum, count, min, max"| BUILTIN["Use .sum(), .count(),\n.min(), .max()"]
-    AGG -->|"Custom accumulation"| FOLD{Accumulator has mutation\nor side effects?}
+    AGG -->|"Sum, count, min, max"| BUILTIN["Use .sum(), .count(),<br>.min(), .max()"]
+    AGG -->|"Custom accumulation"| FOLD{Accumulator has mutation<br>or side effects?}
     FOLD -->|"No"| FOLDF["Use .fold()"]
     FOLD -->|"Yes"| LOOP
 

@@ -317,10 +317,10 @@ unknown-git = "deny"
 
 ```mermaid
 flowchart LR
-    PR["Pull Request"] --> AUDIT["cargo audit\nKnown CVEs"]
-    AUDIT --> DENY["cargo deny check\nLicenses + Bans + Sources"]
-    DENY --> OUTDATED["cargo outdated\nWeekly schedule"]
-    OUTDATED --> SEMVER["cargo semver-checks\nLibrary crates only"]
+    PR["Pull Request"] --> AUDIT["cargo audit<br>Known CVEs"]
+    AUDIT --> DENY["cargo deny check<br>Licenses + Bans + Sources"]
+    DENY --> OUTDATED["cargo outdated<br>Weekly schedule"]
+    OUTDATED --> SEMVER["cargo semver-checks<br>Library crates only"]
     
     AUDIT -->|"Fail"| BLOCK["❌ Block merge"]
     DENY -->|"Fail"| BLOCK

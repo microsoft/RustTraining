@@ -194,10 +194,10 @@ flowchart TD
 
 ```mermaid
 graph TD
-    AE["AppError (enum)"] --> NF["NotFound\n{ entity, id }"]
-    AE --> VE["Validation\n{ field, message }"]
-    AE --> IO["Io(std::io::Error)\n#[from]"]
-    AE --> JSON["Json(serde_json::Error)\n#[from]"]
+    AE["AppError (enum)"] --> NF["NotFound<br>{ entity, id }"]
+    AE --> VE["Validation<br>{ field, message }"]
+    AE --> IO["Io(std::io::Error)<br>#[from]"]
+    AE --> JSON["Json(serde_json::Error)<br>#[from]"]
     IO2["std::io::Error"] -->|"auto-convert via From"| IO
     JSON2["serde_json::Error"] -->|"auto-convert via From"| JSON
     style AE fill:#d4edda,stroke:#28a745

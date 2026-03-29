@@ -191,12 +191,12 @@ fn main() {
 ```mermaid
 flowchart LR
     subgraph Python ["Python Object (Heap)"]
-        PH["PyObject Header\n(refcount + type ptr)"] --> PW["width: float obj"]
+        PH["PyObject Header<br>(refcount + type ptr)"] --> PW["width: float obj"]
         PH --> PHT["height: float obj"]
         PH --> PD["__dict__"]
     end
     subgraph Rust ["Rust Struct (Stack)"]
-        RW["width: f64\n(8 bytes)"] --- RH["height: f64\n(8 bytes)"]
+        RW["width: f64<br>(8 bytes)"] --- RH["height: f64<br>(8 bytes)"]
     end
     style Python fill:#ffeeba
     style Rust fill:#d4edda

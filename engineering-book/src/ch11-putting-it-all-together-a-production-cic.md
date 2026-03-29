@@ -545,27 +545,27 @@ shows your release targets. You now have a production-grade Rust pipeline.
 ```mermaid
 flowchart LR
     subgraph "Stage 1 — Fast Feedback < 2 min"
-        CHECK["cargo check\ncargo clippy\ncargo fmt"]
+        CHECK["cargo check<br>cargo clippy<br>cargo fmt"]
     end
 
     subgraph "Stage 2 — Tests < 5 min"
-        TEST["cargo nextest\ncargo test --doc"]
+        TEST["cargo nextest<br>cargo test --doc"]
     end
 
     subgraph "Stage 3 — Coverage"
-        COV["cargo llvm-cov\nfail-under 80%"]
+        COV["cargo llvm-cov<br>fail-under 80%"]
     end
 
     subgraph "Stage 4 — Security"
-        SEC["cargo audit\ncargo deny check"]
+        SEC["cargo audit<br>cargo deny check"]
     end
 
     subgraph "Stage 5 — Cross-Build"
-        CROSS["musl static\naarch64 + x86_64"]
+        CROSS["musl static<br>aarch64 + x86_64"]
     end
 
     subgraph "Stage 6 — Release (tag only)"
-        REL["cargo dist\nGitHub Release"]
+        REL["cargo dist<br>GitHub Release"]
     end
 
     CHECK --> TEST --> COV --> SEC --> CROSS --> REL

@@ -315,7 +315,7 @@ fn sensor_workflow() -> io::Result<()> {
 flowchart LR
     N["Nonce::new()"] -->|move| E["encrypt(nonce, msg)"]
     E -->|consumed| X["❌ nonce gone"]
-    N -.->|"reuse attempt"| ERR["COMPILE ERROR:\nuse of moved value"]
+    N -.->|"reuse attempt"| ERR["COMPILE ERROR:<br>use of moved value"]
     style N fill:#e1f5fe,color:#000
     style E fill:#c8e6c9,color:#000
     style X fill:#ffcdd2,color:#000

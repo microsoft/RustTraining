@@ -352,18 +352,18 @@ cargo check --target riscv32imac-unknown-none-elf  # RISC-V
 
 ```mermaid
 flowchart TD
-    START["Does your code need\nthe standard library?"] --> NEED_FS{"File system,\nnetwork, threads?"}
-    NEED_FS -->|"Yes"| USE_STD["Use std\nNormal application"]
-    NEED_FS -->|"No"| NEED_HEAP{"Need heap allocation?\nVec, String, Box"}
-    NEED_HEAP -->|"Yes"| USE_ALLOC["#![no_std]\nextern crate alloc"]
-    NEED_HEAP -->|"No"| USE_CORE["#![no_std]\ncore only"]
-    
-    USE_ALLOC --> VERIFY["cargo-hack\n--each-feature"]
+    START["Does your code need<br>the standard library?"] --> NEED_FS{"File system,<br>network, threads?"}
+    NEED_FS -->|"Yes"| USE_STD["Use std<br>Normal application"]
+    NEED_FS -->|"No"| NEED_HEAP{"Need heap allocation?<br>Vec, String, Box"}
+    NEED_HEAP -->|"Yes"| USE_ALLOC["#![no_std]<br>extern crate alloc"]
+    NEED_HEAP -->|"No"| USE_CORE["#![no_std]<br>core only"]
+
+    USE_ALLOC --> VERIFY["cargo-hack<br>--each-feature"]
     USE_CORE --> VERIFY
     USE_STD --> VERIFY
     VERIFY --> TARGET{"Target has OS?"}
-    TARGET -->|"Yes"| HOST_TEST["cargo test --lib\nStandard testing"]
-    TARGET -->|"No"| CROSS_TEST["QEMU / defmt-test\nOn-device testing"]
+    TARGET -->|"Yes"| HOST_TEST["cargo test --lib<br>Standard testing"]
+    TARGET -->|"No"| CROSS_TEST["QEMU / defmt-test<br>On-device testing"]
     
     style USE_STD fill:#91e5a3,color:#000
     style USE_ALLOC fill:#ffd43b,color:#000

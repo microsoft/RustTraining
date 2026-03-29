@@ -544,13 +544,13 @@ flowchart TD
     START["Need compile-time work?"] -->|No| SKIP["No build.rs needed"]
     START -->|Yes| WHAT{"What kind?"}
     
-    WHAT -->|"Embed metadata"| P1["Pattern 1\nCompile-Time Constants"]
-    WHAT -->|"Compile C/C++"| P2["Pattern 2\ncc crate"]
-    WHAT -->|"Code generation"| P3["Pattern 3\nprost-build / tonic-build"]
-    WHAT -->|"Link system lib"| P4["Pattern 4\npkg-config"]
-    WHAT -->|"Detect features"| P5["Pattern 5\ncfg flags"]
-    
-    P1 --> RERUN["Always emit\ncargo::rerun-if-changed"]
+    WHAT -->|"Embed metadata"| P1["Pattern 1<br>Compile-Time Constants"]
+    WHAT -->|"Compile C/C++"| P2["Pattern 2<br>cc crate"]
+    WHAT -->|"Code generation"| P3["Pattern 3<br>prost-build / tonic-build"]
+    WHAT -->|"Link system lib"| P4["Pattern 4<br>pkg-config"]
+    WHAT -->|"Detect features"| P5["Pattern 5<br>cfg flags"]
+
+    P1 --> RERUN["Always emit<br>cargo::rerun-if-changed"]
     P2 --> RERUN
     P3 --> RERUN
     P4 --> RERUN

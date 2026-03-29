@@ -793,8 +793,8 @@ combination — is two-dimensional:
 block-beta
     columns 4
     space header1["Locked"] header2["Unlocked"] header3["ExtendedUnlocked"]
-    basic["Basic Vendor"]:1 b1["unlock()"] b2["read_reg()\nwrite_reg()"] b3["— unreachable —"]
-    memory["Memory Vendor"]:1 m1["unlock()"] m2["read_reg()\nwrite_reg()\nextended_unlock()"] m3["read_reg()\nwrite_reg()\nread_memory()\nwrite_memory()"]
+    basic["Basic Vendor"]:1 b1["unlock()"] b2["read_reg()<br>write_reg()"] b3["— unreachable —"]
+    memory["Memory Vendor"]:1 m1["unlock()"] m2["read_reg()<br>write_reg()<br>extended_unlock()"] m3["read_reg()<br>write_reg()<br>read_memory()<br>write_memory()"]
 
     style b1 fill:#ffd,stroke:#aa0
     style b2 fill:#efe,stroke:#3a3

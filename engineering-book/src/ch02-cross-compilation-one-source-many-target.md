@@ -417,17 +417,17 @@ linker = "musl-gcc"
 flowchart TD
     START["Need to cross-compile?"] --> STATIC{"Static binary?"}
     
-    STATIC -->|Yes| MUSL["musl target\n--target x86_64-unknown-linux-musl"]
+    STATIC -->|Yes| MUSL["musl target<br>--target x86_64-unknown-linux-musl"]
     STATIC -->|No| GLIBC{"Need old glibc?"}
-    
-    GLIBC -->|Yes| ZIG["cargo-zigbuild\n--target x86_64-unknown-linux-gnu.2.17"]
+
+    GLIBC -->|Yes| ZIG["cargo-zigbuild<br>--target x86_64-unknown-linux-gnu.2.17"]
     GLIBC -->|No| ARCH{"Target arch?"}
-    
-    ARCH -->|"Same arch"| NATIVE["Native toolchain\nrustup target add + linker"]
+
+    ARCH -->|"Same arch"| NATIVE["Native toolchain<br>rustup target add + linker"]
     ARCH -->|"ARM/other"| DOCKER{"Docker available?"}
-    
-    DOCKER -->|Yes| CROSS["cross build\nDocker-based, zero setup"]
-    DOCKER -->|No| MANUAL["Manual sysroot\napt install gcc-aarch64-linux-gnu"]
+
+    DOCKER -->|Yes| CROSS["cross build<br>Docker-based, zero setup"]
+    DOCKER -->|No| MANUAL["Manual sysroot<br>apt install gcc-aarch64-linux-gnu"]
     
     style MUSL fill:#91e5a3,color:#000
     style ZIG fill:#91e5a3,color:#000

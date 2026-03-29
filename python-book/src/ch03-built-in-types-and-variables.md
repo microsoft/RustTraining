@@ -102,13 +102,13 @@ fn main() {
 ```mermaid
 flowchart LR
     subgraph Python ["Python Types"]
-        PI["int\n(arbitrary precision)"] 
-        PF["float\n(64-bit only)"]
+        PI["int<br>(arbitrary precision)"]
+        PF["float<br>(64-bit only)"]
         PB["bool"]
-        PS["str\n(Unicode)"]
+        PS["str<br>(Unicode)"]
     end
     subgraph Rust ["Rust Types"]
-        RI["i8 / i16 / i32 / i64 / i128\nu8 / u16 / u32 / u64 / u128"]
+        RI["i8 / i16 / i32 / i64 / i128<br>u8 / u16 / u32 / u64 / u128"]
         RF["f32 / f64"]
         RB["bool"]
         RS["String / &str"]

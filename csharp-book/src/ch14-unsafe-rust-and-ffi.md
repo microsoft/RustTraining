@@ -104,12 +104,12 @@ Rust can expose C-compatible functions that C# can call via P/Invoke.
 ```mermaid
 graph LR
     subgraph "C# Process"
-        CS["C# Code"] -->|"P/Invoke"| MI["Marshal Layer\nUTF-16 → UTF-8\nstruct layout"]
+        CS["C# Code"] -->|"P/Invoke"| MI["Marshal Layer<br>UTF-16 → UTF-8<br>struct layout"]
     end
     MI -->|"C ABI call"| FFI["FFI Boundary"]
     subgraph "Rust cdylib (.so / .dll)"
-        FFI --> RF["extern \"C\" fn\n#[no_mangle]"]
-        RF --> Safe["Safe Rust\ninternals"]
+        FFI --> RF["extern \"C\" fn<br>#[no_mangle]"]
+        RF --> Safe["Safe Rust<br>internals"]
     end
 
     style FFI fill:#fff9c4,color:#000

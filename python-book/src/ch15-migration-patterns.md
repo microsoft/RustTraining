@@ -252,10 +252,10 @@ let db_host = get_config()["database"]["host"].as_str().unwrap();
 
 ```mermaid
 flowchart LR
-    A["1️⃣ Profile Python\n(find hotspots)"] --> B["2️⃣ Write Rust Extension\n(PyO3 + maturin)"]
-    B --> C["3️⃣ Replace Python Call\n(same API)"]
-    C --> D["4️⃣ Expand Gradually\n(more functions)"]
-    D --> E{"Full rewrite\nworth it?"}
+    A["1️⃣ Profile Python<br>(find hotspots)"] --> B["2️⃣ Write Rust Extension<br>(PyO3 + maturin)"]
+    B --> C["3️⃣ Replace Python Call<br>(same API)"]
+    C --> D["4️⃣ Expand Gradually<br>(more functions)"]
+    D --> E{"Full rewrite<br>worth it?"}
     E -->|Yes| F["Pure Rust🦀"]
     E -->|No| G["Hybrid🐍+🦀"]
     style A fill:#ffeeba

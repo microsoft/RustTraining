@@ -12,11 +12,11 @@ This capstone pulls together concepts from every part of the book. You'll build 
 
 ```mermaid
 graph TD
-    CLI["main.rs\nclap CLI parser"] --> Client["client.rs\nreqwest + tokio"]
+    CLI["main.rs<br>clap CLI parser"] --> Client["client.rs<br>reqwest + tokio"]
     Client -->|"HTTP GET"| API["Weather API"]
-    Client -->|"JSON → struct"| Model["weather.rs\nserde Deserialize"]
-    Model --> Display["display.rs\nfmt::Display"]
-    CLI --> Err["error.rs\nthiserror"]
+    Client -->|"JSON → struct"| Model["weather.rs<br>serde Deserialize"]
+    Model --> Display["display.rs<br>fmt::Display"]
+    CLI --> Err["error.rs<br>thiserror"]
     Client --> Err
 
     style CLI fill:#bbdefb,color:#000
