@@ -50,6 +50,8 @@ fn main() {
 ```
 
 </details>
+
+
 ## Workspaces and crates (packages)
 
 - Any significant Rust project should use workspaces to organize component crates
