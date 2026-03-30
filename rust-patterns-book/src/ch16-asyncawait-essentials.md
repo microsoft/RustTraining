@@ -37,11 +37,10 @@ async fn fetch_data(url: &str) -> Result<Vec<u8>, reqwest::Error> {
 ### Tokio Quick Start
 
 ```toml
-```
-
 # Cargo.toml
 [dependencies]
 tokio = { version = "1", features = ["full"] }
+```
 
 ```rust,ignore
 use tokio::time::{sleep, Duration};
