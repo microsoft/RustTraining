@@ -133,7 +133,7 @@ let result: Vec<i32> = numbers
     .filter(|&n| n > 10)             // Filter > 10
     .collect::<Vec<_>>()             // Collect to Vec
     .into_iter()
-    .rev()                           // Reverse (descending sort)
+    .rev()                           // Reverse iteration order
     .take(3)                         // Take first 3
     .collect();                      // Materialize
 

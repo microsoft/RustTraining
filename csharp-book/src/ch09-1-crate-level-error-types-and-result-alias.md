@@ -38,6 +38,9 @@ pub type Result<T> = std::result::Result<T, AppError>;
 ```rust
 use crate::error::{AppError, Result};
 
+// Assumes a database pool is available, e.g.:
+// async fn get_user(pool: &PgPool, id: Uuid) -> Result<User>
+// Here we show the pattern with `pool` as shorthand.
 pub async fn get_user(id: Uuid) -> Result<User> {
     let user = sqlx::query_as!(User, "SELECT * FROM users WHERE id = $1", id)
         .fetch_optional(&pool)

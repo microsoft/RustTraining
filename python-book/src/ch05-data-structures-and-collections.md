@@ -218,7 +218,7 @@ flowchart LR
 | `__add__` | `impl Add` | `+` operator |
 | `__iter__` | `impl Iterator` | Iteration |
 | `__len__` | `.len()` method | Length |
-| `__enter__`/`__exit__` | `impl Drop` | Cleanup (automatic in Rust) |
+| `__enter__`/`__exit__` | RAII + `impl Drop` | Automatic cleanup; no direct equivalent of context manager's two-phase protocol |
 | `__init__` | `fn new()` (convention) | Constructor |
 | `__getitem__` | `impl Index` | Indexing with `[]` |
 | `__contains__` | `.contains()` method | `in` operator |
@@ -339,7 +339,7 @@ let index = nums.iter().position(|&x| x == 3); // Some(index) or None
 | `lst.extend(other)` | `vec.extend(other)` | |
 | `lst.pop()` | `vec.pop()` | Returns `Option<T>` |
 | `lst.insert(i, x)` | `vec.insert(i, x)` | |
-| `lst.remove(x)` | `vec.retain(\|v\| v != &x)` | |
+| `lst.remove(x)` | `vec.iter().position(\|v\| v == &x).map(\|i\| vec.remove(i))` | Removes first match only (use `retain` to remove all) |
 | `del lst[i]` | `vec.remove(i)` | Returns the removed element |
 | `len(lst)` | `vec.len()` | |
 | `x in lst` | `vec.contains(&x)` | |

@@ -326,17 +326,15 @@ var result = users
 
 ```rust
 // Rust: Iterator chains (zero-cost!)
-let result: Vec<String> = users
+let mut result: Vec<String> = users
     .iter()
     .filter(|u| u.age > 18)
     .map(|u| u.name.to_uppercase())
-    .collect::<Vec<_>>()
-    .into_iter()
-    .sorted()
-    .take(10)
     .collect();
+result.sort();
+result.truncate(10);
 
-// Or with itertools crate for more LINQ-like operations
+// Or with itertools crate for more LINQ-like chaining
 use itertools::Itertools;
 
 let result: Vec<String> = users

@@ -31,7 +31,7 @@ enum Result<T, E> {
 # Rust Option type
 - The Rust ```Option``` type is an ```enum``` with only two variants: ```Some<T>``` and ```None```
     - The idea is that this represents a ```nullable``` type, i.e., it either contains a valid value of that type (```Some<T>```), or has no valid value (```None```)
-    - The ```Option``` type is used in APIs result of an operation either succeeds and returns a valid value or it fails (but the specific error is irrelevant). For example, consider parsing a string for an integer value
+    - The ```Option``` type is used in APIs where the result of an operation either succeeds and returns a valid value or it fails (but the specific error is irrelevant). For example, consider parsing a string for an integer value
 ```rust
 fn main() {
     // Returns Option<usize>

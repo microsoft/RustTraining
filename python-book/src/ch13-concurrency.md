@@ -260,6 +260,7 @@ asyncio.run(main())
 // Rust — tokio for concurrent I/O (and CPU parallelism!)
 use reqwest;
 use tokio;
+use futures::future::join_all;  // add `futures` to Cargo.toml
 
 async fn fetch_url(url: &str) -> Result<String, reqwest::Error> {
     reqwest::get(url).await?.text().await
@@ -367,6 +368,7 @@ struct ImageResult {
 
 fn process_image(path: &str) -> Result<ImageResult, image::ImageError> {
     let img = image::open(path)?;
+    // Application-specific functions (implement for your use case)
     let histogram = compute_histogram(&img);       // ~50ms (no numpy overhead)
     let edges = detect_edges(&img);                // ~40ms (SIMD-optimized)
     let label = classify(&edges);                  // ~20ms

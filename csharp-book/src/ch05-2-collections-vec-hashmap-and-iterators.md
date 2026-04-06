@@ -127,7 +127,7 @@ public int SafeAccess(List<int> list, int index)
 
 ```rust
 // Rust - Option-based safe access
-fn safe_access(vec: &Vec<i32>, index: usize) -> Option<i32> {
+fn safe_access(vec: &[i32], index: usize) -> Option<i32> {
     vec.get(index).copied()  // Returns Option<i32>
 }
 

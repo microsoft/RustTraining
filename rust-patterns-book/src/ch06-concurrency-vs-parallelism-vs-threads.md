@@ -443,7 +443,7 @@ impl<T: Copy> SeqLock<T> {
 > - Use `OnceLock`/`LazyLock` instead of `lazy_static!`; use `Mutex` before reaching for atomics
 > - Lock-free code is hard — prefer proven crates over hand-rolled implementations
 
-> **See also:** [Ch 5 — Channels](ch05-channels-and-message-passing.md) for message-passing concurrency. [Ch 8 — Smart Pointers](ch08-smart-pointers-and-interior-mutability.md) for Arc/Rc details.
+> **See also:** [Ch 5 — Channels](ch05-channels-and-message-passing.md) for message-passing concurrency. [Ch 8 — Smart Pointers](ch09-smart-pointers-and-interior-mutability.md) for Arc/Rc details.
 
 ```mermaid
 flowchart TD

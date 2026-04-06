@@ -311,7 +311,7 @@ fn main() {
 > - Use it for lifetime branding, variance control, and unit-of-measure patterns
 > - Drop check: `PhantomData<T>` tells the compiler your type logically owns a `T`
 
-> **See also:** [Ch 3 — Newtype & Type-State](ch03-the-newtype-and-type-state-patterns.md) for type-state patterns that use PhantomData. [Ch 11 — Unsafe Rust](ch11-unsafe-rust-controlled-danger.md) for how PhantomData interacts with raw pointers.
+> **See also:** [Ch 3 — Newtype & Type-State](ch03-the-newtype-and-type-state-patterns.md) for type-state patterns that use PhantomData. [Ch 11 — Unsafe Rust](ch12-unsafe-rust-controlled-danger.md) for how PhantomData interacts with raw pointers.
 
 ---
 

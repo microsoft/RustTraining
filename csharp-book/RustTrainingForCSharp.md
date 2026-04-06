@@ -1114,11 +1114,21 @@ impl fmt::Display for UserError {
 
 impl std::error::Error for UserError {}
 
+#[derive(Debug, Clone)]
+pub struct User {
+    pub name: String,
+    pub email: Option<String>,
+}
+
 pub struct UserService {
-    // database connection, etc.
+    users: Vec<User>,  // Simulated database
 }
 
 impl UserService {
+    fn database_find_user(&self, user_id: i32) -> Option<User> {
+        self.users.get(user_id as usize).cloned()
+    }
+
     pub fn get_user(&self, user_id: i32) -> Result<User, UserError> {
         if user_id <= 0 {
             return Err(UserError::InvalidId(user_id));

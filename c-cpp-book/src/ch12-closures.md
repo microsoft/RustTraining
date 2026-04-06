@@ -64,7 +64,7 @@ fn main() {
 </details>
 
 # Rust iterators
-- Iterators are one of the most powerful features of Rust. They enable very elegant methods for perform operations on collections, including filtering (```filter()```), transformation (```map()```), filter and map (```filter_and_map()```), searching (```find()```) and much more
+- Iterators are one of the most powerful features of Rust. They enable very elegant methods for performing operations on collections, including filtering (```filter()```), transformation (```map()```), filter and map (```filter_map()```), searching (```find()```) and much more
 - In the example below, the ```|&x| *x >= 42``` is a closure that performs the same comparison. The ```|x| println!("{x}")``` is another closure
 ```rust
 fn main() {
@@ -355,7 +355,7 @@ fn main() {
 ----
 
 # Rust iterators
-- The ```Iterator``` trait is used to implement iteration over user defined types (https://doc.rust-lang.org/std/iter/trait.IntoIterator.html)
+- The ```Iterator``` trait is used to implement iteration over user-defined types (https://doc.rust-lang.org/std/iter/trait.IntoIterator.html)
     - In the example, we'll implement an iterator for the Fibonacci sequence, which starts with 1, 1, 2, ... and the successor is the sum of the previous two numbers
     - The ```associated type``` in the ```Iterator``` (```type Item = u32;```) defines the output type from our iterator (```u32```)
     - The ```next()``` method simply contains the logic for implementing our iterator. In this case, all state information is available in the ```Fibonacci``` structure

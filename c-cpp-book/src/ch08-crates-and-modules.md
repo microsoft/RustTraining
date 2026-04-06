@@ -5,7 +5,7 @@
 - Modules are the fundamental organizational unit of code within crates
     - Each source file (.rs) is its own module, and can create nested modules using the ```mod``` keyword.
     - All types in a (sub-) module are **private** by default, and aren't externally visible within the same crate unless they are explicitly marked as ```pub``` (public). The scope of ```pub``` can be further restricted to ```pub(crate)```, etc
-    - Even if an type is public, it doesn't automatically become visible within the scope of another module unless it's imported using the ```use``` keyword. Child submodules can reference types in the parent scope using the ```use super::```
+    - Even if a type is public, it doesn't automatically become visible within the scope of another module unless it's imported using the ```use``` keyword. Child submodules can reference types in the parent scope using the ```use super::```
     - Source files (.rs) aren't automatically included in the crate **unless** they are explicitly listed in ```main.rs``` (executable) or ```lib.rs```
 
 # Exercise: Modules and functions
@@ -50,6 +50,8 @@ fn main() {
 ```
 
 </details>
+
+
 ## Workspaces and crates (packages)
 
 - Any significant Rust project should use workspaces to organize component crates
@@ -154,7 +156,7 @@ fn main() {
 # Using community crates from crates.io
 - Rust has a vibrant ecosystem of community crates (see https://crates.io/)
     - The Rust philosophy is to keep the standard library compact and outsource functionality to community crates
-    - There is no hard and fast rule about using community crates, but the rule of thumb should be ensure that the crate has a decent maturity level (indicated by the version number), and that it's being actively maintained. Reach out to internal sources if in doubt about a crate
+    - There is no hard and fast rule about using community crates, but the rule of thumb should be to ensure that the crate has a decent maturity level (indicated by the version number), and that it's being actively maintained. Reach out to internal sources if in doubt about a crate
 - Every crate published on ```crates.io``` has a major and minor version
     - Crates are expected to observe the major and minor ```SemVer``` guidelines defined here: https://doc.rust-lang.org/cargo/reference/semver.html
     - The TL;DR version is that there should be no breaking changes for the same minor version. For example, v0.11 must be compatible with v0.15 (but v0.20 may have breaking changes)

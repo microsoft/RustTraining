@@ -1,4 +1,4 @@
-# 9. Error Handling Patterns 🟢
+# 10. Error Handling Patterns 🟢
 
 > **What you'll learn:**
 > - When to use `thiserror` (libraries) vs `anyhow` (applications)
@@ -188,7 +188,7 @@ match result {
 > - `#[from]` auto-generates `From` impls; `.context()` adds human-readable wrappers
 > - `?` desugars to `From::from()` + early return; works in `main()` returning `Result`
 
-> **See also:** [Ch 14 — API Design](ch14-crate-architecture-and-api-design.md) for "parse, don't validate" patterns. [Ch 10 — Serialization](ch10-serialization-zero-copy-and-binary-data.md) for serde error handling.
+> **See also:** [Ch 14 — API Design](ch15-crate-architecture-and-api-design.md) for "parse, don't validate" patterns. [Ch 11 — Serialization](ch11-serialization-zero-copy-and-binary-data.md) for serde error handling.
 
 ```mermaid
 flowchart LR

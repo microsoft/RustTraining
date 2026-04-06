@@ -26,7 +26,7 @@ fn main() {
 - The Rust ```match``` is the equivalent of the C "switch" on steroids
     - ```match``` can be used for pattern matching on simple data types, ```struct```, ```enum```
     - The ```match``` statement must be exhaustive, i.e., they must cover all possible cases for a given ```type```. The ```_``` can be used a wildcard for the "all else" case
-    - ```match``` can yield a value, but all arms (```=>```) of must return a value of the same type
+    - ```match``` can yield a value, but all arms (```=>```) must return a value of the same type
 
 ```rust
 fn main() {

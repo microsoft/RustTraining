@@ -148,7 +148,7 @@ async fn pipeline(url: &str) -> Result<usize, Error> {
 <details>
 <summary>🔑 Solution</summary>
 
-Four states:
+Five states:
 
 1. **Start** — stores `url`
 2. **WaitingFetch** — stores `url`, `fetch` future

@@ -68,7 +68,7 @@ fn main() {
 1. **No classes required** - Functions can exist at the top level
 2. **No namespaces** - Uses module system instead
 3. **`println!` is a macro** - Notice the `!` 
-4. **No semicolon after println!** - Expression vs statement
+4. **Semicolons matter** - Omitting the trailing semicolon turns a statement into a return expression
 5. **No explicit return type** - `main` returns `()` (unit type)
 
 ### Creating Your First Project

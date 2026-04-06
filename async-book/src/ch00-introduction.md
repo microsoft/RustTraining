@@ -84,11 +84,12 @@ Every content chapter has an inline exercise. The capstone (Ch 16) integrates ev
 - [11. Streams and AsyncIterator](ch11-streams-and-asynciterator.md) 🟡 — Async iteration, AsyncRead/Write, stream combinators
 - [12. Common Pitfalls](ch12-common-pitfalls.md) 🔴 — 9 production bugs and how to avoid them
 - [13. Production Patterns](ch13-production-patterns.md) 🔴 — Graceful shutdown, backpressure, Tower middleware
+- [14. Async Is an Optimization, Not an Architecture](ch14-async-is-an-optimization-not-an-architecture.md) 🔴 — Sync core / async shell, the function coloring tax
 
 ### Appendices
 
-- [Summary and Reference Card](ch15-summary-and-reference-card.md) — Quick-lookup tables and decision trees
-- [Capstone Project: Async Chat Server](ch16-capstone-project.md) — Build a complete async application
+- [Summary and Reference Card](ch16-summary-and-reference-card.md) — Quick-lookup tables and decision trees
+- [Capstone Project: Async Chat Server](ch17-capstone-project.md) — Build a complete async application
 
 ***
 

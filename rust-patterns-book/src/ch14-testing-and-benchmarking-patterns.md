@@ -1,4 +1,4 @@
-# 13. Testing and Benchmarking Patterns 🟢
+# 14. Testing and Benchmarking Patterns 🟢
 
 > **What you'll learn:**
 > - Rust's three test tiers: unit, integration, and doc tests
@@ -318,7 +318,7 @@ mod tests {
 > - `criterion` provides statistically rigorous benchmarks with HTML reports
 > - Mock via trait generics + test doubles, not mock frameworks
 
-> **See also:** [Ch 12 — Macros](ch12-macros-code-that-writes-code.md) for testing macro-generated code. [Ch 14 — API Design](ch14-crate-architecture-and-api-design.md) for how module layout affects test organization.
+> **See also:** [Ch 12 — Macros](ch13-macros-code-that-writes-code.md) for testing macro-generated code. [Ch 14 — API Design](ch15-crate-architecture-and-api-design.md) for how module layout affects test organization.
 
 ---
 

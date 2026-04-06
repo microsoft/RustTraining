@@ -267,7 +267,7 @@ fn main() {
 > - `select!` replaces complex multi-source polling with declarative channel selection
 > - Bounded channels provide natural backpressure; unbounded channels risk OOM
 
-> **See also:** [Ch 6 — Concurrency](ch06-concurrency-vs-parallelism-vs-threads.md) for threads, Mutex, and shared state. [Ch 15 — Async](ch15-asyncawait-essentials.md) for async channels (`tokio::sync::mpsc`).
+> **See also:** [Ch 6 — Concurrency](ch06-concurrency-vs-parallelism-vs-threads.md) for threads, Mutex, and shared state. [Ch 15 — Async](ch16-asyncawait-essentials.md) for async channels (`tokio::sync::mpsc`).
 
 ---
 
@@ -276,7 +276,7 @@ fn main() {
 Build a worker pool using channels where:
 - A dispatcher sends `Job` structs through a channel
 - N workers consume jobs and send results back
-- Use `std::sync::mpsc` with `Arc<Mutex<Receiver>>` for work-stealing
+- Use `std::sync::mpsc` with `Arc<Mutex<Receiver>>` for a shared work queue
 
 <details>
 <summary>🔑 Solution</summary>

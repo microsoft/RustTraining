@@ -92,13 +92,13 @@ trait DynDataStore {
 
 ```rust
 trait Worker {
-    async fn run(&self); // Future might or might not be Send
+    async fn run(self); // Future might or might not be Send
 }
 
 struct MyWorker;
 
 impl Worker for MyWorker {
-    async fn run(&self) {
+    async fn run(self) {
         // If this uses !Send types, the future is !Send
         let rc = std::rc::Rc::new(42);
         some_work().await;
@@ -106,8 +106,12 @@ impl Worker for MyWorker {
     }
 }
 
-// ❌ This fails if the future isn't Send:
+// ❌ This fails because the future is !Send (Rc is !Send):
 // tokio::spawn(worker.run()); // Requires Send + 'static
+//
+// Note: We use `self` (owned) here because tokio::spawn also
+// requires 'static — a future borrowing &self can't be 'static.
+// Even without Rc, `async fn run(&self)` wouldn't be spawnable.
 ```
 
 ### The trait_variant Crate

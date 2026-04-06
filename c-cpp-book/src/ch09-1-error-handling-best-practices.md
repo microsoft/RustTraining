@@ -98,7 +98,7 @@ Let's break down what's happening here. `ConfigError` has just **two variants** 
 | `FileRead(io::Error)` | The original I/O error | `#[from]` auto-converts via `?` |
 | `Invalid { message }` | A human-readable explanation | Your validation code |
 
-Now you can Write functions that return `Result<T, ConfigError>`:
+Now you can write functions that return `Result<T, ConfigError>`:
 
 ```rust
 fn read_config(path: &str) -> Result<String, ConfigError> {

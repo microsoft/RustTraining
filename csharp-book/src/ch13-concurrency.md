@@ -79,6 +79,8 @@ public class EventProcessor
         {
             DataReceived(data);
         }
+        // Modern C# (6+) mitigates the null race with: DataReceived?.Invoke(data);
+        // but the underlying event-delegate model still allows races on the list below
         
         // Another race condition - list not thread-safe
         eventLog.Add($"Processed: {data}");

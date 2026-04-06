@@ -68,7 +68,7 @@ Python:                                 Rust:
 - Errors are exceptions (thrown)        - Errors are values (returned)
 - Hidden control flow (stack unwinding) - Explicit control flow (? operator)
 - Can't tell what errors from signature- MUST see errors in return type
-- Uncaught exceptions crash at runtime - Unhandled Results are compile warnings
+- Uncaught exceptions crash at runtime - Unhandled Results produce compile warnings (always handle them)
 - try/except is optional               - Handling Result is required
 - Broad except catches everything      - match arms are exhaustive
 ```

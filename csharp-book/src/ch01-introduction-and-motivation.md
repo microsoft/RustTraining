@@ -142,11 +142,12 @@ public class UserService
         //     Could be null at runtime
     }
     
-    // Even with nullable reference types (C# 8+)
+    // Nullable reference types (C# 8+) help, but nulls can still slip through
     public string GetDisplayName(User? user)
     {
         return user?.Profile?.DisplayName?.ToUpper() ?? "Unknown";
-        // Still possible to have null at runtime
+        // This specific line is null-safe thanks to ?. and ??,
+        // but NRTs are advisory — the compiler can be overridden with `!`
     }
 }
 ```
@@ -567,10 +568,10 @@ graph TD
 | Error handling | Exceptions | `Result<T, E>` | Explicit, no hidden control flow |
 | Mutability | Mutable by default | Immutable by default | Opt-in to mutation |
 | Type system | Reference/value types | Ownership types | Move semantics, borrowing |
-| Assemblies | GAC, app domains | Crates | Static linking, no runtime |
+| Assemblies | GAC, app domains (.NET Framework); side-by-side (.NET 5+) | Crates | Static linking, no runtime |
 | Namespaces | `using System.IO` | `use std::fs` | Module system |
 | Interfaces | `interface IFoo` | `trait Foo` | Default implementations |
-| Generics | `List<T>` where T : class | `Vec<T>` where T: Clone | Zero-cost abstractions |
+| Generics | `List<T>` (optional constraints via `where`) | `Vec<T>` (trait bounds like `T: Clone`) | Zero-cost abstractions |
 | Threading | locks, async/await | Ownership + Send/Sync | Data race prevention |
 | Performance | JIT compilation | AOT compilation | Predictable, no GC pauses |
 

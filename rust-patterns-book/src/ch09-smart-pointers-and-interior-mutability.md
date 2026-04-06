@@ -1,4 +1,4 @@
-# 8. Smart Pointers and Interior Mutability 🟡
+# 9. Smart Pointers and Interior Mutability 🟡
 
 > **What you'll learn:**
 > - Box, Rc, Arc for heap allocation and shared ownership

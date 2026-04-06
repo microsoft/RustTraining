@@ -182,7 +182,7 @@ pub fn serialize_data(data: &MyStruct) -> String {
 
 | C# Library | Rust Crate | Purpose |
 |------------|------------|---------|
-| Newtonsoft.Json | `serde_json` | JSON serialization |
+| System.Text.Json / Newtonsoft.Json | `serde_json` | JSON serialization |
 | HttpClient | `reqwest` | HTTP client |
 | Entity Framework | `diesel` / `sqlx` | ORM / SQL toolkit |
 | NLog/Serilog | `log` + `env_logger` | Logging |
@@ -202,7 +202,7 @@ public class ApiClient
     {
         var response = await _httpClient.GetAsync($"/users/{id}");
         var json = await response.Content.ReadAsStringAsync();
-        return JsonConvert.DeserializeObject<User>(json);
+        return System.Text.Json.JsonSerializer.Deserialize<User>(json);
     }
 }
 ```

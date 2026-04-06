@@ -29,11 +29,12 @@
 - [11. Streams and AsyncIterator](ch11-streams-and-asynciterator.md)
 - [12. Common Pitfalls](ch12-common-pitfalls.md)
 - [13. Production Patterns](ch13-production-patterns.md)
-- [14. Exercises](ch14-exercises.md)
+- [14. Async Is an Optimization, Not an Architecture](ch14-async-is-an-optimization-not-an-architecture.md)
+- [15. Exercises](ch15-exercises.md)
 
 ---
 
 # Appendices
 
-- [Summary and Reference Card](ch15-summary-and-reference-card.md)
-- [Capstone Project: Async Chat Server](ch16-capstone-project.md)
+- [Summary and Reference Card](ch16-summary-and-reference-card.md)
+- [Capstone Project: Async Chat Server](ch17-capstone-project.md)

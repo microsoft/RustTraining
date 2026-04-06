@@ -105,6 +105,12 @@ enum MaybeDone<F: Future> {
     Taken, // Output has been taken
 }
 
+// MaybeDone<F> stores F::Output, which the compiler can't prove
+// is Unpin even when F: Unpin. Since we only use Join with Unpin
+// futures and never pin-project into fields, implementing Unpin
+// by hand is safe and lets us call self.get_mut() in poll().
+impl<A: Future + Unpin, B: Future + Unpin> Unpin for Join<A, B> {}
+
 impl<A, B> Join<A, B>
 where
     A: Future,
@@ -125,30 +131,32 @@ where
 {
     type Output = (A::Output, B::Output);
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
         // Poll A if not done
-        if let MaybeDone::Pending(ref mut fut) = self.a {
+        if let MaybeDone::Pending(ref mut fut) = this.a {
             if let Poll::Ready(val) = Pin::new(fut).poll(cx) {
-                self.a = MaybeDone::Done(val);
+                this.a = MaybeDone::Done(val);
             }
         }
 
         // Poll B if not done
-        if let MaybeDone::Pending(ref mut fut) = self.b {
+        if let MaybeDone::Pending(ref mut fut) = this.b {
             if let Poll::Ready(val) = Pin::new(fut).poll(cx) {
-                self.b = MaybeDone::Done(val);
+                this.b = MaybeDone::Done(val);
             }
         }
 
         // Both done?
-        match (&self.a, &self.b) {
+        match (&this.a, &this.b) {
             (MaybeDone::Done(_), MaybeDone::Done(_)) => {
                 // Take both outputs
-                let a_val = match std::mem::replace(&mut self.a, MaybeDone::Taken) {
+                let a_val = match std::mem::replace(&mut this.a, MaybeDone::Taken) {
                     MaybeDone::Done(v) => v,
                     _ => unreachable!(),
                 };
-                let b_val = match std::mem::replace(&mut self.b, MaybeDone::Taken) {
+                let b_val = match std::mem::replace(&mut this.b, MaybeDone::Taken) {
                     MaybeDone::Done(v) => v,
                     _ => unreachable!(),
                 };
@@ -159,10 +167,10 @@ where
     }
 }
 
-// Usage:
+// Usage (async blocks are !Unpin, so wrap them with Box::pin):
 // let (page1, page2) = Join::new(
-//     http_get("https://example.com/a"),
-//     http_get("https://example.com/b"),
+//     Box::pin(http_get("https://example.com/a")),
+//     Box::pin(http_get("https://example.com/b")),
 // ).await;
 // Both requests run concurrently!
 ```
@@ -271,10 +279,10 @@ use std::task::{Context, Poll};
 pub struct RetryFuture<F, Fut, T, E>
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Result<T, E>> + Unpin,
+    Fut: Future<Output = Result<T, E>>,
 {
     factory: F,
-    current: Option<Fut>,
+    current: Option<Pin<Box<Fut>>>,
     remaining: usize,
     last_error: Option<E>,
 }
@@ -282,10 +290,10 @@ where
 impl<F, Fut, T, E> RetryFuture<F, Fut, T, E>
 where
     F: Fn() -> Fut,
-    Fut: Future<Output = Result<T, E>> + Unpin,
+    Fut: Future<Output = Result<T, E>>,
 {
     pub fn new(max_attempts: usize, factory: F) -> Self {
-        let current = Some((factory)());
+        let current = Some(Box::pin((factory)()));
         RetryFuture {
             factory,
             current,
@@ -298,22 +306,23 @@ where
 impl<F, Fut, T, E> Future for RetryFuture<F, Fut, T, E>
 where
     F: Fn() -> Fut + Unpin,
-    Fut: Future<Output = Result<T, E>> + Unpin,
-    T: Unpin,
+    Fut: Future<Output = Result<T, E>>,
     E: Unpin,
 {
     type Output = Result<T, E>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Pin<Box<Fut>> is always Unpin, so the struct is Unpin when F and E are.
+        // This lets us safely use get_mut() without any unsafe code.
         loop {
             if let Some(ref mut fut) = self.current {
-                match Pin::new(fut).poll(cx) {
+                match fut.as_mut().poll(cx) {
                     Poll::Ready(Ok(val)) => return Poll::Ready(Ok(val)),
                     Poll::Ready(Err(e)) => {
                         self.last_error = Some(e);
                         if self.remaining > 0 {
                             self.remaining -= 1;
-                            self.current = Some((self.factory)());
+                            self.current = Some(Box::pin((self.factory)()));
                             // Loop to poll the new future immediately
                         } else {
                             return Poll::Ready(Err(self.last_error.take().unwrap()));
@@ -334,7 +343,7 @@ where
 // }).await;
 ```
 
-**Key takeaway**: The retry future is itself a state machine: it holds the current attempt and creates new inner futures on failure. This is how combinators compose — futures all the way down.
+**Key takeaway**: The retry future is itself a state machine: it holds the current attempt and creates new inner futures on failure. Wrapping the inner future in `Pin<Box<Fut>>` removes the `Fut: Unpin` bound — since `Pin<Box<T>>` is always `Unpin`, the struct remains easy to work with while supporting any future type. This is how combinators compose — futures all the way down.
 
 </details>
 </details>

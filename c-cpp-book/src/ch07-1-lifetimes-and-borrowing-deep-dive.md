@@ -181,15 +181,15 @@ lifetimes are determined after applying the rules, no annotations are needed.
 
 ```mermaid
 flowchart TD
-    A["Function signature with references"] --> R1
-    R1["Rule 1: Each input reference<br/>gets its own lifetime<br/><br/>fn f(&str, &str)<br/>→ fn f<'a,'b>(&'a str, &'b str)"]
+    A["Function signature<br/>with references"] --> R1
+    R1["Rule 1: Each input<br/>reference gets its own<br/>lifetime<br/><br/>fn f(&amp;str, &amp;str)<br/>→ fn f&lt;'a,'b&gt;(&amp;'a str,<br/>&amp;'b str)"]
     R1 --> R2
-    R2["Rule 2: If exactly ONE input<br/>lifetime, assign it to ALL outputs<br/><br/>fn f(&str) → &str<br/>→ fn f<'a>(&'a str) → &'a str"]
+    R2["Rule 2: If exactly ONE<br/>input lifetime, assign it<br/>to ALL outputs<br/><br/>fn f(&amp;str) → &amp;str<br/>→ fn f&lt;'a&gt;(&amp;'a str)<br/>→ &amp;'a str"]
     R2 --> R3
-    R3["Rule 3: If one input is &self<br/>or &mut self, assign its lifetime<br/>to ALL outputs<br/><br/>fn f(&self, &str) → &str<br/>→ fn f<'a>(&'a self, &str) → &'a str"]
-    R3 --> CHECK{{"All output lifetimes<br/>determined?"}}
-    CHECK -->|"Yes"| OK["✅ No annotations needed"]
-    CHECK -->|"No"| ERR["❌ Compile error:<br/>must annotate manually"]
+    R3["Rule 3: If one input is<br/>&amp;self or &amp;mut self,<br/>assign its lifetime to<br/>ALL outputs<br/><br/>fn f(&amp;self, &amp;str) → &amp;str<br/>→ fn f&lt;'a&gt;(&amp;'a self, &amp;str)<br/>→ &amp;'a str"]
+    R3 --> CHECK{{"All output<br/>lifetimes<br/>determined?"}}
+    CHECK -->|Yes| OK["✅ No annotations<br/>needed"]
+    CHECK -->|No| ERR["❌ Compile error:<br/>must annotate<br/>manually"]
     
     style OK fill:#91e5a3,color:#000
     style ERR fill:#ff6b6b,color:#000

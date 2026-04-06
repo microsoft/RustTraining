@@ -165,6 +165,9 @@ async fn login(
     State(state): State<AppState>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
+    // Note: sqlx::query!() is compile-time checked and requires DATABASE_URL
+    // pointing to a live database during build. For runtime-checked queries,
+    // use sqlx::query() or sqlx::query_as() instead.
     let user = sqlx::query!(
         "SELECT id, password_hash FROM users WHERE email = $1",
         request.email

@@ -136,7 +136,8 @@ println!("{s1} {s2}");  // ✅ hello hello (both valid)
 Python:                    Rust:
 ─────────                  ─────
 int, float, bool           Copy types (i32, f64, bool, char)
-→ copied on assignment     → copied on assignment (similar behavior)
+→ shared refs to immutable  → bitwise copied on assignment
+  objects (no real copy)     (always independent values)
                            (Note: Python caches small ints; Rust copies are always predictable)
 
 list, dict, str            Move types (Vec, HashMap, String)

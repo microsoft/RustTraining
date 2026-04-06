@@ -387,7 +387,7 @@ fn process_transactions(path: &str) -> PyResult<Vec<(i64, String, String, String
     for record in reader.records() {
         let record = record.map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         let amount_str = &record[0];
-        let amount_cents = parse_amount_cents(amount_str)?;  // Custom parser, no Decimal
+        let amount_cents = parse_amount_cents(amount_str)?;  // Your custom parser (no Decimal needed)
         let date = &record[1];  // Already in ISO format, just validate
         let merchant = record[2].trim().to_lowercase();
         let category = categorize(&merchant).to_string();
@@ -398,7 +398,7 @@ fn process_transactions(path: &str) -> PyResult<Vec<(i64, String, String, String
 }
 
 #[pymodule]
-fn fast_pipeline(_py: Python, m: &PyModule) -> PyResult<()> {
+fn fast_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(process_transactions, m)?)?;
     Ok(())
 }

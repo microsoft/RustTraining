@@ -24,6 +24,9 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Cache cargo dependencies
         uses: actions/cache@v4
         with:

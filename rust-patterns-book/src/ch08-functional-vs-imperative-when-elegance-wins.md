@@ -1,4 +1,4 @@
-# Chapter 8 — Functional vs. Imperative: When Elegance Wins (and When It Doesn't)
+# 8. Functional vs. Imperative: When Elegance Wins (and When It Doesn't)
 
 > **Difficulty:** 🟡 Intermediate | **Time:** 2–3 hours | **Prerequisites:** [Ch 7 — Closures](ch07-closures-and-higher-order-functions.md)
 

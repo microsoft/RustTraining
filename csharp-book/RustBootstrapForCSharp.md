@@ -99,10 +99,10 @@ A structured introduction to Rust for developers with C# experience. This guide 
 | Error handling | Exceptions | `Result<T, E>` | Explicit, no hidden control flow |
 | Mutability | Mutable by default | Immutable by default | Opt-in to mutation |
 | Type system | Reference/value types | Ownership types | Move semantics, borrowing |
-| Assemblies | GAC, app domains | Crates | Static linking, no runtime |
+| Assemblies | GAC, app domains (.NET Framework); side-by-side (.NET 5+) | Crates | Static linking, no runtime |
 | Namespaces | `using System.IO` | `use std::fs` | Module system |
 | Interfaces | `interface IFoo` | `trait Foo` | Default implementations |
-| Generics | `List<T>` where T : class | `Vec<T>` where T: Clone | Zero-cost abstractions |
+| Generics | `List<T>` (optional constraints via `where`) | `Vec<T>` (trait bounds like `T: Clone`) | Zero-cost abstractions |
 | Threading | locks, async/await | Ownership + Send/Sync | Data race prevention |
 | Performance | JIT compilation | AOT compilation | Predictable, no GC pauses |
 
@@ -234,11 +234,12 @@ public class UserService
         //     Could be null at runtime
     }
     
-    // Even with nullable reference types (C# 8+)
+    // Nullable reference types (C# 8+) help, but nulls can still slip through
     public string GetDisplayName(User? user)
     {
         return user?.Profile?.DisplayName?.ToUpper() ?? "Unknown";
-        // Still possible to have null at runtime
+        // This specific line is null-safe thanks to ?. and ??,
+        // but NRTs are advisory — the compiler can be overridden with `!`
     }
 }
 ```
@@ -463,7 +464,7 @@ fn main() {
 1. **No classes required** - Functions can exist at the top level
 2. **No namespaces** - Uses module system instead
 3. **`println!` is a macro** - Notice the `!` 
-4. **No semicolon after println!** - Expression vs statement
+4. **Semicolons matter** - Omitting the trailing semicolon turns a statement into a return expression
 5. **No explicit return type** - `main` returns `()` (unit type)
 
 ### Creating Your First Project

@@ -99,12 +99,30 @@ Commands:
 // ── build ────────────────────────────────────────────────────────────
 
 fn cmd_build() {
+    if !check_mdbook() {
+        eprintln!("Error: 'mdbook' not found in PATH. Please install it: https://rust-lang.github.io/mdbook/guide/installation.html");
+        std::process::exit(1);
+    }
     build_to("site");
 }
 
 fn cmd_deploy() {
+    if !check_mdbook() {
+        eprintln!("Error: 'mdbook' not found in PATH.");
+        std::process::exit(1);
+    }
     build_to("docs");
     println!("\nTo publish, commit docs/ and enable GitHub Pages → \"Deploy from a branch\" → /docs.");
+}
+
+fn check_mdbook() -> bool {
+    Command::new("mdbook")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn build_to(dir_name: &str) {
@@ -289,32 +307,68 @@ fn write_landing_page(site: &Path) {
     println!("  ✓ index.html");
 }
 
+enum ResolveResult {
+    File(PathBuf),
+    Redirect(String),
+    NotFound,
+}
+
 /// Resolve `request_target` (HTTP request path, e.g. `/foo/bar?x=1`) to a file under `site_canon`.
-/// Returns `None` for traversal attempts, missing files, or paths that escape `site_canon` (symlinks).
-fn resolve_site_file(site_canon: &Path, request_target: &str) -> Option<PathBuf> {
-    let path_only = request_target.split('?').next()?.split('#').next()?;
+/// Returns `ResolveResult::File` for success, `Redirect` if a trailing slash is needed for a directory,
+/// or `NotFound` for traversal attempts or missing files.
+///
+/// NOTE: This function preserves and hardens the multi-layer security from PR#18:
+/// 1. Percent-decoding via `percent_decode_path`.
+/// 2. Null byte rejection.
+/// 3. Traversal blocking (`..`).
+/// 4. Symlink escape prevention via canonicalization and prefix checking.
+fn resolve_site_file(site_canon: &Path, request_target: &str) -> ResolveResult {
+    let path_only = match request_target
+        .split('?')
+        .next()
+        .and_then(|s| s.split('#').next())
+    {
+        Some(p) => p,
+        None => return ResolveResult::NotFound,
+    };
+
+    // [Security] Handle percent-encoding and reject null bytes (from PR#18)
     let decoded = percent_decode_path(path_only);
     if decoded.as_bytes().contains(&0) {
-        return None;
+        return ResolveResult::NotFound;
     }
+
     let rel = decoded.trim_start_matches('/');
     let mut file_path = site_canon.to_path_buf();
     if !rel.is_empty() {
         for seg in rel.split('/').filter(|s| !s.is_empty()) {
+            // [Security] Block directory traversal (from PR#18)
             if seg == ".." {
-                return None;
+                return ResolveResult::NotFound;
             }
             file_path.push(seg);
         }
     }
+
     if file_path.is_dir() {
+        // If it refers to a directory but lacks a trailing slash, redirect so relative links work.
+        if !request_target.ends_with('/') && !request_target.is_empty() {
+            return ResolveResult::Redirect(format!("{path_only}/"));
+        }
         file_path.push("index.html");
     }
-    let real = fs::canonicalize(&file_path).ok()?;
-    if !real.starts_with(site_canon) {
-        return None;
+
+    // [Security] Canonicalize and verify we're still within site_canon (from PR#18)
+    let real = match fs::canonicalize(&file_path) {
+        Ok(r) => r,
+        Err(_) => return ResolveResult::NotFound,
+    };
+
+    if !real.starts_with(site_canon) || !real.is_file() {
+        return ResolveResult::NotFound;
     }
-    real.is_file().then_some(real)
+
+    ResolveResult::File(real)
 }
 
 fn hex_val(c: u8) -> Option<u8> {
@@ -407,40 +461,10 @@ fn cmd_serve() {
 /// Install a Ctrl+C handler that exits cleanly (code 0) instead of
 /// letting the OS terminate with STATUS_CONTROL_C_EXIT.
 fn ctrlc_exit() {
-    unsafe {
-        libc_set_handler();
-    }
-}
-
-#[cfg(windows)]
-unsafe fn libc_set_handler() {
-    // SetConsoleCtrlHandler via the Windows API
-    extern "system" {
-        fn SetConsoleCtrlHandler(
-            handler: Option<unsafe extern "system" fn(u32) -> i32>,
-            add: i32,
-        ) -> i32;
-    }
-    unsafe extern "system" fn handler(_ctrl_type: u32) -> i32 {
+    ctrlc::set_handler(move || {
         std::process::exit(0);
-    }
-    unsafe {
-        SetConsoleCtrlHandler(Some(handler), 1);
-    }
-}
-
-#[cfg(not(windows))]
-unsafe fn libc_set_handler() {
-    // On Unix, register SIGINT via libc
-    extern "C" {
-        fn signal(sig: i32, handler: extern "C" fn(i32)) -> usize;
-    }
-    extern "C" fn handler(_sig: i32) {
-        std::process::exit(0);
-    }
-    unsafe {
-        signal(2 /* SIGINT */, handler);
-    }
+    })
+    .expect("Error setting Ctrl-C handler");
 }
 
 fn guess_mime(path: &Path) -> &'static str {

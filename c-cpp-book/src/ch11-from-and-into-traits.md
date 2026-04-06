@@ -3,7 +3,7 @@
 > **What you'll learn:** Rust's type conversion traits — `From<T>` and `Into<T>` for infallible conversions, `TryFrom` and `TryInto` for fallible ones. Implement `From` and get `Into` for free. Replaces C++ conversion operators and constructors.
 
 - ```From``` and ```Into``` are complementary traits to facilitate type conversion
-- Types normally implement on the ```From``` trait. the ```String::from()``` converts from "&str" to ```String```, and compiler can automatically derive ```&str.into```
+- Types normally implement the ```From``` trait. The ```String::from()``` converts from "&str" to ```String```, and the compiler can automatically derive ```&str.into```
 ```rust
 struct Point {x: u32, y: u32}
 // Construct a Point from a tuple
@@ -106,7 +106,7 @@ fn main() {
     // let g : u32 = f;    // Will not compile
     let g = f as u32;      // Ok, but not preferred. Subject to rules around narrowing
     let g : u32 = f.into(); // Most preferred form; infallible and checked by the compiler
-    //let k : u8 = f.into();  // Fails to compile; narrowing can result in loss of data
+    // let k : u8 = g.into();  // Fails to compile; narrowing can result in loss of data
     
     // Attempting a narrowing operation requires use of try_into
     if let Ok(k) = TryInto::<u8>::try_into(g) {

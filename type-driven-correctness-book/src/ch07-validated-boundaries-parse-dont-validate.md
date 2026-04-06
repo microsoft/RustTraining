@@ -1021,6 +1021,11 @@ Instead of collapsing everything into `has_critical_events: bool`, classify each
 parsed SEL event into a per-subsystem health bucket:
 
 ```rust,ignore
+/// Worst-of health value — Ord gives us `.max()` for free.
+/// (Full definition in ch18; reproduced here for the SEL pipeline.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HealthValue { OK, Warning, Critical }
+
 /// Health contribution from a single SEL event, classified by subsystem.
 #[derive(Debug, Clone)]
 pub enum SubsystemHealth {

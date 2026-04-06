@@ -133,11 +133,11 @@ impl Future for MyFuture {
 4. **Don't poll after `Ready`** — behavior is **unspecified** (may panic, return `Pending`, or repeat `Ready`). Only `FusedFuture` guarantees safe post-completion polling
 
 <details>
-<summary><strong>🏋️ Exercise: Implement a CountdownFuture</strong> (click to expand)</summary>
+<summary><strong>🏋️ Exercise: Spurious-Wake-Safe Flag Future</strong> (click to expand)</summary>
 
-**Challenge**: Implement a `CountdownFuture` that counts down from N to 0, *printing* the current count as a side-effect each time it's polled. When it reaches 0, it completes with `Ready("Liftoff!")`. (Note: a `Future` produces only **one** final value — the printing is a side-effect, not a yielded value. For multiple async values, see `Stream` in Ch. 11.)
+**Challenge**: Implement a `FlagFuture` that wraps a shared `Arc<AtomicBool>` flag. When polled, it checks whether the flag is `true`. If so, it completes with `Ready(())`. If not, it stores the waker and returns `Pending`. The twist: the future must handle **spurious wakes** correctly — it must re-check the flag on every poll, never assuming the flag is set just because it was woken.
 
-*Hint*: This doesn't need a real I/O source — it can wake itself immediately with `cx.waker().wake_by_ref()` after each decrement.
+*Hint*: You'll need an `Arc<Mutex<Option<Waker>>>` (or similar) so an external thread can set the flag and wake the future. Use `poll_fn` for a concise alternative solution.
 
 <details>
 <summary>🔑 Solution</summary>
@@ -145,41 +145,66 @@ impl Future for MyFuture {
 ```rust
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::task::{Context, Poll, Waker};
 
-struct CountdownFuture {
-    count: u32,
+struct FlagFuture {
+    flag: Arc<AtomicBool>,
+    waker_slot: Arc<Mutex<Option<Waker>>>,
 }
 
-impl CountdownFuture {
-    fn new(start: u32) -> Self {
-        CountdownFuture { count: start }
+impl FlagFuture {
+    fn new(flag: Arc<AtomicBool>, waker_slot: Arc<Mutex<Option<Waker>>>) -> Self {
+        FlagFuture { flag, waker_slot }
     }
 }
 
-impl Future for CountdownFuture {
-    type Output = &'static str;
+impl Future for FlagFuture {
+    type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.count == 0 {
-            Poll::Ready("Liftoff!")
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Always re-check the actual condition — never trust the wake alone
+        if self.flag.load(Ordering::Acquire) {
+            return Poll::Ready(());
+        }
+
+        // Store/update the waker so we get notified
+        let mut slot = self.waker_slot.lock().unwrap();
+        *slot = Some(cx.waker().clone());
+
+        // Re-check after storing the waker to avoid a race:
+        // the flag could have been set between our first check
+        // and storing the waker
+        if self.flag.load(Ordering::Acquire) {
+            Poll::Ready(())
         } else {
-            println!("{}...", self.count);
-            self.count -= 1;
-            // Wake immediately — we're always ready to make progress
-            cx.waker().wake_by_ref();
             Poll::Pending
         }
     }
 }
 
-// Usage with our mini executor or tokio:
-// let msg = block_on(CountdownFuture::new(5));
-// prints: 5... 4... 3... 2... 1...
-// msg == "Liftoff!"
+// The setter side (e.g., another thread or task):
+fn set_flag(flag: &AtomicBool, waker_slot: &Mutex<Option<Waker>>) {
+    flag.store(true, Ordering::Release);
+    if let Some(waker) = waker_slot.lock().unwrap().take() {
+        waker.wake();
+    }
+}
+
+// Equivalent using poll_fn:
+// async fn wait_for_flag(flag: Arc<AtomicBool>, waker_slot: Arc<Mutex<Option<Waker>>>) {
+//     std::future::poll_fn(|cx| {
+//         if flag.load(Ordering::Acquire) {
+//             return Poll::Ready(());
+//         }
+//         *waker_slot.lock().unwrap() = Some(cx.waker().clone());
+//         if flag.load(Ordering::Acquire) { Poll::Ready(()) } else { Poll::Pending }
+//     }).await
+// }
 ```
 
-**Key takeaway**: Even though this future is always ready to progress, it returns `Pending` to yield control between steps. It calls `wake_by_ref()` immediately so the executor re-polls it right away. This is the basis of cooperative multitasking — each future voluntarily yields.
+**Key takeaway**: The double-check pattern (check → store waker → check again) is essential to avoid a race between the condition changing and the waker being registered. This is the real-world pattern that all I/O futures use internally, and it demonstrates why handling spurious wakes matters.
 
 </details>
 </details>

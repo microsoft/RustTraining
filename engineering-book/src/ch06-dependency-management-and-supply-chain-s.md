@@ -267,7 +267,7 @@ Each duplicate adds compile time and binary size.
 
 ### Application: Multi-Crate Dependency Hygiene
 
-The the workspace uses `[workspace.dependencies]` for centralized
+The workspace uses `[workspace.dependencies]` for centralized
 version management — an excellent practice. Combined with
 [`cargo tree --duplicates`](ch07-release-profiles-and-binary-size.md) for size
 analysis, this prevents version drift and reduces binary bloat:

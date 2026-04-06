@@ -12,7 +12,7 @@
 | Unicode           | char                           | 'a', '$'                      |
 | Boolean           | bool                           | true, false                   |
 
-- Rust permits arbitrarily use of ```_``` between numbers for ease of reading
+- Rust permits arbitrary use of ```_``` between numbers for ease of reading
 ----
 ### Rust type specification and assignment
 - Rust uses the ```let``` keyword to assign values to variables. The type of the variable can be optionally specified after a ```:```
@@ -24,7 +24,7 @@ fn main() {
     let z = 42u32;
 }
 ``` 
-- Function parameters and return values (if any) require an explicit type. The following takes an u8 parameter and returns u32
+- Function parameters and return values (if any) require an explicit type. The following takes a u8 parameter and returns u32
 ```rust
 fn foo(x : u8) -> u32
 {

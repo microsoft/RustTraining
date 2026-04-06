@@ -1,4 +1,4 @@
-# 11. Unsafe Rust — Controlled Danger 🔴
+# 12. Unsafe Rust — Controlled Danger 🔴
 
 > **What you'll learn:**
 > - The five unsafe superpowers and when each is needed
@@ -410,7 +410,7 @@ graph TD
 > - FFI requires `extern "C"`, `#[repr(C)]`, and careful null/lifetime handling
 > - Arena and slab allocators trade general-purpose flexibility for allocation speed
 
-> **See also:** [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for variance and drop-check interactions with unsafe code. [Ch 8 — Smart Pointers](ch08-smart-pointers-and-interior-mutability.md) for Pin and self-referential types.
+> **See also:** [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for variance and drop-check interactions with unsafe code. [Ch 8 — Smart Pointers](ch09-smart-pointers-and-interior-mutability.md) for Pin and self-referential types.
 
 ---
 

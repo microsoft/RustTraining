@@ -71,8 +71,18 @@ fn main() {
         let b = &a;
         let c = b;
         println!("{} {}", *b, *c); // The compiler automatically dereferences *c
-        // Illegal because b and still are still in scope
-        // let d = &mut a;
+        
+        let d = &mut a;
+        
+        /* 
+         * Uncommenting the line below would be cause the 
+         * program to not compile, because `b` is used 
+         * while the mutable reference `d` is live in the current scope
+         * 
+         * You cannot have a mutable and immutable reference in use in the same scope
+         * at the same time!
+         */
+        // println!("{}", *b);
     }
     let d = &mut a; // Ok: b and c are not in scope
     *d = 43;
@@ -226,7 +236,7 @@ fn main() {
 
 # Rust tuple structs
 - Rust tuple structs are similar to tuples and individual fields don't have names
-    - Like tuples, individual elements are accessed using .0, .1, .2, .... A common use case for tuple structs is to wrap primitive types to create custom types. **This can useful to avoid mixing differing values of the same type**
+    - Like tuples, individual elements are accessed using .0, .1, .2, .... A common use case for tuple structs is to wrap primitive types to create custom types. **This can be useful to avoid mixing differing values of the same type**
 ```rust
 struct WeightInGrams(u32);
 struct WeightInMilligrams(u32);

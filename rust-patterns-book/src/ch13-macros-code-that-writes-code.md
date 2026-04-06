@@ -1,4 +1,4 @@
-# 12. Macros — Code That Writes Code 🟡
+# 13. Macros — Code That Writes Code 🟡
 
 > **What you'll learn:**
 > - Declarative macros (`macro_rules!`) with pattern matching and repetition
@@ -271,8 +271,6 @@ Derive macros live in a separate crate (`proc-macro = true`) and transform
 a token stream using `syn` (parse Rust) and `quote` (generate Rust):
 
 ```toml
-```
-
 # my_derive/Cargo.toml
 [lib]
 proc-macro = true
@@ -281,6 +279,7 @@ proc-macro = true
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
+```
 
 ```rust
 // my_derive/src/lib.rs
@@ -358,7 +357,7 @@ inspect/transform → `quote!` (generate tokens) → `TokenStream` (back to comp
 > - Prefer generics/traits over macros when possible — macros are harder to debug and maintain
 > - `$crate` ensures hygiene; `tt` munching enables recursive pattern matching
 
-> **See also:** [Ch 2 — Traits](ch02-traits-in-depth.md) for when traits/generics beat macros. [Ch 13 — Testing](ch13-testing-and-benchmarking-patterns.md) for testing macro-generated code.
+> **See also:** [Ch 2 — Traits](ch02-traits-in-depth.md) for when traits/generics beat macros. [Ch 13 — Testing](ch14-testing-and-benchmarking-patterns.md) for testing macro-generated code.
 
 ```mermaid
 flowchart LR
