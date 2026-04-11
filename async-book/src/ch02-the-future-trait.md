@@ -108,12 +108,12 @@ impl Future for Delay {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
-        // Check if already completed
+        // Check if already completed before storing waker
         if *self.completed.lock().unwrap() {
             return Poll::Ready(());
         }
 
-        // Store the waker so the background thread can wake us
+        // Store the waker - executor may pass a new one on each poll
         *self.waker_stored.lock().unwrap() = Some(cx.waker().clone());
 
         // Start the background timer on first poll
@@ -132,6 +132,11 @@ impl Future for Delay {
                     w.wake(); // "Hey executor, I'm ready — poll me again!"
                 }
             });
+        }
+
+        // Double-check completion after storing waker (handles race condition)
+        if *self.completed.lock().unwrap() {
+            return Poll::Ready(());
         }
 
         Poll::Pending // Not done yet
