@@ -188,7 +188,7 @@ async fn main() {
 
 ### Spawning Independent Tasks with `tokio::spawn`
 
-In C#, `Task.Run` launches work that runs independently of the caller. Rust's equivalent is `tokio::spawn`:
+In C#, `Task.Run` launches work that runs independently of the caller. Rust's equivalent is `tokio::task::spawn`:
 
 ```rust
 use tokio::task;
