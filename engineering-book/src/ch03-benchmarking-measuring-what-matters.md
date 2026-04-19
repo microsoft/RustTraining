@@ -280,7 +280,7 @@ perf script | inferno-collapse-perf | inferno-flamegraph > flamegraph.svg
 - **Bottom** = entry point, **Top** = leaf functions doing actual work
 - Look for wide plateaus at the top — those are your hot spots
 
-**Profile-guided optimization (PGO):**
+### Profile-Guided Optimization (PGO)
 
 ```bash
 # Step 1: Build with instrumentation
