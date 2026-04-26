@@ -118,13 +118,13 @@ assert_eq!(result, vec![4, 16, 36, 64, 100]);
 
 | Combinator | What It Does | Example |
 |-----------|-------------|---------|
-| `.map(f)` | Transform each element | `.map(|x| x * 2)` |
-| `.filter(p)` | Keep elements where predicate is true | `.filter(|x| x > &5)` |
-| `.filter_map(f)` | Map + filter in one step (returns `Option`) | `.filter_map(|x| x.parse().ok())` |
-| `.flat_map(f)` | Map then flatten nested iterators | `.flat_map(|s| s.chars())` |
-| `.fold(init, f)` | Reduce to single value (like `Aggregate` in C#) | `.fold(0, |acc, x| acc + x)` |
-| `.any(p)` / `.all(p)` | Short-circuit boolean check | `.any(|x| x > 100)` |
-| `.enumerate()` | Add index | `.enumerate().map(|(i, x)| ...)` |
+| `.map(f)` | Transform each element | `.map(\|x\| x * 2)` |
+| `.filter(p)` | Keep elements where predicate is true | `.filter(\|x\| x > &5)` |
+| `.filter_map(f)` | Map + filter in one step (returns `Option`) | `.filter_map(\|x\| x.parse().ok())` |
+| `.flat_map(f)` | Map then flatten nested iterators | `.flat_map(\|s\| s.chars())` |
+| `.fold(init, f)` | Reduce to single value (like `Aggregate` in C#) | `.fold(0, \|acc, x\| acc + x)` |
+| `.any(p)` / `.all(p)` | Short-circuit boolean check | `.any(\|x\| x > 100)` |
+| `.enumerate()` | Add index | `.enumerate().map(\|(i, x)\| ...)` |
 | `.zip(other)` | Pair with another iterator | `.zip(labels.iter())` |
 | `.take(n)` / `.skip(n)` | First/skip N elements | `.take(10)` |
 | `.chain(other)` | Concatenate two iterators | `.chain(extra.iter())` |
