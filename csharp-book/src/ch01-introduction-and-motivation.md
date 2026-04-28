@@ -438,9 +438,12 @@ struct HighFrequencyTrader {
 
 impl HighFrequencyTrader {
     fn process_market_data(&mut self, tick: MarketTick) {
+        // Extract Copy field before moving `tick` into analysis
+        let price = tick.price;
+
         // Zero allocations, predictable performance
         let analysis = MarketAnalysis::from(tick);
-        self.trades.push(Trade::new(analysis.signal(), tick.price));
+        self.trades.push(Trade::new(analysis.signal(), price));
         
         // No GC pauses, consistent sub-microsecond latency
         // Performance guaranteed by type system
