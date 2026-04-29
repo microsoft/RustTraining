@@ -351,7 +351,7 @@ let samples: Vec<f64> = std::iter::from_fn(|| Some(random()))
 ```
 
 But `take_while` *excludes* the element that fails the predicate, producing anywhere from
-zero to nine elements instead of the guaranteed-at-least-one the imperative version provides. You can work around it with `scan` or `chain`, but the imperative version
+zero to ten elements instead of the guaranteed-at-least-one the imperative version provides. You can work around it with `scan` or `chain`, but the imperative version
 is clearer.
 
 **When scoped mutability genuinely wins:**
