@@ -1,11 +1,12 @@
-## Constructor Patterns
+<a id="constructor-patterns"></a>
+## 생성자 패턴
 
-> **What you'll learn:** How to create Rust structs without traditional constructors — `new()` conventions,
-> the `Default` trait, factory methods, and the builder pattern for complex initialization.
+> **학습할 내용:** 전통적인 생성자 없이 Rust 구조체를 만드는 방법, `new()` 관례,
+> `Default` 트레잇, 팩터리 메서드, 그리고 복잡한 초기화를 위한 빌더 패턴.
 >
-> **Difficulty:** 🟢 Beginner
+> **난이도:** 🟢 입문
 
-### C# Constructor Patterns
+### C# 생성자 패턴
 ```csharp
 public class Configuration
 {
@@ -13,7 +14,7 @@ public class Configuration
     public int MaxConnections { get; set; }
     public bool EnableLogging { get; set; }
     
-    // Default constructor
+    // 기본 생성자
     public Configuration()
     {
         DatabaseUrl = "localhost";
@@ -21,7 +22,7 @@ public class Configuration
         EnableLogging = false;
     }
     
-    // Parameterized constructor
+    // 매개변수 생성자
     public Configuration(string databaseUrl, int maxConnections)
     {
         DatabaseUrl = databaseUrl;
@@ -29,7 +30,7 @@ public class Configuration
         EnableLogging = false;
     }
     
-    // Factory method
+    // 팩터리 메서드
     public static Configuration ForProduction()
     {
         return new Configuration("prod.db.server", 100)
@@ -40,7 +41,7 @@ public class Configuration
 }
 ```
 
-### Rust Constructor Patterns
+### Rust 생성자 패턴
 ```rust
 #[derive(Debug)]
 pub struct Configuration {
@@ -50,7 +51,7 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    // Default constructor
+    // 기본 생성자
     pub fn new() -> Configuration {
         Configuration {
             database_url: "localhost".to_string(),
@@ -59,7 +60,7 @@ impl Configuration {
         }
     }
     
-    // Parameterized constructor
+    // 매개변수를 받는 생성자
     pub fn with_database(database_url: String, max_connections: u32) -> Configuration {
         Configuration {
             database_url,
@@ -68,7 +69,7 @@ impl Configuration {
         }
     }
     
-    // Factory method
+    // 팩터리 메서드
     pub fn for_production() -> Configuration {
         Configuration {
             database_url: "prod.db.server".to_string(),
@@ -77,10 +78,10 @@ impl Configuration {
         }
     }
     
-    // Builder pattern method
+    // 빌더 패턴 메서드
     pub fn enable_logging(mut self) -> Configuration {
         self.enable_logging = true;
-        self  // Return self for chaining
+        self  // 체이닝을 위해 self 반환
     }
     
     pub fn max_connections(mut self, count: u32) -> Configuration {
@@ -89,7 +90,7 @@ impl Configuration {
     }
 }
 
-// Default trait implementation
+// Default 트레잇 구현
 impl Default for Configuration {
     fn default() -> Self {
         Self::new()
@@ -97,26 +98,26 @@ impl Default for Configuration {
 }
 
 fn main() {
-    // Different construction patterns
+    // 다양한 생성 패턴
     let config1 = Configuration::new();
     let config2 = Configuration::with_database("localhost:5432".to_string(), 20);
     let config3 = Configuration::for_production();
     
-    // Builder pattern
+    // 빌더 패턴
     let config4 = Configuration::new()
         .enable_logging()
         .max_connections(50);
     
-    // Using Default trait
+    // Default 트레잇 사용
     let config5 = Configuration::default();
     
     println!("{:?}", config4);
 }
 ```
 
-### Builder Pattern Implementation
+### 빌더 패턴 구현
 ```rust
-// More complex builder pattern
+// 더 복잡한 빌더 패턴 예제
 #[derive(Debug)]
 pub struct DatabaseConfig {
     host: String,
@@ -211,19 +212,19 @@ fn main() {
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Builder with Validation</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 검증이 있는 빌더</strong> (펼쳐서 보기)</summary>
 
-Create an `EmailBuilder` that:
-1. Requires `to` and `subject` (builder won't compile without them — use a typestate or validate in `build()`)
-2. Has optional `body` and `cc` (Vec of addresses)
-3. `build()` returns `Result<Email, String>` — rejects empty `to` or `subject`
-4. Write tests proving invalid inputs are rejected
+다음 조건을 만족하는 `EmailBuilder`를 만들어 보세요.
+1. `to`와 `subject`는 필수입니다(builder가 그것들 없이 컴파일되지 않게 typestate를 쓰거나, `build()`에서 검증하세요).
+2. `body`와 `cc`는 선택 사항입니다(`cc`는 주소들의 `Vec`).
+3. `build()`는 `Result<Email, String>`을 반환해야 하며, 비어 있는 `to` 또는 `subject`를 거부해야 합니다.
+4. 잘못된 입력이 거부된다는 점을 보여 주는 테스트를 작성하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 #[derive(Debug)]
@@ -289,5 +290,3 @@ mod tests {
 </details>
 
 ***
-
-

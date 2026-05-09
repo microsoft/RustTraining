@@ -1,28 +1,28 @@
-## Capstone Project: Build a CLI Task Manager
+## 캡스톤 프로젝트: CLI 작업 관리자 만들기
 
-> **What you'll learn:** Tie together everything from the course by building a complete Rust CLI application
-> that a Python developer would typically write with `argparse` + `json` + `pathlib`.
+> **이 장에서 배울 내용:** Python 개발자라면 보통 `argparse` + `json` + `pathlib`로 만들 법한 완전한 Rust CLI 애플리케이션을 직접 구현하면서, 지금까지 배운 내용을 한 프로젝트에 엮어봅니다.
 >
-> **Difficulty:** 🔴 Advanced
+> **난이도:** 🔴 고급
 
-This capstone project exercises concepts from every major chapter:
-- **Ch. 3**: Types and variables (structs, enums)
-- **Ch. 5**: Collections (`Vec`, `HashMap`)
-- **Ch. 6**: Enums and pattern matching (task status, commands)
-- **Ch. 7**: Ownership and borrowing (passing references)
-- **Ch. 9**: Error handling (`Result`, `?`, custom errors)
-- **Ch. 10**: Traits (`Display`, `FromStr`)
-- **Ch. 11**: Type conversions (`From`, `TryFrom`)
-- **Ch. 12**: Iterators and closures (filtering, mapping)
-- **Ch. 8**: Modules (organized project structure)
+이 캡스톤 프로젝트는 주요 장의 개념을 거의 모두 다시 사용하게 만듭니다.
+- **3장**: 타입과 변수(`struct`, enum)
+- **5장**: 컬렉션(`Vec`, `HashMap`)
+- **6장**: enum과 패턴 매칭(작업 상태, 명령)
+- **7장**: 소유권과 대여(참조 전달)
+- **9장**: 에러 처리(`Result`, `?`, 커스텀 에러)
+- **10장**: 트레잇(`Display`, `FromStr`)
+- **11장**: 타입 변환(`From`, `TryFrom`)
+- **12장**: 이터레이터와 클로저(필터링, 매핑)
+- **8장**: 모듈(구조화된 프로젝트 구성)
 
 ***
 
-## The Project: `rustdo`
+<a id="the-project-rustdo"></a>
+## 프로젝트: `rustdo`
 
-A command-line task manager (like Python's `todo.txt` tools) that stores tasks in a JSON file.
+JSON 파일에 작업 목록을 저장하는 명령줄 작업 관리자입니다. Python의 `todo.txt`류 도구를 떠올리면 됩니다.
 
-### Python Equivalent (what you'd write in Python)
+### Python에서라면 이렇게 쓴다
 
 ```python
 #!/usr/bin/env python3
@@ -61,13 +61,14 @@ def save_tasks(tasks: list[Task]):
 # ... (you know how this goes in Python)
 ```
 
-### Your Rust Implementation
+### Rust 구현
 
-Build this step-by-step. Each step maps to concepts from specific chapters.
+아래 단계를 순서대로 따라가며 구현해보세요. 각 단계는 앞에서 배운 특정 개념과 직접 연결됩니다.
 
 ***
 
-## Step 1: Define the Data Model (Ch. 3, 6, 10, 11)
+<a id="step-1-define-the-data-model-ch-3-6-10-11"></a>
+## 1단계: 데이터 모델 정의하기 (3장, 6장, 10장, 11장)
 
 ```rust
 // src/task.rs
@@ -145,11 +146,11 @@ impl fmt::Display for Task {
 }
 ```
 
-> **Python comparison**: In Python you'd use `@dataclass` + `Enum`. In Rust, `struct` + `enum` + `derive` macros give you serialization, display, and parsing for free.
+> **Python과 비교하면**: Python에서는 `@dataclass`와 `Enum`을 썼겠지만, Rust에서는 `struct` + `enum` + `derive` 매크로 조합으로 직렬화, 표시, 파싱을 매우 깔끔하게 얻을 수 있습니다.
 
 ***
 
-## Step 2: Storage Layer (Ch. 9, 7)
+## 2단계: 저장소 계층 (9장, 7장)
 
 ```rust
 // src/storage.rs
@@ -183,11 +184,11 @@ pub fn save_tasks(tasks: &[Task]) -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-> **Python comparison**: Python uses `Path.read_text()` + `json.loads()`. Rust uses `fs::read_to_string()` + `serde_json::from_str()`. Note the `?` — every error is explicit and propagated.
+> **Python과 비교하면**: Python은 `Path.read_text()` + `json.loads()`를 썼을 것입니다. Rust에서는 `fs::read_to_string()` + `serde_json::from_str()`를 사용합니다. 핵심은 `?`입니다. 모든 에러가 명시적으로 드러나고 전파됩니다.
 
 ***
 
-## Step 3: Command Enum (Ch. 6)
+## 3단계: 명령 enum 만들기 (6장)
 
 ```rust
 // src/command.rs
@@ -244,11 +245,11 @@ impl Command {
 }
 ```
 
-> **Python comparison**: Python uses `argparse` or `click`. This hand-rolled parser shows how `match` on enum-like patterns replaces Python's if/elif chains. For real projects, use the `clap` crate.
+> **Python과 비교하면**: Python은 보통 `argparse`나 `click`를 씁니다. 여기서는 직접 만든 파서를 통해, enum과 `match`가 Python의 `if/elif` 체인을 어떻게 대체하는지 보여줍니다. 실제 프로젝트에서는 `clap`를 쓰는 편이 낫습니다.
 
 ***
 
-## Step 4: Business Logic (Ch. 5, 12, 7)
+## 4단계: 비즈니스 로직 작성하기 (5장, 12장, 7장)
 
 ```rust
 // src/actions.rs
@@ -328,11 +329,11 @@ pub fn show_stats() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-> **Key Rust patterns used**: `iter().map().max()`, `iter().filter().collect()`, `iter_mut().find()`, `retain()`, `iter().filter().count()`. These replace Python's list comprehensions, `next(x for x in ...)`, and `Counter`.
+> **여기서 쓰인 핵심 Rust 패턴**: `iter().map().max()`, `iter().filter().collect()`, `iter_mut().find()`, `retain()`, `iter().filter().count()`입니다. Python의 리스트 컴프리헨션, `next(x for x in ...)`, `Counter`가 이 패턴들로 자연스럽게 바뀝니다.
 
 ***
 
-## Step 5: Wire It Together (Ch. 8)
+## 5단계: 모든 것을 연결하기 (8장)
 
 ```rust
 // src/main.rs
@@ -384,10 +385,10 @@ fn print_help() {
 
 ```mermaid
 graph TD
-    CLI["main.rs<br/>(CLI entry)"] --> CMD["command.rs<br/>(parse args)"]
-    CMD --> ACT["actions.rs<br/>(business logic)"]
-    ACT --> STORE["storage.rs<br/>(JSON persistence)"]
-    ACT --> TASK["task.rs<br/>(data model)"]
+    CLI["main.rs<br/>(CLI 진입점)"] --> CMD["command.rs<br/>(인자 파싱)"]
+    CMD --> ACT["actions.rs<br/>(비즈니스 로직)"]
+    ACT --> STORE["storage.rs<br/>(JSON 영속화)"]
+    ACT --> TASK["task.rs<br/>(데이터 모델)"]
     STORE --> TASK
     style CLI fill:#d4edda
     style CMD fill:#fff3cd
@@ -398,7 +399,7 @@ graph TD
 
 ***
 
-## Step 6: Cargo.toml Dependencies
+## 6단계: `Cargo.toml` 의존성
 
 ```toml
 [package]
@@ -413,11 +414,12 @@ chrono = "0.4"
 dirs = "5"
 ```
 
-> **Python equivalent**: This is your `pyproject.toml` `[project.dependencies]`. `cargo add serde serde_json chrono dirs` is like `pip install`.
+> **Python과 비교하면**: 이것이 `pyproject.toml`의 `[project.dependencies]`에 해당합니다. `cargo add serde serde_json chrono dirs`는 감각적으로 `pip install`과 비슷합니다.
 
 ***
 
-## Step 7: Tests (Ch. 14)
+<a id="step-7-tests-ch-14"></a>
+## 7단계: 테스트 (14장)
 
 ```rust
 // src/task.rs — add at the bottom
@@ -453,15 +455,15 @@ mod tests {
 }
 ```
 
-> **Python equivalent**: `pytest` tests. Run with `cargo test` instead of `pytest`. No test discovery magic needed — `#[test]` marks test functions explicitly.
+> **Python과 비교하면**: 이것은 `pytest` 테스트에 해당합니다. `pytest` 대신 `cargo test`로 실행하고, 테스트 발견 마법에 기대지 않고 `#[test]`로 테스트 함수를 명시적으로 표시합니다.
 
 ***
 
-## Stretch Goals
+## 확장 과제
 
-Once you have the basic version working, try these enhancements:
+기본 버전이 동작하면 아래 개선을 시도해보세요.
 
-1. **Add `clap` for argument parsing** — Replace the hand-rolled parser with `clap`'s derive macros:
+1. **인자 파싱에 `clap` 도입하기**. 손수 만든 파서를 `clap`의 derive 매크로로 교체할 수 있습니다.
    ```rust
    #[derive(Parser)]
    enum Command {
@@ -473,31 +475,32 @@ Once you have the basic version working, try these enhancements:
    }
    ```
 
-2. **Add colored output** — Use the `colored` crate for terminal colors (like Python's `colorama`).
+2. **컬러 출력 추가하기**. Python의 `colorama`처럼 `colored` 크레이트를 써서 터미널 출력을 꾸밀 수 있습니다.
 
-3. **Add due dates** — Add an `Option<NaiveDate>` field and filter overdue tasks.
+3. **마감일 추가하기**. `Option<NaiveDate>` 필드를 넣고 기한이 지난 작업을 필터링해보세요.
 
-4. **Add tags/categories** — Use `Vec<String>` for tags and filter with `.iter().any()`.
+4. **태그/카테고리 추가하기**. `Vec<String>`로 태그를 저장하고 `.iter().any()`로 필터링해보세요.
 
-5. **Make it a library + binary** — Split into `lib.rs` + `main.rs` so the logic is reusable (Ch. 8 module pattern).
-
-***
-
-## What You Practiced
-
-| Chapter | Concept | Where It Appeared |
-|---------|---------|-------------------|
-| Ch. 3 | Types and variables | `Task` struct fields, `u32`, `String`, `bool` |
-| Ch. 5 | Collections | `Vec<Task>`, `retain()`, `push()` |
-| Ch. 6 | Enums + match | `Priority`, `Command`, exhaustive matching |
-| Ch. 7 | Ownership + borrowing | `&[Task]` vs `Vec<Task>`, `&mut` for completion |
-| Ch. 8 | Modules | `mod task; mod storage; mod command; mod actions;` |
-| Ch. 9 | Error handling | `Result<T, E>`, `?` operator, `.ok_or()` |
-| Ch. 10 | Traits | `Display`, `FromStr`, `Serialize`, `Deserialize` |
-| Ch. 11 | From/Into | `FromStr` for Priority, `.into()` for error conversion |
-| Ch. 12 | Iterators | `filter`, `map`, `find`, `count`, `collect` |
-| Ch. 14 | Testing | `#[test]`, `#[cfg(test)]`, assertion macros |
-
-> 🎓 **Congratulations!** If you've built this project, you've used every major Rust concept covered in this book. You're no longer a Python developer learning Rust — you're a Rust developer who also knows Python.
+5. **라이브러리 + 바이너리로 분리하기**. `lib.rs` + `main.rs` 구조로 쪼개 로직을 재사용 가능하게 만드세요(8장의 모듈 패턴).
 
 ***
+
+## 무엇을 연습했는가
+
+| 장 | 개념 | 이 프로젝트에서 나온 위치 |
+|----|------|----------------------------|
+| 3장 | 타입과 변수 | `Task` 구조체 필드, `u32`, `String`, `bool` |
+| 5장 | 컬렉션 | `Vec<Task>`, `retain()`, `push()` |
+| 6장 | enum + `match` | `Priority`, `Command`, exhaustive matching |
+| 7장 | 소유권 + 대여 | `&[Task]` vs `Vec<Task>`, 완료 처리용 `&mut` |
+| 8장 | 모듈 | `mod task; mod storage; mod command; mod actions;` |
+| 9장 | 에러 처리 | `Result<T, E>`, `?` 연산자, `.ok_or()` |
+| 10장 | 트레잇 | `Display`, `FromStr`, `Serialize`, `Deserialize` |
+| 11장 | From/Into | `Priority`의 `FromStr`, 에러 변환용 `.into()` |
+| 12장 | 이터레이터 | `filter`, `map`, `find`, `count`, `collect` |
+| 14장 | 테스트 | `#[test]`, `#[cfg(test)]`, assertion 매크로 |
+
+> 🎓 **축하합니다!** 이 프로젝트를 완성했다면, 이 책에서 다룬 거의 모든 핵심 Rust 개념을 실제로 사용해본 셈입니다. 이제 당신은 "Rust를 배우는 Python 개발자"가 아니라, "Python도 아는 Rust 개발자"에 더 가깝습니다.
+
+***
+# 17. 캡스톤 프로젝트: CLI 작업 관리자

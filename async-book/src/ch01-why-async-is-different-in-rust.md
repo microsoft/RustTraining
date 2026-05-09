@@ -1,38 +1,41 @@
-# 1. Why Async is Different in Rust 🟢
+<a id="why-async-is-different-in-rust"></a>
+# 1. Rust에서 Async가 다른 이유 🟢
 
-> **What you'll learn:**
-> - Why Rust has no built-in async runtime (and what that means for you)
-> - The three key properties: lazy execution, no runtime, zero-cost abstraction
-> - When async is the right tool (and when it's slower)
-> - How Rust's model compares to C#, Go, Python, and JavaScript
+> **이 장에서 배울 내용:**
+> - Rust에 내장 async runtime이 없는 이유와 그것이 실제로 뜻하는 바
+> - 세 가지 핵심 특징: 지연 실행, runtime 부재, zero-cost abstraction
+> - async가 맞는 경우와 오히려 더 느릴 수 있는 경우
+> - Rust의 모델을 C#, Go, Python, JavaScript와 비교하는 방법
 
-## The Fundamental Difference
+<a id="the-fundamental-difference"></a>
+## 근본적인 차이
 
-Most languages with `async/await` hide the machinery. C# has the CLR thread pool. JavaScript has the event loop. Go has goroutines and a scheduler built into the runtime. Python has `asyncio`.
+`async/await`를 지원하는 대부분의 언어는 내부 동작을 감춥니다. C#에는 CLR 스레드 풀이 있고, JavaScript에는 이벤트 루프가 있으며, Go에는 runtime에 내장된 goroutine과 스케줄러가 있고, Python에는 `asyncio`가 있습니다.
 
-**Rust has nothing.**
+**Rust에는 그런 것이 없습니다.**
 
-There is no built-in runtime, no thread pool, no event loop. The `async` keyword is a zero-cost compilation strategy — it transforms your function into a state machine that implements the `Future` trait. Someone else (an *executor*) must drive that state machine forward.
+내장 runtime도, 스레드 풀도, 이벤트 루프도 없습니다. `async` 키워드는 zero-cost 컴파일 전략일 뿐이며, 함수를 `Future` 트레잇을 구현하는 상태 머신으로 변환합니다. 그리고 그 상태 머신을 실제로 앞으로 진행시키는 역할은 다른 누군가, 즉 *executor*가 맡아야 합니다.
 
-### Three Key Properties of Rust Async
+<a id="three-key-properties-of-rust-async"></a>
+### Rust Async의 세 가지 핵심 특징
 
 ```mermaid
 graph LR
-    subgraph "Other Languages"
-        EAGER["Eager Execution<br/>Task starts immediately"]
-        BUILTIN["Built-in Runtime<br/>Thread pool included"]
-        GC["GC-Managed<br/>No lifetime concerns"]
+    subgraph "다른 언어"
+        EAGER["즉시 실행<br/>Task가 바로 시작됨"]
+        BUILTIN["내장 Runtime<br/>스레드 풀이 포함됨"]
+        GC["GC 관리<br/>라이프타임 고민이 없음"]
     end
 
     subgraph "Rust"
-        LAZY["Lazy Execution<br/>Nothing happens until polled"]
-        BYOB["Bring Your Own Runtime<br/>You choose the executor"]
-        OWNED["Ownership Applies<br/>Lifetimes, Send, Sync matter"]
+        LAZY["지연 실행<br/>poll되기 전까지 아무 일도 일어나지 않음"]
+        BYOB["Runtime 직접 선택<br/>executor를 스스로 고른다"]
+        OWNED["소유권 규칙 적용<br/>라이프타임, Send, Sync가 중요함"]
     end
 
-    EAGER -. "opposite" .-> LAZY
-    BUILTIN -. "opposite" .-> BYOB
-    GC -. "opposite" .-> OWNED
+    EAGER -. "반대" .-> LAZY
+    BUILTIN -. "반대" .-> BYOB
+    GC -. "반대" .-> OWNED
 
     style LAZY fill:#e8f5e8,color:#000
     style BYOB fill:#e8f5e8,color:#000
@@ -42,76 +45,80 @@ graph LR
     style GC fill:#e3f2fd,color:#000
 ```
 
-### No Built-In Runtime
+<a id="no-built-in-runtime"></a>
+### 내장 Runtime이 없다
 
 ```rust
-// This compiles but does NOTHING:
+// 이 코드는 컴파일되지만 아무 일도 하지 않는다:
 async fn fetch_data() -> String {
     "hello".to_string()
 }
 
 fn main() {
-    let future = fetch_data(); // Creates the Future, but doesn't execute it
-    // future is just a struct sitting on the stack
-    // No output, no side effects, nothing happens
-    drop(future); // Silently dropped — work was never started
+    let future = fetch_data(); // Future를 만들지만 실행하지는 않는다
+    // future는 그저 스택 위에 놓인 구조체일 뿐이다
+    // 출력도 없고, 부작용도 없고, 아무 일도 일어나지 않는다
+    drop(future); // 조용히 drop된다 — 작업은 시작조차 하지 않았다
 }
 ```
 
-Compare with C# where `Task` starts eagerly:
+`Task`가 즉시 시작되는 C#과 비교해 보면:
+
 ```csharp
-// C# — this immediately starts executing:
+// C#에서는 이 호출이 즉시 실행을 시작한다:
 async Task<string> FetchData() => "hello";
 
-var task = FetchData(); // Already running!
-var result = await task; // Just waits for completion
+var task = FetchData(); // 이미 실행 중!
+var result = await task; // 완료될 때까지 기다리기만 한다
 ```
 
-### Lazy Futures vs Eager Tasks
+<a id="lazy-futures-vs-eager-tasks"></a>
+### 지연 Future와 즉시 시작되는 Task
 
-This is the single most important mental shift:
+이것이 가장 중요한 사고방식의 전환입니다:
 
 | | C# / JavaScript / Python | Go | Rust |
 |---|---|---|---|
-| **Creation** | `Task` starts executing immediately | Goroutine starts immediately | `Future` does nothing until polled |
-| **Dropping** | Detached task continues running | Goroutine runs until return | Dropping a Future cancels it |
-| **Runtime** | Built into the language/VM | Built into the binary (M:N scheduler) | You choose (tokio, smol, etc.) |
-| **Scheduling** | Automatic (thread pool) | Automatic (GMP scheduler) | Explicit (`spawn`, `block_on`) |
-| **Cancellation** | `CancellationToken` (cooperative) | `context.Context` (cooperative) | Drop the future (immediate) |
+| **생성** | `Task`가 즉시 실행을 시작함 | goroutine이 즉시 시작됨 | `Future`는 poll되기 전까지 아무 일도 하지 않음 |
+| **drop 시** | 분리된 task는 계속 실행됨 | goroutine은 반환될 때까지 실행됨 | `Future`를 drop하면 취소됨 |
+| **Runtime** | 언어/VM에 내장됨 | 바이너리에 내장됨(M:N 스케줄러) | 직접 선택함(tokio, smol 등) |
+| **스케줄링** | 자동(스레드 풀) | 자동(GMP 스케줄러) | 명시적(`spawn`, `block_on`) |
+| **취소** | `CancellationToken`(협력적) | `context.Context`(협력적) | future를 drop함(즉시) |
 
 ```rust
-// To actually RUN a future, you need an executor:
+// Future를 실제로 실행하려면 executor가 필요하다:
 #[tokio::main]
 async fn main() {
-    let result = fetch_data().await; // NOW it executes
+    let result = fetch_data().await; // 이제 실행된다
     println!("{result}");
 }
 ```
 
-### When to Use Async (and When Not To)
+<a id="when-to-use-async-and-when-not-to"></a>
+### Async를 써야 할 때와 그렇지 않을 때
 
 ```mermaid
 graph TD
-    START["What kind of work?"]
+    START["어떤 종류의 작업인가?"]
 
-    IO["I/O-bound?<br/>(network, files, DB)"]
-    CPU["CPU-bound?<br/>(computation, parsing)"]
-    MANY["Many concurrent connections?<br/>(100+)"]
-    FEW["Few concurrent tasks?<br/>(<10)"]
+    IO["I/O 중심인가?<br/>(네트워크, 파일, DB)"]
+    CPU["CPU 중심인가?<br/>(연산, 파싱)"]
+    MANY["동시 연결이 많은가?<br/>(100개 이상)"]
+    FEW["동시 작업이 적은가?<br/>(10개 미만)"]
 
-    USE_ASYNC["✅ Use async/await"]
-    USE_THREADS["✅ Use std::thread or rayon"]
-    USE_SPAWN_BLOCKING["✅ Use spawn_blocking()"]
-    MAYBE_SYNC["Consider synchronous code<br/>(simpler, less overhead)"]
+    USE_ASYNC["✅ async/await 사용"]
+    USE_THREADS["✅ std::thread 또는 rayon 사용"]
+    USE_SPAWN_BLOCKING["✅ spawn_blocking() 사용"]
+    MAYBE_SYNC["동기 코드 고려<br/>(더 단순하고 오버헤드가 적음)"]
 
-    START -->|Network, files, DB| IO
-    START -->|Computation| CPU
-    IO -->|Yes, many| MANY
-    IO -->|Just a few| FEW
+    START -->|네트워크, 파일, DB| IO
+    START -->|연산| CPU
+    IO -->|예, 많다| MANY
+    IO -->|몇 개 안 된다| FEW
     MANY --> USE_ASYNC
     FEW --> MAYBE_SYNC
-    CPU -->|Parallelize| USE_THREADS
-    CPU -->|Inside async context| USE_SPAWN_BLOCKING
+    CPU -->|병렬화| USE_THREADS
+    CPU -->|async 컨텍스트 안에서| USE_SPAWN_BLOCKING
 
     style USE_ASYNC fill:#c8e6c9,color:#000
     style USE_THREADS fill:#c8e6c9,color:#000
@@ -119,52 +126,54 @@ graph TD
     style MAYBE_SYNC fill:#fff3e0,color:#000
 ```
 
-**Rule of thumb**: Async is for I/O concurrency (doing many things at once while waiting), not CPU parallelism (making one thing faster). If you have 10,000 network connections, async shines. If you're crunching numbers, use `rayon` or OS threads.
+**실전 감각으로 기억할 규칙**: async는 CPU 병렬성(한 가지 일을 더 빨리 끝내기)이 아니라 I/O 동시성(기다리는 동안 여러 일을 동시에 처리하기)을 위한 도구입니다. 네트워크 연결이 10,000개라면 async가 빛을 발합니다. 숫자 계산이 주된 작업이라면 `rayon`이나 OS 스레드를 쓰세요.
 
-### When Async Can Be *Slower*
+<a id="when-async-can-be-slower"></a>
+### Async가 더 느릴 수 있는 경우
 
-Async isn't free. For low-concurrency workloads, synchronous code can outperform async:
+async는 공짜가 아닙니다. 동시성이 낮은 워크로드에서는 동기 코드가 async보다 더 빠를 수 있습니다:
 
-| Cost | Why |
+| 비용 | 이유 |
 |------|-----|
-| **State machine overhead** | Each `.await` adds an enum variant; deeply nested futures produce large, complex state machines |
-| **Dynamic dispatch** | `Box<dyn Future>` adds indirection and kills inlining |
-| **Context switching** | Cooperative scheduling still has cost — the executor must manage a task queue, wakers, and I/O registrations |
-| **Compile time** | Async code generates more complex types, slowing down compilation |
-| **Debuggability** | Stack traces through state machines are harder to read (see Ch. 12) |
+| **상태 머신 오버헤드** | `.await`를 하나 추가할 때마다 enum variant가 늘어나며, 깊게 중첩된 future는 크고 복잡한 상태 머신을 만든다 |
+| **동적 디스패치** | `Box<dyn Future>`는 간접 참조를 추가해 inlining을 방해한다 |
+| **컨텍스트 전환** | 협력적 스케줄링도 비용이 있다 — executor는 task queue, waker, I/O 등록을 관리해야 한다 |
+| **컴파일 시간** | async 코드는 더 복잡한 타입을 생성하므로 컴파일이 느려질 수 있다 |
+| **디버깅 난이도** | 상태 머신을 통과하는 스택 트레이스는 읽기가 더 어렵다(12장 참고) |
 
-**Benchmarking guidance**: If fewer than ~10 concurrent I/O operations, profile before committing to async. A simple `std::thread::spawn` per connection scales fine to hundreds of threads on modern Linux.
+**벤치마킹 가이드**: 동시에 처리하는 I/O 작업이 대략 10개보다 적다면, async로 확정하기 전에 먼저 프로파일링하세요. 현대 Linux에서는 연결마다 `std::thread::spawn` 하나를 쓰는 단순한 방식도 수백 개 스레드까지는 충분히 잘 버팁니다.
 
-### Exercise: When Would You Use Async?
-
-<details>
-<summary>🏋️ Exercise (click to expand)</summary>
-
-For each scenario, decide whether async is appropriate and explain why:
-
-1. A web server handling 10,000 concurrent WebSocket connections
-2. A CLI tool that compresses a single large file
-3. A service that queries 5 different databases and merges results
-4. A game engine running a physics simulation at 60 FPS
+<a id="exercise-when-would-you-use-async"></a>
+### 연습문제: 언제 Async를 써야 할까?
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🏋️ 연습문제 (클릭해서 펼치기)</summary>
 
-1. **Async** — I/O-bound with massive concurrency. Each connection spends most time waiting for data. Threads would require 10K stacks.
-2. **Sync/threads** — CPU-bound, single task. Async adds overhead with no benefit. Use `rayon` for parallel compression.
-3. **Async** — Five concurrent I/O waits. `tokio::join!` runs all five queries simultaneously.
-4. **Sync/threads** — CPU-bound, latency-sensitive. Async's cooperative scheduling could introduce frame jitter.
+각 상황에서 async가 적절한지 판단하고, 그 이유를 설명해 보세요:
+
+1. 동시 WebSocket 연결 10,000개를 처리하는 웹 서버
+2. 하나의 큰 파일을 압축하는 CLI 도구
+3. 서로 다른 데이터베이스 5개를 조회한 뒤 결과를 합치는 서비스
+4. 60 FPS로 물리 시뮬레이션을 돌리는 게임 엔진
+
+<details>
+<summary>🔑 해답</summary>
+
+1. **Async** — I/O 중심이고 동시성이 매우 크다. 각 연결은 대부분의 시간을 데이터를 기다리며 보낸다. 스레드로 처리하면 1만 개 스택이 필요하다.
+2. **동기/스레드** — CPU 중심의 단일 작업이다. async는 이점 없이 오버헤드만 더한다. 병렬 압축이 필요하다면 `rayon`을 쓰면 된다.
+3. **Async** — 동시에 기다려야 하는 I/O가 다섯 개 있다. `tokio::join!`으로 다섯 쿼리를 한꺼번에 진행할 수 있다.
+4. **동기/스레드** — CPU 중심이며 지연 시간에 민감하다. async의 협력적 스케줄링은 프레임 흔들림을 만들 수 있다.
 
 </details>
 </details>
 
-> **Key Takeaways — Why Async is Different**
-> - Rust futures are **lazy** — they do nothing until polled by an executor
-> - There is **no built-in runtime** — you choose (or build) your own
-> - Async is a **zero-cost compilation strategy** that produces state machines
-> - Async shines for **I/O-bound concurrency**; for CPU-bound work, use threads or rayon
+> **핵심 정리 — Rust에서 Async가 다른 이유**
+> - Rust future는 **지연(lazy)** 되어 있으며 executor가 poll하기 전까지 아무 일도 하지 않는다
+> - **내장 runtime이 없다** — 직접 선택하거나 직접 만들어야 한다
+> - async는 상태 머신을 만들어 내는 **zero-cost 컴파일 전략**이다
+> - async는 **I/O 중심 동시성**에 강하며, CPU 중심 작업에는 스레드나 `rayon`이 더 적합하다
 
-> **See also:** [Ch 2 — The Future Trait](ch02-the-future-trait.md) for the trait that makes this all work, [Ch 7 — Executors and Runtimes](ch07-executors-and-runtimes.md) for choosing your runtime
+> **참고:** [2장 — Future 트레잇](ch02-the-future-trait.md), [7장 — Executor와 Runtime](ch07-executors-and-runtimes.md)
 
 ***
 

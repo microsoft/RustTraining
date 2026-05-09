@@ -1,29 +1,30 @@
-## Traits - Rust's Interfaces
+<a id="traits---rusts-interfaces"></a>
+## 트레잇 - Rust의 인터페이스
 
-> **What you'll learn:** Traits vs C# interfaces, default method implementations, trait objects (`dyn Trait`)
-> vs generic bounds (`impl Trait`), derived traits, common standard library traits, associated types,
-> and operator overloading via traits.
+> **학습할 내용:** 트레잇과 C# 인터페이스의 차이, 기본 메서드 구현, 트레잇 객체(`dyn Trait`)와
+> 제네릭 바운드(`impl Trait`)의 차이, derive로 자동 구현되는 트레잇, 표준 라이브러리의 대표 트레잇,
+> 연관 타입, 그리고 트레잇을 통한 연산자 오버로딩까지 살펴봅니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-Traits are Rust's way of defining shared behavior, similar to interfaces in C# but more powerful.
+트레잇은 Rust에서 공유 동작을 정의하는 방식으로, C#의 인터페이스와 비슷하지만 더 강력합니다.
 
-### C# Interface Comparison
+### C# 인터페이스와 비교
 ```csharp
-// C# interface definition
+// C# 인터페이스 정의
 public interface IAnimal
 {
     string Name { get; }
     void MakeSound();
     
-    // Default implementation (C# 8+)
+    // 기본 구현(C# 8+)
     string Describe()
     {
         return $"{Name} makes a sound";
     }
 }
 
-// C# interface implementation
+// C# 인터페이스 구현
 public class Dog : IAnimal
 {
     public string Name { get; }
@@ -38,14 +39,14 @@ public class Dog : IAnimal
         Console.WriteLine("Woof!");
     }
     
-    // Can override default implementation
+    // 기본 구현을 재정의할 수 있음
     public string Describe()
     {
         return $"{Name} is a loyal dog";
     }
 }
 
-// Generic constraints
+// 제네릭 제약
 public void ProcessAnimal<T>(T animal) where T : IAnimal
 {
     animal.MakeSound();
@@ -53,26 +54,26 @@ public void ProcessAnimal<T>(T animal) where T : IAnimal
 }
 ```
 
-### Rust Trait Definition and Implementation
+### Rust 트레잇 정의와 구현
 ```rust
-// Trait definition
+// 트레잇 정의
 trait Animal {
     fn name(&self) -> &str;
     fn make_sound(&self);
     
-    // Default implementation
+    // 기본 구현
     fn describe(&self) -> String {
         format!("{} makes a sound", self.name())
     }
     
-    // Default implementation using other trait methods
+    // 다른 트레잇 메서드를 활용한 기본 구현
     fn introduce(&self) {
         println!("Hi, I'm {}", self.name());
         self.make_sound();
     }
 }
 
-// Struct definition
+// 구조체 정의
 #[derive(Debug)]
 struct Dog {
     name: String,
@@ -85,7 +86,7 @@ impl Dog {
     }
 }
 
-// Trait implementation
+// 트레잇 구현
 impl Animal for Dog {
     fn name(&self) -> &str {
         &self.name
@@ -101,7 +102,7 @@ impl Animal for Dog {
     }
 }
 
-// Another implementation
+// 또 다른 구현
 #[derive(Debug)]
 struct Cat {
     name: String,
@@ -117,17 +118,17 @@ impl Animal for Cat {
         println!("Meow!");
     }
     
-    // Use default describe() implementation
+    // describe() 기본 구현 사용
 }
 
-// Generic function with trait bounds
+// 트레잇 바운드를 가진 제네릭 함수
 fn process_animal<T: Animal>(animal: &T) {
     animal.make_sound();
     println!("{}", animal.describe());
     animal.introduce();
 }
 
-// Multiple trait bounds
+// 여러 트레잇 바운드
 fn process_animal_debug<T: Animal + std::fmt::Debug>(animal: &T) {
     println!("Debug: {:?}", animal);
     process_animal(animal);
@@ -144,19 +145,19 @@ fn main() {
 }
 ```
 
-### Trait Objects and Dynamic Dispatch
+### 트레잇 객체와 동적 디스패치
 ```csharp
-// C# dynamic polymorphism
+// C# 동적 다형성
 public void ProcessAnimals(List<IAnimal> animals)
 {
     foreach (var animal in animals)
     {
-        animal.MakeSound(); // Dynamic dispatch
+        animal.MakeSound(); // 동적 디스패치
         Console.WriteLine(animal.Describe());
     }
 }
 
-// Usage
+// 사용 예
 var animals = new List<IAnimal>
 {
     new Dog("Buddy"),
@@ -168,15 +169,15 @@ ProcessAnimals(animals);
 ```
 
 ```rust
-// Rust trait objects for dynamic dispatch
+// 동적 디스패치를 위한 Rust 트레잇 객체
 fn process_animals(animals: &[Box<dyn Animal>]) {
     for animal in animals {
-        animal.make_sound(); // Dynamic dispatch
+        animal.make_sound(); // 동적 디스패치
         println!("{}", animal.describe());
     }
 }
 
-// Alternative: using references
+// 대안: 참조 사용
 fn process_animal_refs(animals: &[&dyn Animal]) {
     for animal in animals {
         animal.make_sound();
@@ -185,7 +186,7 @@ fn process_animal_refs(animals: &[&dyn Animal]) {
 }
 
 fn main() {
-    // Using Box<dyn Trait>
+    // Box<dyn Trait> 사용
     let animals: Vec<Box<dyn Animal>> = vec![
         Box::new(Dog::new("Buddy".to_string(), "Golden Retriever".to_string())),
         Box::new(Cat { name: "Whiskers".to_string(), indoor: true }),
@@ -194,7 +195,7 @@ fn main() {
     
     process_animals(&animals);
     
-    // Using references
+    // 참조 사용
     let dog = Dog::new("Buddy".to_string(), "Golden Retriever".to_string());
     let cat = Cat { name: "Whiskers".to_string(), indoor: true };
     
@@ -203,16 +204,16 @@ fn main() {
 }
 ```
 
-### Derived Traits
+### derive로 자동 구현되는 트레잇
 ```rust
-// Automatically derive common traits
+// 자주 쓰는 트레잇을 자동으로 derive
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Person {
     name: String,
     age: u32,
 }
 
-// What this generates (simplified):
+// 실제로 생성되는 내용(단순화)
 impl std::fmt::Debug for Person {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Person")
@@ -237,7 +238,7 @@ impl PartialEq for Person {
     }
 }
 
-// Usage
+// 사용 예
 fn main() {
     let person1 = Person {
         name: "Alice".to_string(),
@@ -251,31 +252,32 @@ fn main() {
 }
 ```
 
-### Common Standard Library Traits
+<a id="common-standard-library-traits"></a>
+### 표준 라이브러리의 대표 트레잇
 ```rust
 use std::collections::HashMap;
 
-// Display trait for user-friendly output
+// 사람이 읽기 좋은 출력을 위한 Display 트레잇
 impl std::fmt::Display for Person {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} (age {})", self.name, self.age)
     }
 }
 
-// From trait for conversions
+// 변환을 위한 From 트레잇
 impl From<(String, u32)> for Person {
     fn from((name, age): (String, u32)) -> Self {
         Person { name, age }
     }
 }
 
-// Into trait is automatically implemented when From is implemented
+// From을 구현하면 Into는 자동으로 따라온다
 fn create_person() {
     let person: Person = ("Alice".to_string(), 30).into();
     println!("{}", person);
 }
 
-// Iterator trait implementation
+// Iterator 트레잇 구현
 struct PersonIterator {
     people: Vec<Person>,
     index: usize,
@@ -308,9 +310,9 @@ fn main() {
         Person::from(("Charlie".to_string(), 35)),
     ];
     
-    // Use our custom iterator
+    // 우리가 만든 커스텀 이터레이터 사용
     for person in Person::iterator(people.clone()) {
-        println!("{}", person); // Uses Display trait
+        println!("{}", person); // Display 트레잇 사용
     }
 }
 ```
@@ -319,12 +321,12 @@ fn main() {
 
 
 <details>
-<summary><strong>🏋️ Exercise: Trait-Based Drawing System</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 트레잇 기반 그리기 시스템</strong> (펼쳐서 보기)</summary>
 
-**Challenge**: Implement a `Drawable` trait with an `area()` method and a `draw()` default method. Create `Circle` and `Rect` structs. Write a function that accepts `&[Box<dyn Drawable>]` and prints total area.
+**도전 과제:** `area()` 메서드와 기본 메서드 `draw()`를 가진 `Drawable` 트레잇을 구현해 보세요. `Circle`과 `Rect` 구조체를 만들고, `&[Box<dyn Drawable>]`를 받아 총 넓이를 출력하는 함수를 작성하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해설</summary>
 
 ```rust
 use std::f64::consts::PI;
@@ -363,29 +365,29 @@ fn main() {
 }
 ```
 
-**Key takeaways**:
-- `dyn Trait` gives runtime polymorphism (like C# `IDrawable`)
-- `Box<dyn Trait>` is heap-allocated, needed for heterogeneous collections
-- Default methods work exactly like C# 8+ default interface methods
+**핵심 요점:**
+- `dyn Trait`는 C#의 `IDrawable`처럼 런타임 다형성을 제공합니다.
+- `Box<dyn Trait>`는 힙 할당을 사용하며, 이질적인 컬렉션을 담을 때 필요합니다.
+- 기본 메서드는 C# 8+의 default interface method와 매우 비슷하게 동작합니다.
 
 </details>
 </details>
 
-### Associated Types: Traits With Type Members
+### 연관 타입: 타입 멤버를 가진 트레잇
 
-C# interfaces don't have associated types — Rust traits do. This is how `Iterator` works:
+C# 인터페이스에는 연관 타입이 없지만 Rust 트레잇에는 있습니다. `Iterator`가 대표적인 예입니다.
 
 ```rust
-// The Iterator trait has an associated type 'Item'
+// Iterator 트레잇은 연관 타입 Item을 가진다
 trait Iterator {
-    type Item;                         // Each implementor defines what Item is
+    type Item;                         // 구현체마다 Item이 무엇인지 정한다
     fn next(&mut self) -> Option<Self::Item>;
 }
 
 struct Counter { max: u32, current: u32 }
 
 impl Iterator for Counter {
-    type Item = u32;                   // This Counter yields u32 values
+    type Item = u32;                   // 이 Counter는 u32 값을 생성한다
     fn next(&mut self) -> Option<u32> {
         if self.current < self.max {
             self.current += 1;
@@ -397,11 +399,11 @@ impl Iterator for Counter {
 }
 ```
 
-In C#, `IEnumerator<T>` uses a generic parameter (`T`) for this purpose. Rust's associated types are different: `Iterator` has *one* `Item` type per implementation, not a generic parameter at the trait level. This makes trait bounds simpler: `impl Iterator<Item = u32>` vs C#'s `IEnumerable<int>`.
+C#에서는 `IEnumerator<T>`가 제네릭 매개변수(`T`)로 이 역할을 합니다. Rust의 연관 타입은 다릅니다. `Iterator`는 트레잇 수준의 제네릭 매개변수가 아니라, 각 구현마다 *하나의* `Item` 타입을 가집니다. 덕분에 `impl Iterator<Item = u32>`처럼 트레잇 바운드를 더 간단하게 표현할 수 있습니다.
 
-### Operator Overloading via Traits
+### 트레잇을 통한 연산자 오버로딩
 
-In C#, you define `public static MyType operator+(MyType a, MyType b)`. In Rust, every operator maps to a trait in `std::ops`:
+C#에서는 `public static MyType operator+(MyType a, MyType b)`처럼 정의합니다. Rust에서는 모든 연산자가 `std::ops`의 트레잇에 대응합니다.
 
 ```rust
 use std::ops::Add;
@@ -418,81 +420,82 @@ impl Add for Vec2 {
 
 let a = Vec2 { x: 1.0, y: 2.0 };
 let b = Vec2 { x: 3.0, y: 4.0 };
-let c = a + b;  // calls <Vec2 as Add>::add(a, b)
+let c = a + b;  // <Vec2 as Add>::add(a, b)를 호출
 ```
 
-| C# | Rust | Notes |
+| C# | Rust | 비고 |
 |----|------|-------|
-| `operator+` | `impl Add` | `self` by value — consumes for non-`Copy` types |
-| `operator==` | `impl PartialEq` | Usually `#[derive(PartialEq)]` |
-| `operator<` | `impl PartialOrd` | Usually `#[derive(PartialOrd)]` |
-| `ToString()` | `impl fmt::Display` | Used by `println!("{}", x)` |
-| Implicit conversion | No equivalent | Rust has no implicit conversions — use `From`/`Into` |
+| `operator+` | `impl Add` | `self`를 값으로 받으므로 non-`Copy` 타입은 소비됨 |
+| `operator==` | `impl PartialEq` | 보통 `#[derive(PartialEq)]` 사용 |
+| `operator<` | `impl PartialOrd` | 보통 `#[derive(PartialOrd)]` 사용 |
+| `ToString()` | `impl fmt::Display` | `println!("{}", x)`에서 사용 |
+| Implicit conversion | 대응 없음 | Rust에는 암묵적 변환이 없으므로 `From`/`Into` 사용 |
 
-### Coherence: The Orphan Rule
+### 일관성(coherence): orphan rule
 
-You can only implement a trait if you own either the trait or the type. This prevents conflicting implementations across crates:
+트레잇을 구현하려면 트레잇이나 타입 중 하나는 반드시 여러분이 소유해야 합니다. 이 규칙은 여러 크레이트에서 충돌하는 구현이 생기는 것을 막아 줍니다.
 
 ```rust
-// ✅ OK — you own MyType
+// OK - MyType을 내가 소유함
 impl Display for MyType { ... }
 
-// ✅ OK — you own MyTrait
+// OK - MyTrait를 내가 소유함
 impl MyTrait for String { ... }
 
-// ❌ ERROR — you own neither Display nor String
+// ERROR - Display도 String도 내가 소유하지 않음
 impl Display for String { ... }
 ```
 
-C# has no equivalent restriction — any code can add extension methods to any type, which can lead to ambiguity.
+C#에는 이에 대응하는 제약이 없습니다. 어떤 코드든 어떤 타입에도 확장 메서드를 추가할 수 있으므로, 경우에 따라 모호성이 생길 수 있습니다.
 
 <!-- ch10.0a: impl Trait and Dispatch Strategies -->
-## `impl Trait`: Returning Traits Without Boxing
+<a id="impl-trait-returning-traits-without-boxing"></a>
+## `impl Trait`: boxing 없이 트레잇 반환하기
 
-C# interfaces can always be used as return types. In Rust, returning a trait requires a decision: static dispatch (`impl Trait`) or dynamic dispatch (`dyn Trait`).
+C# 인터페이스는 언제나 반환 타입으로 쓸 수 있습니다. Rust에서는 트레잇을 반환하려면 정적 디스패치(`impl Trait`)와 동적 디스패치(`dyn Trait`) 중 하나를 선택해야 합니다.
 
-### `impl Trait` in Argument Position (Shorthand for Generics)
+### 인자 위치의 `impl Trait`(제네릭 축약 문법)
 ```rust
-// These two are equivalent:
+// 아래 두 함수는 동등하다
 fn print_animal(animal: &impl Animal) { animal.make_sound(); }
 fn print_animal<T: Animal>(animal: &T)  { animal.make_sound(); }
 
-// impl Trait is just syntactic sugar for a generic parameter
-// The compiler generates a specialized copy for each concrete type (monomorphization)
+// impl Trait는 제네릭 매개변수의 문법적 설탕일 뿐이다
+// 컴파일러는 구체 타입마다 특화된 코드를 생성한다(단형화)
 ```
 
-### `impl Trait` in Return Position (The Key Difference)
+### 반환 위치의 `impl Trait`(핵심 차이)
 ```rust
-// Return an iterator without exposing the concrete type
+// 구체 타입을 드러내지 않고 이터레이터를 반환
 fn even_squares(limit: u32) -> impl Iterator<Item = u32> {
     (0..limit)
         .filter(|n| n % 2 == 0)
         .map(|n| n * n)
 }
-// The caller sees "some type that implements Iterator<Item = u32>"
-// The actual type (Filter<Map<Range<u32>, ...>>) is unnameable — impl Trait solves this.
+// 호출자는 "Iterator<Item = u32>를 구현한 어떤 타입"만 본다
+// 실제 타입(Filter<Map<Range<u32>, ...>>)은 이름 붙이기 어렵기 때문에 impl Trait가 이를 해결한다.
 
 fn main() {
     for n in even_squares(20) {
         print!("{n} ");
     }
-    // Output: 0 4 16 36 64 100 144 196 256 324
+    // 출력: 0 4 16 36 64 100 144 196 256 324
 }
 ```
 
 ```csharp
-// C# — returning an interface (always dynamic dispatch, heap-allocated iterator object)
+// C# - 인터페이스 반환(항상 동적 디스패치, 힙에 있는 이터레이터 객체)
 public IEnumerable<int> EvenSquares(int limit) =>
     Enumerable.Range(0, limit)
         .Where(n => n % 2 == 0)
         .Select(n => n * n);
-// The return type hides the concrete iterator behind the IEnumerable interface
-// Unlike Rust's Box<dyn Trait>, C# doesn't explicitly box — the runtime handles allocation
+// 반환 타입은 구체 이터레이터를 IEnumerable 인터페이스 뒤에 감춘다
+// Rust의 Box<dyn Trait>와 달리 C#은 boxing을 명시하지 않고, 런타임이 할당을 처리한다
 ```
 
-### Returning Closures: `impl Fn` vs `Box<dyn Fn>`
+### 클로저 반환하기: `impl Fn` vs `Box<dyn Fn>`
 ```rust
-// Return a closure — you CANNOT name the closure type, so impl Fn is essential
+// 클로저를 반환한다 - 클로저 타입에는 이름을 붙일 수 없으므로 impl Fn이 중요하다
 fn make_adder(x: i32) -> impl Fn(i32) -> i32 {
     move |y| x + y
 }
@@ -500,7 +503,7 @@ fn make_adder(x: i32) -> impl Fn(i32) -> i32 {
 let add5 = make_adder(5);
 println!("{}", add5(3)); // 8
 
-// If you need to return DIFFERENT closures conditionally, you need Box:
+// 조건에 따라 서로 다른 클로저를 반환해야 한다면 Box가 필요하다
 fn choose_op(add: bool) -> Box<dyn Fn(i32, i32) -> i32> {
     if add {
         Box::new(|a, b| a + b)
@@ -508,43 +511,43 @@ fn choose_op(add: bool) -> Box<dyn Fn(i32, i32) -> i32> {
         Box::new(|a, b| a * b)
     }
 }
-// impl Trait requires a SINGLE concrete type; different closures are different types
+// impl Trait는 하나의 구체 타입만 허용한다. 서로 다른 클로저는 서로 다른 타입이다.
 ```
 
 ```csharp
-// C# — delegates handle this naturally (always heap-allocated)
+// C# - delegate가 이를 자연스럽게 처리한다(항상 힙 할당)
 Func<int, int> MakeAdder(int x) => y => x + y;
 Func<int, int, int> ChooseOp(bool add) => add ? (a, b) => a + b : (a, b) => a * b;
 ```
 
-### The Dispatch Decision: `impl Trait` vs `dyn Trait` vs Generics
+### 디스패치 선택: `impl Trait` vs `dyn Trait` vs 제네릭
 
-This is an architectural decision C# developers face immediately in Rust. Here's the complete guide:
+이 선택은 C# 개발자가 Rust에 오면 가장 먼저 마주치는 설계 결정 중 하나입니다. 아래 가이드를 참고하세요.
 
 ```mermaid
 graph TD
-    START["Function accepts or returns<br/>a trait-based type?"]
-    POSITION["Argument or return position?"]
-    ARG_SAME["All callers pass<br/>the same type?"]
-    RET_SINGLE["Always returns the<br/>same concrete type?"]
-    COLLECTION["Storing in a collection<br/>or as struct field?"]
+    START["함수가 트레잇 기반 타입을<br/>받거나 반환하는가?"]
+    POSITION["인자 위치인가<br/>반환 위치인가?"]
+    ARG_SAME["모든 호출자가<br/>같은 타입을 전달하는가?"]
+    RET_SINGLE["항상 같은 구체 타입을<br/>반환하는가?"]
+    COLLECTION["컬렉션이나 구조체 필드에<br/>저장하는가?"]
 
-    GENERIC["Use generics<br/><code>fn foo&lt;T: Trait&gt;(x: T)</code>"]
-    IMPL_ARG["Use impl Trait<br/><code>fn foo(x: impl Trait)</code>"]
-    IMPL_RET["Use impl Trait<br/><code>fn foo() -> impl Trait</code>"]
-    DYN_BOX["Use Box&lt;dyn Trait&gt;<br/>Dynamic dispatch"]
-    DYN_REF["Use &dyn Trait<br/>Borrowed dynamic dispatch"]
+    GENERIC["제네릭 사용<br/><code>fn foo&lt;T: Trait&gt;(x: T)</code>"]
+    IMPL_ARG["impl Trait 사용<br/><code>fn foo(x: impl Trait)</code>"]
+    IMPL_RET["impl Trait 사용<br/><code>fn foo() -> impl Trait</code>"]
+    DYN_BOX["Box&lt;dyn Trait&gt; 사용<br/>동적 디스패치"]
+    DYN_REF["&dyn Trait 사용<br/>빌린 동적 디스패치"]
 
     START --> POSITION
-    POSITION -->|Argument| ARG_SAME
-    POSITION -->|Return| RET_SINGLE
-    ARG_SAME -->|"Yes (syntactic sugar)"| IMPL_ARG
-    ARG_SAME -->|"Complex bounds/multiple uses"| GENERIC
-    RET_SINGLE -->|Yes| IMPL_RET
-    RET_SINGLE -->|"No (conditional types)"| DYN_BOX
-    RET_SINGLE -->|"Heterogeneous collection"| COLLECTION
-    COLLECTION -->|Owned| DYN_BOX
-    COLLECTION -->|Borrowed| DYN_REF
+    POSITION -->|인자| ARG_SAME
+    POSITION -->|반환| RET_SINGLE
+    ARG_SAME -->|"예(축약 문법)"| IMPL_ARG
+    ARG_SAME -->|"복잡한 바운드/여러 곳에서 재사용"| GENERIC
+    RET_SINGLE -->|예| IMPL_RET
+    RET_SINGLE -->|"아니오(조건에 따라 타입이 다름)"| DYN_BOX
+    RET_SINGLE -->|"이질적인 컬렉션"| COLLECTION
+    COLLECTION -->|소유| DYN_BOX
+    COLLECTION -->|대여| DYN_REF
 
     style GENERIC fill:#c8e6c9,color:#000
     style IMPL_ARG fill:#c8e6c9,color:#000
@@ -553,20 +556,20 @@ graph TD
     style DYN_REF fill:#fff3e0,color:#000
 ```
 
-| Approach | Dispatch | Allocation | When to Use |
+| 접근법 | 디스패치 | 할당 | 언제 쓰나 |
 |----------|----------|------------|-------------|
-| `fn foo<T: Trait>(x: T)` | Static (monomorphized) | Stack | Multiple trait bounds, turbofish needed, same type reused |
-| `fn foo(x: impl Trait)` | Static (monomorphized) | Stack | Simple bounds, cleaner syntax, one-off parameters |
-| `fn foo() -> impl Trait` | Static | Stack | Single concrete return type, iterators, closures |
-| `fn foo() -> Box<dyn Trait>` | Dynamic (vtable) | **Heap** | Different return types, trait objects in collections |
-| `&dyn Trait` / `&mut dyn Trait` | Dynamic (vtable) | No alloc | Borrowed heterogeneous references, function parameters |
+| `fn foo<T: Trait>(x: T)` | 정적(단형화) | 스택 | 여러 트레잇 바운드, turbofish 필요, 같은 타입 재사용 |
+| `fn foo(x: impl Trait)` | 정적(단형화) | 스택 | 단순한 바운드, 더 깔끔한 문법, 일회성 매개변수 |
+| `fn foo() -> impl Trait` | 정적 | 스택 | 단일 구체 반환 타입, 이터레이터, 클로저 |
+| `fn foo() -> Box<dyn Trait>` | 동적(vtable) | **힙** | 서로 다른 반환 타입, 컬렉션 속 트레잇 객체 |
+| `&dyn Trait` / `&mut dyn Trait` | 동적(vtable) | 할당 없음 | 빌린 이질적 참조, 함수 매개변수 |
 
 ```rust
-// Summary: from fastest to most flexible
-fn static_dispatch(x: impl Display)             { /* fastest, no alloc */ }
-fn generic_dispatch<T: Display + Clone>(x: T)    { /* fastest, multiple bounds */ }
-fn dynamic_dispatch(x: &dyn Display)             { /* vtable lookup, no alloc */ }
-fn boxed_dispatch(x: Box<dyn Display>)           { /* vtable lookup + heap alloc */ }
+// 요약: 가장 빠른 방법에서 가장 유연한 방법 순
+fn static_dispatch(x: impl Display)             { /* 가장 빠름, 할당 없음 */ }
+fn generic_dispatch<T: Display + Clone>(x: T)    { /* 가장 빠름, 여러 바운드 */ }
+fn dynamic_dispatch(x: &dyn Display)             { /* vtable 조회, 할당 없음 */ }
+fn boxed_dispatch(x: Box<dyn Display>)           { /* vtable 조회 + 힙 할당 */ }
 ```
 
 ***

@@ -1,44 +1,46 @@
-# Phantom Types for Resource Tracking 🟡
+<a id="phantom-types-for-resource-tracking"></a>
+# 리소스 추적을 위한 팬텀 타입 🟡
 
-> **What you'll learn:** How `PhantomData` markers encode register width, DMA direction, and file-descriptor state at the type level — preventing an entire class of resource-mismatch bugs at zero runtime cost.
+> **이 장에서 배울 내용:** `PhantomData` 마커로 레지스터 폭, DMA 방향, 파일 디스크립터 상태를 **타입 수준**에서 인코딩해, 런타임 비용 없이 리소스 불일치 버그 한 클래스를 막는 방법입니다.
 >
-> **Cross-references:** [ch05](ch05-protocol-state-machines-type-state-for-r.md) (type-state), [ch06](ch06-dimensional-analysis-making-the-compiler.md) (dimensional types), [ch08](ch08-capability-mixins-compile-time-hardware-.md) (mixins), [ch10](ch10-putting-it-all-together-a-complete-diagn.md) (integration)
+> **상호 참조:** [ch05](ch05-protocol-state-machines-type-state-for-r.md)(type-state), [ch06](ch06-dimensional-analysis-making-the-compiler.md)(차원 타입), [ch08](ch08-capability-mixins-compile-time-hardware-.md)(mixin), [ch10](ch10-putting-it-all-together-a-complete-diagn.md)(통합)
 
-## The Problem: Mixing Up Resources
+<a id="the-problem-mixing-up-resources"></a>
+## 문제: 리소스 혼동
 
-Hardware resources look alike in code but aren't interchangeable:
+하드웨어 리소스는 코드에서 비슷해 보이지만 서로 바꿔 쓸 수 없습니다.
 
-- A 32-bit register and a 16-bit register are both "registers"
-- A DMA buffer for read and a DMA buffer for write both look like `*mut u8`
-- An open file descriptor and a closed one are both `i32`
+- 32비트 레지스터와 16비트 레지스터는 둘 다 "레지스터"
+- 읽기용 DMA 버퍼와 쓰기용 DMA 버퍼는 둘 다 `*mut u8`처럼 보임
+- 열린 fd와 닫힌 fd는 둘 다 `i32`
 
-In C:
+C에서는:
 
 ```c
-// C — all registers look the same
+// C — 모든 레지스터가 같아 보임
 uint32_t read_reg32(volatile void *base, uint32_t offset);
 uint16_t read_reg16(volatile void *base, uint32_t offset);
 
-// Bug: reading a 16-bit register with the 32-bit function
-uint32_t status = read_reg32(pcie_bar, LINK_STATUS_REG);  // should be reg16!
+// 버그: 16비트 레지스터를 32비트 함수로 읽음
+uint32_t status = read_reg32(pcie_bar, LINK_STATUS_REG);  // reg16이어야 함!
 ```
 
-## Phantom Type Parameters
+<a id="phantom-type-parameters"></a>
+## 팬텀 타입 매개변수
 
-A **phantom type** is a type parameter that appears in the struct definition but
-not in any field. It exists purely to carry type-level information:
+**팬텀 타입(phantom type)**은 구조체 정의에는 나오지만 어떤 필드에도 쓰이지 않는 타입 매개변수입니다. 순전히 타입 수준 정보를 실어 나릅니다.
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// Register width markers — zero-sized
+// 레지스터 폭 마커 — 크기 0
 pub struct Width8;
 pub struct Width16;
 pub struct Width32;
 pub struct Width64;
 
-/// A register handle parameterised by its width.
-/// PhantomData<W> costs zero bytes — it's a compile-time-only marker.
+/// 폭으로 매개변수화된 레지스터 핸들.
+/// PhantomData<W>는 0바이트 — 컴파일 타임 전용 마커.
 pub struct Register<W> {
     base: usize,
     offset: usize,
@@ -47,35 +49,35 @@ pub struct Register<W> {
 
 impl Register<Width8> {
     pub fn read(&self) -> u8 {
-        // ... read 1 byte from base + offset ...
-        0 // stub
+        // ... base + offset에서 1바이트 읽기 ...
+        0 // 스텁
     }
     pub fn write(&self, _value: u8) {
-        // ... write 1 byte ...
+        // ... 1바이트 쓰기 ...
     }
 }
 
 impl Register<Width16> {
     pub fn read(&self) -> u16 {
-        // ... read 2 bytes from base + offset ...
-        0 // stub
+        // ... base + offset에서 2바이트 읽기 ...
+        0 // 스텁
     }
     pub fn write(&self, _value: u16) {
-        // ... write 2 bytes ...
+        // ... 2바이트 쓰기 ...
     }
 }
 
 impl Register<Width32> {
     pub fn read(&self) -> u32 {
-        // ... read 4 bytes from base + offset ...
-        0 // stub
+        // ... base + offset에서 4바이트 읽기 ...
+        0 // 스텁
     }
     pub fn write(&self, _value: u32) {
-        // ... write 4 bytes ...
+        // ... 4바이트 쓰기 ...
     }
 }
 
-/// PCIe config space register definitions.
+/// PCIe 설정 공간 레지스터 정의.
 pub struct PcieConfig {
     base: usize,
 }
@@ -105,76 +107,75 @@ impl PcieConfig {
 fn pcie_example() {
     let cfg = PcieConfig { base: 0xFE00_0000 };
 
-    let vid: u16 = cfg.vendor_id().read();    // returns u16 ✅
-    let bar: u32 = cfg.bar0().read();         // returns u32 ✅
+    let vid: u16 = cfg.vendor_id().read();    // u16 반환
+    let bar: u32 = cfg.bar0().read();         // u32 반환
 
-    // Can't mix them up:
+    // 섞어 쓸 수 없음:
     // let bad: u32 = cfg.vendor_id().read(); // ❌ ERROR: expected u16
     // cfg.bar0().write(0u16);                // ❌ ERROR: expected u32
 }
 ```
 
-## DMA Buffer Access Control
+<a id="dma-buffer-access-control"></a>
+## DMA 버퍼 접근 제어
 
-DMA buffers have direction: some are for **device-to-host** (read), others for
-**host-to-device** (write). Using the wrong direction corrupts data or causes
-bus errors:
+DMA 버퍼에는 방향이 있습니다. **디바이스→호스트(읽기)** 용과 **호스트→디바이스(쓰기)** 용이 있는데, 잘못된 방향을 쓰면 데이터가 깨지거나 버스 오류가 납니다.
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// Direction markers
-pub struct ToDevice;     // host writes, device reads
-pub struct FromDevice;   // device writes, host reads
+// 방향 마커
+pub struct ToDevice;     // 호스트가 쓰고 디바이스가 읽음
+pub struct FromDevice;   // 디바이스가 쓰고 호스트가 읽음
 
-/// A DMA buffer with direction enforcement.
+/// 방향이 강제되는 DMA 버퍼.
 pub struct DmaBuffer<Dir> {
     ptr: *mut u8,
     len: usize,
-    dma_addr: u64,  // physical address for the device
+    dma_addr: u64,  // 디바이스용 물리 주소
     _dir: PhantomData<Dir>,
 }
 
 impl DmaBuffer<ToDevice> {
-    /// Fill the buffer with data to send to the device.
+    /// 디바이스로 보낼 데이터로 버퍼를 채웁니다.
     pub fn write_data(&mut self, data: &[u8]) {
         assert!(data.len() <= self.len);
         unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), self.ptr, data.len()) }
     }
 
-    /// Get the DMA address for the device to read from.
+    /// 디바이스가 읽을 DMA 주소.
     pub fn device_addr(&self) -> u64 {
         self.dma_addr
     }
 }
 
 impl DmaBuffer<FromDevice> {
-    /// Read data that the device wrote into the buffer.
+    /// 디바이스가 버퍼에 쓴 데이터를 읽습니다.
     pub fn read_data(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.ptr, self.len) }
     }
 
-    /// Get the DMA address for the device to write to.
+    /// 디바이스가 쓸 DMA 주소.
     pub fn device_addr(&self) -> u64 {
         self.dma_addr
     }
 }
 
-// Can't write to a FromDevice buffer:
+// FromDevice 버퍼에 쓸 수 없음:
 // fn oops(buf: &mut DmaBuffer<FromDevice>) {
-//     buf.write_data(&[1, 2, 3]);  // ❌ no method `write_data` on DmaBuffer<FromDevice>
+//     buf.write_data(&[1, 2, 3]);  // ❌ DmaBuffer<FromDevice>에 `write_data` 없음
 // }
 
-// Can't read from a ToDevice buffer:
+// ToDevice 버퍼에서 읽을 수 없음:
 // fn oops2(buf: &DmaBuffer<ToDevice>) {
-//     let data = buf.read_data();  // ❌ no method `read_data` on DmaBuffer<ToDevice>
+//     let data = buf.read_data();  // ❌ DmaBuffer<ToDevice>에 `read_data` 없음
 // }
 ```
 
-## File Descriptor Ownership
+<a id="file-descriptor-ownership"></a>
+## 파일 디스크립터 소유권
 
-A common bug: using a file descriptor after it's been closed. Phantom types can
-track open/closed state:
+흔한 버그: 닫은 뒤에도 fd를 씁니다. 팬텀 타입으로 열림/닫힘 상태를 추적할 수 있습니다.
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -182,7 +183,7 @@ use std::marker::PhantomData;
 pub struct Open;
 pub struct Closed;
 
-/// A file descriptor with state tracking.
+/// 상태가 추적되는 파일 디스크립터.
 pub struct Fd<State> {
     raw: i32,
     _state: PhantomData<State>,
@@ -190,31 +191,31 @@ pub struct Fd<State> {
 
 impl Fd<Open> {
     pub fn open(path: &str) -> Result<Self, String> {
-        // ... open the file ...
-        Ok(Fd { raw: 3, _state: PhantomData }) // stub
+        // ... 파일 열기 ...
+        Ok(Fd { raw: 3, _state: PhantomData }) // 스텁
     }
 
     pub fn read(&self, buf: &mut [u8]) -> Result<usize, String> {
-        // ... read from fd ...
-        Ok(0) // stub
+        // ... fd에서 읽기 ...
+        Ok(0) // 스텁
     }
 
     pub fn write(&self, data: &[u8]) -> Result<usize, String> {
-        // ... write to fd ...
-        Ok(data.len()) // stub
+        // ... fd에 쓰기 ...
+        Ok(data.len()) // 스텁
     }
 
-    /// Close the fd — returns a Closed handle.
-    /// The Open handle is consumed, preventing use-after-close.
+    /// fd 닫기 — Closed 핸들을 반환.
+    /// Open 핸들은 소비되어 닫은 뒤 사용 방지.
     pub fn close(self) -> Fd<Closed> {
-        // ... close the fd ...
+        // ... fd 닫기 ...
         Fd { raw: self.raw, _state: PhantomData }
     }
 }
 
 impl Fd<Closed> {
-    // No read() or write() methods — they don't exist on Fd<Closed>.
-    // This makes use-after-close a compile error.
+    // read()/write() 없음 — Fd<Closed>에는 존재하지 않음.
+    // 닫은 뒤 사용은 컴파일 오류가 됨.
 
     pub fn raw_fd(&self) -> i32 {
         self.raw
@@ -228,16 +229,17 @@ fn fd_example() -> Result<(), String> {
 
     let closed = fd.close();
 
-    // closed.read(&mut buf)?;  // ❌ no method `read` on Fd<Closed>
-    // closed.write(&[1])?;     // ❌ no method `write` on Fd<Closed>
+    // closed.read(&mut buf)?;  // ❌ Fd<Closed>에 `read` 없음
+    // closed.write(&[1])?;     // ❌ Fd<Closed>에 `write` 없음
 
     Ok(())
 }
 ```
 
-## Combining Phantom Types with Earlier Patterns
+<a id="combining-phantom-types-with-earlier-patterns"></a>
+## 앞선 패턴과 팬텀 타입 결합
 
-Phantom types compose with everything we've seen:
+팬텀 타입은 지금까지 본 모든 것과 조합됩니다.
 
 ```rust,ignore
 # use std::marker::PhantomData;
@@ -249,43 +251,45 @@ Phantom types compose with everything we've seen:
 # #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 # pub struct Celsius(pub f64);
 
-/// Combine phantom types (register width) with dimensional types (Celsius).
+/// 팬텀 타입(레지스터 폭)과 차원 타입(Celsius)을 결합.
 fn read_temp_sensor(reg: &Register<Width16>) -> Celsius {
-    let raw = reg.read();  // guaranteed u16 by phantom type
-    Celsius(raw as f64 * 0.0625)  // guaranteed Celsius by return type
+    let raw = reg.read();  // 팬텀 타입으로 u16 보장
+    Celsius(raw as f64 * 0.0625)  // 반환 타입으로 Celsius 보장
 }
 
-// The compiler enforces:
-// 1. The register is 16-bit (phantom type)
-// 2. The result is Celsius (newtype)
-// Both at zero runtime cost.
+// 컴파일러가 강제:
+// 1. 레지스터는 16비트(팬텀 타입)
+// 2. 결과는 Celsius(뉴타입)
+// 둘 다 런타임 비용 0.
 ```
 
-### When to Use Phantom Types
+<a id="when-to-use-phantom-types"></a>
+### 언제 팬텀 매개변수를 쓸까
 
-| Scenario | Use phantom parameter? |
-|----------|:------:|
-| Register width encoding | ✅ Always — prevents width mismatch |
-| DMA buffer direction | ✅ Always — prevents data corruption |
-| File descriptor state | ✅ Always — prevents use-after-close |
-| Memory region permissions (R/W/X) | ✅ Always — enforces access control |
-| Generic container (Vec, HashMap) | ❌ No — use concrete type parameters |
-| Runtime-variable attributes | ❌ No — phantom types are compile-time only |
+| 시나리오 | 팬텀 매개변수? |
+|----------|:-------------:|
+| 레지스터 폭 인코딩 | 예 — 폭 불일치 방지 |
+| DMA 버퍼 방향 | 예 — 데이터 손상 방지 |
+| 파일 디스크립터 상태 | 예 — 닫은 뒤 사용 방지 |
+| 메모리 영역 권한(R/W/X) | 예 — 접근 제어 강제 |
+| 제네릭 컨테이너(Vec, HashMap) | 아니요 — 구체 타입 매개변수 사용 |
+| 런타임에 바뀌는 속성 | 아니요 — 팬텀은 컴파일 타임 전용 |
 
-## Phantom Type Resource Matrix
+<a id="phantom-type-resource-matrix"></a>
+## 팬텀 타입 리소스 매트릭스
 
 ```mermaid
 flowchart TD
-    subgraph "Width Markers"
+    subgraph "폭 마커"
         W8["Width8"] 
         W16["Width16"]
         W32["Width32"]
     end
-    subgraph "Direction Markers"
+    subgraph "방향 마커"
         RD["Read"]
         WR["Write"]
     end
-    subgraph "Typed Resources"
+    subgraph "타입이 있는 리소스"
         R1["Register<Width16>"]
         R2["DmaBuffer<Read>"]
         R3["DmaBuffer<Write>"]
@@ -293,7 +297,7 @@ flowchart TD
     W16 --> R1
     RD --> R2
     WR --> R3
-    R2 -.->|"write attempt"| ERR["❌ Compile Error"]
+    R2 -.->|"쓰기 시도"| ERR["❌ 컴파일 오류"]
     style W8 fill:#e1f5fe,color:#000
     style W16 fill:#e1f5fe,color:#000
     style W32 fill:#e1f5fe,color:#000
@@ -305,16 +309,18 @@ flowchart TD
     style ERR fill:#ffcdd2,color:#000
 ```
 
-## Exercise: Memory Region Permissions
+<a id="exercise-memory-region-permissions"></a>
+## 연습: 메모리 영역 권한
 
-Design phantom types for memory regions with read, write, and execute permissions:
-- `MemRegion<ReadOnly>` has `fn read(&self, offset: usize) -> u8`
-- `MemRegion<ReadWrite>` has both `read` and `write`
-- `MemRegion<Executable>` has `read` and `fn execute(&self)`
-- Writing to `ReadOnly` or executing `ReadWrite` should not compile.
+읽기, 쓰기, 실행 권한이 있는 메모리 영역용 팬텀 타입을 설계하세요.
+
+- `MemRegion<ReadOnly>` — `fn read(&self, offset: usize) -> u8`
+- `MemRegion<ReadWrite>` — `read`와 `write` 모두
+- `MemRegion<Executable>` — `read`와 `fn execute(&self)`
+- `ReadOnly`에 쓰거나 `ReadWrite`를 실행하면 컴파일되지 않아야 합니다.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -329,7 +335,7 @@ pub struct MemRegion<Perm> {
     _perm: PhantomData<Perm>,
 }
 
-// Read available on all permission types
+// 모든 권한 타입에서 읽기 가능
 impl<P> MemRegion<P> {
     pub fn read(&self, offset: usize) -> u8 {
         assert!(offset < self.len);
@@ -346,23 +352,24 @@ impl MemRegion<ReadWrite> {
 
 impl MemRegion<Executable> {
     pub fn execute(&self) {
-        // Jump to base address (conceptual)
+        // 기준 주소로 점프(개념상)
     }
 }
 
-// ❌ region_ro.write(0, 0xFF);  // Compile error: no method `write`
-// ❌ region_rw.execute();       // Compile error: no method `execute`
+// ❌ region_ro.write(0, 0xFF);  // 컴파일 오류: `write` 메서드 없음
+// ❌ region_rw.execute();       // 컴파일 오류: `execute` 메서드 없음
 ```
 
 </details>
 
-## Key Takeaways
+<a id="key-takeaways"></a>
+## 핵심 정리
 
-1. **PhantomData carries type-level information at zero size** — the marker exists only for the compiler.
-2. **Register width mismatches become compile errors** — `Register<Width16>` returns `u16`, not `u32`.
-3. **DMA direction is enforced structurally** — `DmaBuffer<Read>` has no `write()` method.
-4. **Combine with dimensional types (ch06)** — `Register<Width16>` can return `Celsius` via the parse step.
-5. **Phantom types are compile-time only** — they don't work for runtime-variable attributes; use enums for those.
+1. **PhantomData는 크기 0으로 타입 수준 정보를 실어 나릅니다** — 마커는 컴파일러용입니다.
+2. **레지스터 폭 불일치가 컴파일 오류가 됩니다** — `Register<Width16>`은 `u16`을 반환하고 `u32`가 아닙니다.
+3. **DMA 방향이 구조적으로 강제됩니다** — `DmaBuffer<Read>`에는 `write()`가 없습니다.
+4. **차원 타입(ch06)과 결합** — `Register<Width16>`이 파싱 단계에서 `Celsius`를 반환할 수 있습니다.
+5. **팬텀 타입은 컴파일 타임 전용** — 런타임에 바뀌는 속성에는 쓸 수 없습니다. 그런 경우에는 enum을 쓰세요.
 
 ---
 

@@ -1,15 +1,17 @@
-# Const Fn — Compile-Time Correctness Proofs 🟠
+<a id="const-fn-compile-time-correctness-proofs"></a>
+# Const Fn — 컴파일 타임 정확성 증명 🟠
 
-> **What you'll learn:** How `const fn` and `assert!` turn the compiler into a proof engine — verifying SRAM memory maps, register layouts, protocol frames, bitfield masks, clock trees, and lookup tables at compile time with zero runtime cost.
+> **배울 내용:** `const fn`과 `assert!`로 컴파일러를 증명 엔진으로 만드는 방법 — SRAM 메모리 맵, 레지스터 배치, 프로토콜 프레임, 비트필드 마스크, 클럭 트리, 룩업 테이블을 런타임 비용 없이 컴파일 타임에 검증합니다.
 >
-> **Cross-references:** [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch06](ch06-dimensional-analysis-making-the-compiler.md) (dimensional analysis), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types)
+> **교차 참조:** [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch06](ch06-dimensional-analysis-making-the-compiler.md) (dimensional analysis), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types)
 
-## The Problem: Memory Maps That Lie
+<a id="the-problem-memory-maps-that-lie"></a>
+## 문제: 거짓말하는 메모리 맵
 
-In embedded and systems programming, memory maps are the foundation of everything — they define where bootloaders, firmware, data sections, and stacks live. Get a boundary wrong, and two subsystems silently corrupt each other. In C, these maps are typically `#define` constants with no structural relationship:
+임베디드와 시스템 프로그래밍에서 메모리 맵은 모든 것의 기반입니다 — 부트로더, 펌웨어, 데이터 섹션, 스택이 어디에 있는지 정합니다. 경계를 한 번만 틀려도 두 하위 시스템이 조용히 서로를 망가뜨립니다. C에서는 이런 맵이 보통 구조적 관계가 없는 `#define` 상수입니다:
 
 ```c
-/* STM32F4 SRAM layout — 256 KB at 0x20000000 */
+/* STM32F4 SRAM 배치 — 0x20000000에 256 KB */
 #define SRAM_BASE       0x20000000
 #define SRAM_SIZE       (256 * 1024)
 
@@ -23,16 +25,17 @@ In embedded and systems programming, memory maps are the foundation of everythin
 #define DATA_SIZE       (80 * 1024)     /* Someone bumped this from 64K to 80K */
 
 #define STACK_BASE      0x20038000
-#define STACK_SIZE      (48 * 1024)     /* 0x20038000 + 48K = 0x20044000 — past SRAM end! */
+#define STACK_SIZE      (48 * 1024)     /* 0x20038000 + 48K = 0x20044000 — SRAM 끝을 넘김! */
 ```
 
-The bug: `16 + 128 + 80 + 48 = 272 KB`, but SRAM is only 256 KB. The stack extends 16 KB past the end of physical memory. No compiler warning, no linker error, no runtime check — just silent corruption when the stack grows into unmapped space.
+버그: `16 + 128 + 80 + 48 = 272 KB`인데 SRAM은 256 KB뿐입니다. 스택이 물리 메모리 끝을 16 KB 넘어 확장합니다. 컴파일러 경고도, 링커 에러도, 런타임 검사도 없습니다 — 스택이 매핑되지 않은 공간으로 자라면 조용히 손상만 일어납니다.
 
-**Every failure mode is discovered after deployment** — potentially as a mysterious crash that only happens under heavy stack usage, weeks after the data section was resized.
+**모든 실패 모드는 배포 후에야 발견됩니다** — 데이터 섹션 크기를 바꾼 지 몇 주 뒤, 스택 사용이 무거울 때만 나타나는 수수께끼 같은 크래시일 수 있습니다.
 
-## Const Fn: Turning the Compiler into a Proof Engine
+<a id="const-fn-turning-the-compiler-into-a-proof-engine"></a>
+## Const Fn: 컴파일러를 증명 엔진으로
 
-Rust's `const fn` functions can run at compile time. When a `const fn` panics during compile-time evaluation, the panic becomes a **compile error**. Combined with `assert!`, this turns the compiler into a theorem prover for your invariants:
+Rust의 `const fn`은 컴파일 타임에 실행될 수 있습니다. `const fn`이 컴파일 타임 평가 중 패닉하면 그 패닉은 **컴파일 에러**가 됩니다. `assert!`와 결합하면 컴파일러가 불변식에 대한 정리 증명기처럼 동작합니다:
 
 ```rust
 pub const fn checked_add(a: u32, b: u32) -> u32 {
@@ -44,7 +47,7 @@ pub const fn checked_add(a: u32, b: u32) -> u32 {
 // ✅ Compiles — 100 + 200 fits in u32
 const X: u32 = checked_add(100, 200);
 
-// ❌ Compile error: "overflow"
+// ❌ 컴파일 에러: "overflow"
 // const Y: u32 = checked_add(u32::MAX, 1);
 
 fn main() {
@@ -52,13 +55,15 @@ fn main() {
 }
 ```
 
-> **The key insight:** `const fn` + `assert!` = a proof obligation. Each assertion is a theorem that the compiler must verify. If the proof fails, the program does not compile. No test suite needed, no code review catch — the compiler itself is the auditor.
+> **핵심:** `const fn` + `assert!` = 증명 의무입니다. 각 단언은 컴파일러가 검증해야 하는 정리입니다. 증명이 실패하면 프로그램은 컴파일되지 않습니다. 테스트 스위트도, 코드 리뷰도 필요 없습니다 — 컴파일러 자체가 감사자입니다.
 
-## Building a Verified SRAM Memory Map
+<a id="building-a-verified-sram-memory-map"></a>
+## 검증된 SRAM 메모리 맵 만들기
 
-### The Region Type
+<a id="the-region-type"></a>
+### Region 타입
 
-A `Region` represents a contiguous block of memory. Its constructor is a `const fn` that enforces basic validity:
+`Region`은 연속된 메모리 블록을 나타냅니다. 생성자는 기본적인 유효성을 강제하는 `const fn`입니다:
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -68,7 +73,7 @@ pub struct Region {
 }
 
 impl Region {
-    /// Create a region. Panics at compile time if invariants fail.
+    /// 영역 생성. 불변식이 깨지면 컴파일 타임에 패닉.
     pub const fn new(base: u32, size: u32) -> Self {
         assert!(size > 0, "region size must be non-zero");
         assert!(
@@ -82,23 +87,23 @@ impl Region {
         self.base + self.size
     }
 
-    /// True if `inner` fits entirely within `self`.
+    /// `inner`가 `self` 안에 완전히 들어가면 참.
     pub const fn contains(&self, inner: &Region) -> bool {
         inner.base >= self.base && inner.end() <= self.end()
     }
 
-    /// True if two regions share any addresses.
+    /// 두 영역이 주소를 공유하면 참.
     pub const fn overlaps(&self, other: &Region) -> bool {
         self.base < other.end() && other.base < self.end()
     }
 
-    /// True if `addr` falls within this region.
+    /// `addr`가 이 영역 안에 있으면 참.
     pub const fn contains_addr(&self, addr: u32) -> bool {
         addr >= self.base && addr < self.end()
     }
 }
 
-// Every Region is born valid — you cannot construct an invalid one
+// 모든 Region은 태어날 때부터 유효 — 잘못된 Region은 만들 수 없음
 const R: Region = Region::new(0x2000_0000, 1024);
 
 fn main() {
@@ -106,9 +111,10 @@ fn main() {
 }
 ```
 
-### The Verified Memory Map
+<a id="the-verified-memory-map"></a>
+### 검증된 메모리 맵
 
-Now we compose regions into a full SRAM map. The constructor proves six overlap-freedom invariants and four containment invariants — all at compile time:
+이제 영역들을 모아 전체 SRAM 맵을 구성합니다. 생성자는 겹침 없음 불변식 6개와 포함 관계 불변식 4개를 모두 컴파일 타임에 증명합니다:
 
 ```rust
 # #[derive(Debug, Clone, Copy)]
@@ -143,13 +149,13 @@ impl SramMap {
         data: Region,
         stack: Region,
     ) -> Self {
-        // ── Containment: every sub-region fits within total SRAM ──
+        // ── 포함: 모든 하위 영역이 전체 SRAM 안에 들어감 ──
         assert!(total.contains(&bootloader), "bootloader exceeds SRAM");
         assert!(total.contains(&firmware),   "firmware exceeds SRAM");
         assert!(total.contains(&data),       "data section exceeds SRAM");
         assert!(total.contains(&stack),      "stack exceeds SRAM");
 
-        // ── Overlap freedom: no pair of sub-regions shares an address ──
+        // ── 겹침 없음: 하위 영역 쌍이 주소를 공유하지 않음 ──
         assert!(!bootloader.overlaps(&firmware), "bootloader/firmware overlap");
         assert!(!bootloader.overlaps(&data),     "bootloader/data overlap");
         assert!(!bootloader.overlaps(&stack),    "bootloader/stack overlap");
@@ -161,7 +167,7 @@ impl SramMap {
     }
 }
 
-// ✅ All 10 invariants verified at compile time — zero runtime cost
+// ✅ 10개 불변식 모두 컴파일 타임 검증 — 런타임 비용 0
 const SRAM: SramMap = SramMap::verified(
     Region::new(0x2000_0000, 256 * 1024),   // 256 KB total SRAM
     Region::new(0x2000_0000,  16 * 1024),   // bootloader: 16 KB
@@ -179,11 +185,12 @@ fn main() {
 }
 ```
 
-Ten compile-time checks, zero runtime instructions. The binary contains only the verified constants.
+컴파일 타임 검사 10번, 런타임 명령 0개. 바이너리에는 검증된 상수만 들어갑니다.
 
-### Breaking the Map
+<a id="breaking-the-map"></a>
+### 맵을 깨뜨리기
 
-Suppose someone increases the data section from 64 KB to 80 KB without adjusting anything else:
+누군가 데이터 섹션을 64 KB에서 80 KB로 늘리고 다른 것은 손대지 않았다고 해봅시다:
 
 ```rust,ignore
 // ❌ Does not compile
@@ -196,7 +203,7 @@ const BAD_SRAM: SramMap = SramMap::verified(
 );
 ```
 
-The compiler reports:
+컴파일러가 보고합니다:
 
 ```text
 error[E0080]: evaluation of constant value failed
@@ -207,11 +214,12 @@ error[E0080]: evaluation of constant value failed
    |         the evaluated program panicked at 'stack exceeds SRAM'
 ```
 
-> **The bug that would have been a mysterious field failure is now a compile error.** No unit test needed, no code review catch — the compiler proves it impossible. Compare this to C, where the same bug would ship silently and surface as a stack corruption months later in the field.
+> **현장에서 수수께끼 같은 고장이 나던 버그가 이제 컴파일 에러입니다.** 단위 테스트도, 코드 리뷰도 필요 없습니다 — 컴파일러가 불가능함을 증명합니다. C에서는 같은 버그가 조용히 배포되고 수 개월 뒤 스택 손상으로 드러납니다.
 
-## Layering Access Control with Phantom Types
+<a id="layering-access-control-with-phantom-types"></a>
+## Phantom Type으로 접근 제어 얹기
 
-Combine `const fn` verification with phantom-typed access permissions ([ch09](ch09-phantom-types-for-resource-tracking.md)) to enforce read/write constraints at the type level:
+`const fn` 검증과 팬텀 타입 접근 권한([ch09](ch09-phantom-types-for-resource-tracking.md))을 결합해 읽기/쓰기 제약을 타입 수준에서 강제합니다:
 
 ```rust
 use std::marker::PhantomData;
@@ -232,17 +240,17 @@ impl<A> TypedRegion<A> {
     }
 }
 
-// Read is available for any access level
+// 읽기는 모든 접근 수준에서 가능
 fn read_word<A>(region: &TypedRegion<A>, offset: u32) -> u32 {
     assert!(offset + 4 <= region.size, "read out of bounds");
-    // In real firmware: unsafe { core::ptr::read_volatile((region.base + offset) as *const u32) }
+        // 실제 펌웨어: unsafe { core::ptr::read_volatile((region.base + offset) as *const u32) }
     0 // stub
 }
 
-// Write requires ReadWrite — the function signature enforces it
+// 쓰기는 ReadWrite 필요 — 함수 시그니처가 강제
 fn write_word(region: &TypedRegion<ReadWrite>, offset: u32, value: u32) {
     assert!(offset + 4 <= region.size, "write out of bounds");
-    // In real firmware: unsafe { core::ptr::write_volatile(...) }
+    // 실제 펌웨어: unsafe { core::ptr::write_volatile(...) }
     let _ = value; // stub
 }
 
@@ -250,18 +258,19 @@ const BOOTLOADER: TypedRegion<ReadOnly>  = TypedRegion::new(0x2000_0000, 16 * 10
 const DATA:       TypedRegion<ReadWrite> = TypedRegion::new(0x2002_4000, 64 * 1024);
 
 fn main() {
-    read_word(&BOOTLOADER, 0);      // ✅ read from read-only region
-    read_word(&DATA, 0);            // ✅ read from read-write region
-    write_word(&DATA, 0, 42);       // ✅ write to read-write region
-    // write_word(&BOOTLOADER, 0, 42); // ❌ Compile error: expected ReadWrite, found ReadOnly
+    read_word(&BOOTLOADER, 0);      // ✅ 읽기 전용 영역에서 읽기
+    read_word(&DATA, 0);            // ✅ 읽기·쓰기 영역에서 읽기
+    write_word(&DATA, 0, 42);       // ✅ 읽기·쓰기 영역에 쓰기
+    // write_word(&BOOTLOADER, 0, 42); // ❌ 컴파일 에러: ReadWrite 기대, ReadOnly 발견
 }
 ```
 
-The bootloader region is physically writeable (it's SRAM), but the type system prevents accidental writes. This distinction between **hardware capability** and **software permission** is exactly what correct-by-construction means.
+부트로더 영역은 물리적으로는 쓸 수 있지만(SRAM) 타입 시스템이 실수로 쓰는 것을 막습니다. **하드웨어 능력**과 **소프트웨어 권한**의 구분이 바로 correct-by-construction의 의미입니다.
 
-## Pointer Provenance: Proving Addresses Belong to Regions
+<a id="pointer-provenance-proving-addresses-belong-to-regions"></a>
+## 포인터 출처: 주소가 영역에 속함을 증명하기
 
-Taking it further, we can create verified addresses — values that are statically proven to lie within a specific region:
+한 걸음 더 나아가, 특정 영역 안에 정적으로 증명된 주소 — 검증된 주소 값을 만들 수 있습니다:
 
 ```rust
 # #[derive(Debug, Clone, Copy)]
@@ -277,13 +286,13 @@ Taking it further, we can create verified addresses — values that are statical
 #         addr >= self.base && addr < self.end()
 #     }
 # }
-/// An address proven at compile time to lie within a Region.
+/// 컴파일 타임에 Region 안에 있음이 증명된 주소.
 pub struct VerifiedAddr {
-    addr: u32, // private — can only be created through the checked constructor
+    addr: u32, // 비공개 — 검사된 생성자로만 생성 가능
 }
 
 impl VerifiedAddr {
-    /// Panics at compile time if `addr` is outside `region`.
+    /// `addr`가 `region` 밖이면 컴파일 타임에 패닉.
     pub const fn new(region: &Region, addr: u32) -> Self {
         assert!(region.contains_addr(addr), "address outside region");
         Self { addr }
@@ -296,11 +305,11 @@ impl VerifiedAddr {
 
 const DATA: Region = Region::new(0x2002_4000, 64 * 1024);
 
-// ✅ Proven at compile time to be inside the data region
+// ✅ 컴파일 타임에 데이터 영역 안에 있음이 증명됨
 const STATUS_WORD: VerifiedAddr = VerifiedAddr::new(&DATA, 0x2002_4000);
 const CONFIG_WORD: VerifiedAddr = VerifiedAddr::new(&DATA, 0x2002_5000);
 
-// ❌ Would not compile: address is in the bootloader region, not data
+// ❌ 컴파일 안 됨: 주소는 부트로더 영역에 있고 데이터가 아님
 // const BAD_ADDR: VerifiedAddr = VerifiedAddr::new(&DATA, 0x2000_0000);
 
 fn main() {
@@ -309,27 +318,28 @@ fn main() {
 }
 ```
 
-**Provenance established at compile time** — no runtime bounds check needed when accessing these addresses. The constructor is private, so a `VerifiedAddr` can only exist if the compiler has proven it valid.
+**출처는 컴파일 타임에 확정** — 이 주소에 접근할 때 런타임 범위 검사가 필요 없습니다. 생성자는 비공개이므로 `VerifiedAddr`는 컴파일러가 유효함을 증명했을 때만 존재할 수 있습니다.
 
-## Beyond Memory Maps
+<a id="beyond-memory-maps"></a>
+## 메모리 맵 너머
 
-The `const fn` proof pattern applies wherever you have **compile-time-known values with structural invariants**. The SRAM map above proved *inter-region* properties (containment, non-overlap). The same technique scales to increasingly fine-grained domains:
+`const fn` 증명 패턴은 **구조적 불변식을 가진 컴파일 타임에 알려진 값**이 있는 곳이면 모두 적용됩니다. 위 SRAM 맵은 *영역 간* 성질(포함, 비중첩)을 증명했습니다. 같은 기법은 더 세밀한 영역으로 확장됩니다:
 
 ```mermaid
 flowchart TD
-    subgraph coarse["Coarse-Grained"]
-        MEM["Memory Maps<br/>regions don't overlap"]
-        REG["Register Maps<br/>offsets are aligned & disjoint"]
+    subgraph coarse["거친 단위"]
+        MEM["메모리 맵<br/>영역이 겹치지 않음"]
+        REG["레지스터 맵<br/>오프셋 정렬·서로소"]
     end
 
-    subgraph fine["Fine-Grained"]
-        BIT["Bitfield Layouts<br/>masks are disjoint within a register"]
-        FRAME["Protocol Frames<br/>fields are contiguous, total ≤ max"]
+    subgraph fine["세밀한 단위"]
+        BIT["비트필드 배치<br/>한 레지스터 안에서 마스크가 서로소"]
+        FRAME["프로토콜 프레임<br/>필드가 연속, 합계 ≤ 최대"]
     end
 
-    subgraph derived["Derived-Value Chains"]
-        PLL["Clock Trees / PLL<br/>each intermediate freq in range"]
-        LUT["Lookup Tables<br/>computed & verified at compile time"]
+    subgraph derived["유도 값 체인"]
+        PLL["클럭 트리 / PLL<br/>중간 주파수마다 범위 만족"]
+        LUT["룩업 테이블<br/>컴파일 타임 계산·검증"]
     end
 
     MEM --> REG --> BIT
@@ -345,11 +355,12 @@ flowchart TD
     style LUT fill:#fff3e0,color:#000
 ```
 
-Each subsection below follows the same pattern: define a type with a `const fn` constructor that encodes the invariants, then use `const _: () = { ... }` or a `const` binding to trigger verification.
+아래 각 소절은 같은 패턴을 따릅니다: 불변식을 인코딩하는 `const fn` 생성자가 있는 타입을 정의하고, `const _: () = { ... }` 또는 `const` 바인딩으로 검증을 트리거합니다.
 
-### Register Maps
+<a id="register-maps"></a>
+### 레지스터 맵
 
-Hardware register blocks have fixed offsets and widths. A misaligned or overlapping register definition is always a bug:
+하드웨어 레지스터 블록은 고정된 오프셋과 폭을 가집니다. 정렬이 깨지거나 겹치는 레지스터 정의는 항상 버그입니다:
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -377,13 +388,13 @@ const fn disjoint(a: &Register, b: &Register) -> bool {
     a.end() <= b.offset || b.end() <= a.offset
 }
 
-// UART peripheral registers
+// UART 주변 레지스터
 const DATA:   Register = Register::new(0x00, 4);
 const STATUS: Register = Register::new(0x04, 4);
 const CTRL:   Register = Register::new(0x08, 4);
 const BAUD:   Register = Register::new(0x0C, 4);
 
-// Compile-time proof: no register overlaps another
+// 컴파일 타임 증명: 레지스터끼리 겹치지 않음
 const _: () = {
     assert!(disjoint(&DATA,   &STATUS));
     assert!(disjoint(&DATA,   &CTRL));
@@ -399,25 +410,27 @@ fn main() {
 }
 ```
 
-Note the `const _: () = { ... };` idiom — an unnamed constant whose only purpose is to run compile-time assertions. If any assertion fails, the constant can't be evaluated and compilation stops.
+`const _: () = { ... };` 관용구를 참고하세요 — 이름 없는 상수로, 컴파일 타임 단언만 실행하는 것이 목적입니다. 단언이 하나라도 실패하면 상수를 평가할 수 없고 컴파일이 멈춥니다.
 
-#### Mini-Exercise: SPI Register Bank
+<a id="mini-exercise-spi-register-bank"></a>
+#### 미니 연습: SPI 레지스터 뱅크
 
-Given these SPI controller registers, add const fn assertions proving:
-1. Every register is naturally aligned (offset % width == 0)
-2. No two registers overlap
-3. All registers fit within a 64-byte register block
+다음 SPI 컨트롤러 레지스터가 주어졌을 때, const fn 단언으로 다음을 증명하세요:
+1. 모든 레지스터가 자연 정렬(offset % width == 0)
+2. 두 레지스터가 겹치지 않음
+3. 모든 레지스터가 64바이트 레지스터 블록 안에 들어감
 
 <details>
-<summary>Hint</summary>
+<summary>힌트</summary>
 
-Reuse the `Register` and `disjoint` functions from the UART example above. Define three or four `const Register` values (e.g., `CTRL` at offset 0x00 width 4, `STATUS` at 0x04 width 4, `TX_DATA` at 0x08 width 1, `RX_DATA` at 0x0C width 1) and assert the three properties.
+위 UART 예제의 `Register`와 `disjoint` 함수를 재사용하세요. `const Register` 값을 세 개 또는 네 개 정의합니다(예: `CTRL` 오프셋 0x00 폭 4, `STATUS` 0x04 폭 4, `TX_DATA` 0x08 폭 1, `RX_DATA` 0x0C 폭 1) 세 가지 성질을 단언합니다.
 
 </details>
 
-### Protocol Frame Layouts
+<a id="protocol-frame-layouts"></a>
+### 프로토콜 프레임 배치
 
-Network or bus protocol frames have fields at specific offsets. The `then()` method makes contiguity structural — gaps and overlaps are impossible by construction:
+네트워크나 버스 프로토콜 프레임은 특정 오프셋에 필드를 둡니다. `then()` 메서드가 연속성을 구조적으로 만듭니다 — 간격이나 겹침은 생성 규칙상 불가능합니다:
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -436,7 +449,7 @@ impl Field {
         self.offset + self.size
     }
 
-    /// Create the next field immediately after this one.
+    /// 바로 다음에 오는 필드 생성.
     pub const fn then(&self, size: usize) -> Field {
         Field::new(self.end(), size)
     }
@@ -449,7 +462,7 @@ const SEQ_NUM: Field = HEADER.then(2);
 const PAYLOAD: Field = SEQ_NUM.then(246);
 const CRC:     Field = PAYLOAD.then(4);
 
-// Compile-time proof: frame fits within maximum size
+// 컴파일 타임 증명: 프레임이 최대 크기 이내
 const _: () = assert!(CRC.end() <= MAX_FRAME, "frame exceeds maximum size");
 
 fn main() {
@@ -461,30 +474,32 @@ fn main() {
 }
 ```
 
-Fields are contiguous by construction — each starts exactly where the previous one ends. The final assertion proves the frame fits within the protocol's maximum size.
+필드는 생성 규칙상 연속입니다 — 각각은 이전 필드가 끝나는 곳에서 정확히 시작합니다. 마지막 단언은 프레임이 프로토콜 최대 크기 안에 들어감을 증명합니다.
 
-### Inline Const Blocks for Generic Validation
+<a id="inline-const-blocks-for-generic-validation"></a>
+### 제네릭 검증을 위한 인라인 const 블록
 
-Since Rust 1.79, `const { ... }` blocks let you validate const generic parameters at the point of use — perfect for DMA buffer size constraints or alignment requirements:
+Rust 1.79부터 `const { ... }` 블록으로 사용 지점에서 const 제네릭 매개변수를 검증할 수 있습니다 — DMA 버퍼 크기 제약이나 정렬 요구에 적합합니다:
 
 ```rust,ignore
 fn dma_transfer<const N: usize>(buf: &[u8; N]) {
     const { assert!(N % 4 == 0, "DMA buffer must be 4-byte aligned in size") };
     const { assert!(N <= 65536, "DMA transfer exceeds maximum size") };
-    // ... initiate transfer ...
+    // ... 전송 시작 ...
 }
 
 dma_transfer(&[0u8; 1024]);   // ✅ 1024 is divisible by 4 and ≤ 65536
 // dma_transfer(&[0u8; 1023]); // ❌ Compile error: not 4-byte aligned
 ```
 
-The assertions are evaluated when the function is monomorphized — each call site with a different `N` gets its own compile-time check.
+단언은 함수가 단일화(monomorphize)될 때 평가됩니다 — `N`이 다른 호출 지점마다 별도의 컴파일 타임 검사가 붙습니다.
 
-### Bitfield Layouts Within a Register
+<a id="bitfield-layouts-within-a-register"></a>
+### 한 레지스터 안의 비트필드 배치
 
-Register maps prove that registers don't *overlap each other* — but what about the **bits within a single register**? Control registers pack multiple fields into one word. If two fields share a bit position, reads and writes silently corrupt each other. In C, this is typically caught (or not) by manual review of mask constants.
+레지스터 맵은 레지스터끼리 *서로 겹치지 않음*을 증명합니다 — 그런데 **한 레지스터 안의 비트**는 어떨까요? 제어 레지스터는 한 워드에 여러 필드를 넣습니다. 두 필드가 비트 위치를 공유하면 읽기와 쓰기가 조용히 서로를 망칩니다. C에서는 보통 마스크 상수를 수동 검토로(또는 못 잡고) 넘깁니다.
 
-A `const fn` can prove that every field's mask/shift pair is disjoint from every other field in the same register:
+`const fn`은 같은 레지스터 안에서 모든 필드의 마스크/시프트 쌍이 서로소임을 증명할 수 있습니다:
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -497,7 +512,7 @@ impl BitField {
     pub const fn new(shift: u8, width: u8) -> Self {
         assert!(width > 0, "bit field width must be non-zero");
         assert!(shift as u32 + width as u32 <= 32, "bit field exceeds 32-bit register");
-        // Build mask: `width` ones starting at bit `shift`
+        // 마스크 생성: 비트 `shift`부터 `width`개의 1
         let mask = ((1u64 << width as u64) - 1) as u32;
         Self { mask: mask << shift as u32, shift }
     }
@@ -516,13 +531,13 @@ const fn fields_disjoint(a: &BitField, b: &BitField) -> bool {
     a.positioned_mask() & b.positioned_mask() == 0
 }
 
-// SPI Control Register fields: enable[0], mode[1:2], clock_div[4:7], irq_en[8]
+// SPI 제어 레지스터 필드: enable[0], mode[1:2], clock_div[4:7], irq_en[8]
 const SPI_EN:     BitField = BitField::new(0, 1);   // bit 0
 const SPI_MODE:   BitField = BitField::new(1, 2);   // bits 1–2
 const SPI_CLKDIV: BitField = BitField::new(4, 4);   // bits 4–7
 const SPI_IRQ:    BitField = BitField::new(8, 1);   // bit 8
 
-// Compile-time proof: no field shares a bit position
+// 컴파일 타임 증명: 필드가 비트 위치를 공유하지 않음
 const _: () = {
     assert!(fields_disjoint(&SPI_EN,   &SPI_MODE));
     assert!(fields_disjoint(&SPI_EN,   &SPI_CLKDIV));
@@ -541,11 +556,12 @@ fn main() {
 }
 ```
 
-This complements the register map pattern above — register maps prove *inter-register* disjointness while bitfield layouts prove *intra-register* disjointness. Together they provide full coverage from the register block down to individual bits.
+위 레지스터 맵 패턴을 보완합니다 — 레지스터 맵은 *레지스터 간* 서로소를, 비트필드 배치는 *레지스터 내부* 서로소를 증명합니다. 함께 쓰면 레지스터 블록부터 개별 비트까지 전체를 덮습니다.
 
-### Clock Tree / PLL Configuration
+<a id="clock-tree-pll-configuration"></a>
+### 클럭 트리 / PLL 설정
 
-Microcontrollers derive peripheral clocks through multiplier/divider chains. A PLL produces `f_vco = f_in × N / M`, and the VCO frequency must stay within a hardware-specified range. Get any parameter wrong for a specific board, and the chip outputs garbage clocks or refuses to lock. These constraints are perfect for `const fn`:
+마이크로컨트롤러는 승수/분주 체인으로 주변 클럭을 냅니다. PLL은 `f_vco = f_in × N / M`을 만들고, VCO 주파수는 하드웨어가 정한 범위 안에 있어야 합니다. 보드에 맞는 매개변수를 하나 틀리면 칩이 엉망인 클럭을 내거나 잠금에 실패합니다. 이런 제약은 `const fn`에 잘 맞습니다:
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -558,21 +574,21 @@ pub struct PllConfig {
 
 impl PllConfig {
     pub const fn verified(input_khz: u32, m: u32, n: u32, p: u32) -> Self {
-        // Input divider produces the PLL input frequency
+        // 입력 분주기가 PLL 입력 주파수를 만듦
         let pll_input = input_khz / m;
         assert!(pll_input >= 1_000 && pll_input <= 2_000,
             "PLL input must be 1–2 MHz");
 
-        // VCO frequency must be within hardware limits
+        // VCO 주파수는 하드웨어 한계 안에 있어야 함
         let vco = pll_input as u64 * n as u64;
         assert!(vco >= 192_000 && vco <= 432_000,
             "VCO must be 192–432 MHz");
 
-        // System clock divider must be even (hardware constraint)
+        // 시스템 클럭 분주는 짝수여야 함(하드웨어 제약)
         assert!(p == 2 || p == 4 || p == 6 || p == 8,
             "P must be 2, 4, 6, or 8");
 
-        // Final system clock
+        // 최종 시스템 클럭
         let sysclk = vco / p as u64;
         assert!(sysclk <= 168_000,
             "system clock exceeds 168 MHz maximum");
@@ -589,10 +605,10 @@ impl PllConfig {
     }
 }
 
-// STM32F4 with 8 MHz HSE crystal → 168 MHz system clock
+// STM32F4, 8 MHz HSE 크리스탈 → 168 MHz 시스템 클럭
 const PLL: PllConfig = PllConfig::verified(8_000, 8, 336, 2);
 
-// ❌ Would not compile: VCO = 480 MHz exceeds 432 MHz limit
+// ❌ 컴파일 안 됨: VCO = 480 MHz가 432 MHz 한도 초과
 // const BAD: PllConfig = PllConfig::verified(8_000, 8, 480, 2);
 
 fn main() {
@@ -601,7 +617,7 @@ fn main() {
 }
 ```
 
-Uncommenting the `BAD` constant produces a compile-time error that pinpoints the violated constraint:
+`BAD` 상수의 주석을 풀면 위반된 제약을 집어주는 컴파일 타임 에러가 납니다:
 
 ```text
 error[E0080]: evaluation of constant value failed
@@ -612,15 +628,16 @@ error[E0080]: evaluation of constant value failed
    |         the evaluated program panicked at 'VCO must be 192–432 MHz'
 ```
 
-The compiler catches the constraint violation in the *middle* of the derivation chain — not at the end. If you had instead violated the system clock limit (`sysclk > 168 MHz`), the error message would point to that assertion instead.
+컴파일러는 유도 체인 *중간*에서 제약 위반을 잡아냅니다 — 끝에서만이 아닙니다. 대신 시스템 클럭 한도(`sysclk > 168 MHz`)를 위반했다면 에러 메시지가 그 단언을 가리킵니다.
 
-> **Derived-value constraint chains turn a single `const fn` into a multi-stage proof.** Each intermediate value has its own hardware-mandated range. Changing one parameter (e.g., swapping to a 25 MHz crystal) immediately surfaces any downstream violation.
+> **유도 값 제약 체인이 하나의 `const fn`을 다단계 증명으로 만듭니다.** 중간값마다 하드웨어가 요구하는 범위가 있습니다. 매개변수 하나를 바꾸면(예: 25 MHz 크리스탈로 교체) 하류 위반이 바로 드러납니다.
 
-**Derived-value constraint chains** — the VCO frequency depends on `input / m × n`, and the system clock depends on `vco / p`. Each intermediate value has its own hardware-mandated range. A single `const fn` verifies the entire chain, so changing one parameter (e.g., swapping to a 25 MHz crystal) immediately surfaces any downstream violation.
+**유도 값 제약 체인** — VCO 주파수는 `input / m × n`에, 시스템 클럭은 `vco / p`에 의존합니다. 중간값마다 하드웨어가 정한 범위가 있습니다. 하나의 `const fn`이 전체 체인을 검증하므로 매개변수를 바꾸면(예: 25 MHz 크리스탈) 하류 위반이 즉시 드러납니다.
 
-### Compile-Time Lookup Tables
+<a id="compile-time-lookup-tables"></a>
+### 컴파일 타임 룩업 테이블
 
-`const fn` can compute entire lookup tables at compile time, placing them in `.rodata` with zero startup cost. This is especially valuable for CRC tables, trigonometry, encoding maps, and error-correction codes — anywhere you'd normally use a build script or code generation:
+`const fn`은 전체 룩업 테이블을 컴파일 타임에 계산해 `.rodata`에 넣을 수 있으며 시작 비용이 0입니다. CRC 테이블, 삼각함수, 인코딩 맵, 오류 정정 코드 — 보통 빌드 스크립트나 코드 생성을 쓰는 곳에 특히 유용합니다:
 
 ```rust
 const fn crc32_table() -> [u32; 256] {
@@ -631,7 +648,7 @@ const fn crc32_table() -> [u32; 256] {
         let mut j = 0;
         while j < 8 {
             if crc & 1 != 0 {
-                crc = (crc >> 1) ^ 0xEDB8_8320; // standard CRC-32 polynomial
+                crc = (crc >> 1) ^ 0xEDB8_8320; // 표준 CRC-32 다항식
             } else {
                 crc >>= 1;
             }
@@ -643,10 +660,10 @@ const fn crc32_table() -> [u32; 256] {
     table
 }
 
-/// Full CRC-32 table — computed at compile time, placed in .rodata
+/// 전체 CRC-32 테이블 — 컴파일 타임 계산, .rodata에 배치
 const CRC32_TABLE: [u32; 256] = crc32_table();
 
-/// Compute CRC-32 over a byte slice at runtime using the precomputed table.
+/// 미리 계산된 테이블로 런타임에 바이트 슬라이스에 대한 CRC-32 계산.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc: u32 = !0;
     for &byte in data {
@@ -656,16 +673,16 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-// Smoke-test: well-known CRC-32 of "123456789"
+// 스모크 테스트: "123456789"의 잘 알려진 CRC-32
 const _: () = {
-    // Verify a single table entry at compile time
+    // 컴파일 타임에 테이블 항목 하나 검증
     assert!(CRC32_TABLE[0] == 0x0000_0000);
     assert!(CRC32_TABLE[1] == 0x7707_3096);
 };
 
 fn main() {
     let check = crc32(b"123456789");
-    // Known CRC-32 of "123456789" is 0xCBF43926
+    // "123456789"의 알려진 CRC-32는 0xCBF43926
     assert_eq!(check, 0xCBF4_3926);
     println!("CRC-32 of '123456789' = {:#010X} ✓", check);
     println!("Table size: {} entries × 4 bytes = {} bytes in .rodata",
@@ -673,48 +690,51 @@ fn main() {
 }
 ```
 
-The `crc32_table()` function runs entirely during compilation. The resulting 1 KB table is baked into the binary's read-only data section — no allocator, no initialization code, no startup cost. Compare this with a C approach that either uses a code generator or computes the table at startup. The Rust version is provably correct (the `const _` assertions verify known values) and provably complete (the compiler will reject the program if the function fails to produce a valid table).
+`crc32_table()` 함수는 컴파일 중에만 전부 실행됩니다. 결과 1 KB 테이블은 바이너리의 읽기 전용 데이터에 박힙니다 — 할당자도, 초기화 코드도, 시작 비용도 없습니다. 코드 생성기를 쓰거나 시작 시 테이블을 계산하는 C 방식과 비교해 보세요. Rust 버전은 (`const _` 단언으로 알려진 값을 검증해) 증명 가능하게 맞고, (함수가 유효한 테이블을 못 만들면 컴파일러가 프로그램을 거부하므로) 증명 가능하게 완전합니다.
 
-## When to Use Const Fn Proofs
+<a id="when-to-use-const-fn-proofs"></a>
+## Const Fn 증명을 언제 쓸까
 
-| Scenario | Recommendation |
+| 시나리오 | 권장 |
 |----------|:---:|
-| Memory maps, register offsets, partition tables | ✅ Always |
-| Protocol frame layouts with fixed fields | ✅ Always |
-| Bitfield masks within a register | ✅ Always |
-| Clock tree / PLL parameter chains | ✅ Always |
-| Lookup tables (CRC, trig, encoding) | ✅ Always — zero startup cost |
-| Constants with cross-value invariants (non-overlap, sum ≤ bound) | ✅ Always |
-| Configuration values with domain constraints | ✅ When values are known at compile time |
-| Values computed from user input or files | ❌ Use runtime validation |
-| Highly dynamic structures (trees, graphs) | ❌ Use property-based testing |
-| Single-value range checks | ⚠️  Consider newtype + `From` instead ([ch07](ch07-validated-boundaries-parse-dont-validate.md)) |
+| 메모리 맵, 레지스터 오프셋, 파티션 테이블 | ✅ 항상 |
+| 고정 필드가 있는 프로토콜 프레임 배치 | ✅ 항상 |
+| 한 레지스터 안의 비트필드 마스크 | ✅ 항상 |
+| 클럭 트리 / PLL 매개변수 체인 | ✅ 항상 |
+| 룩업 테이블(CRC, 삼각함수, 인코딩) | ✅ 항상 — 시작 비용 0 |
+| 교차 값 불변식이 있는 상수(비중첩, 합 ≤ 상한) | ✅ 항상 |
+| 도메인 제약이 있는 설정 값 | ✅ 값이 컴파일 타임에 알려질 때 |
+| 사용자 입력이나 파일에서 계산된 값 | ❌ 런타임 검증 사용 |
+| 동적 구조가 큰 경우(트리, 그래프) | ❌ 프로퍼티 기반 테스트 사용 |
+| 단일 값 범위 검사 | ⚠️  대신 newtype + `From` 고려 ([ch07](ch07-validated-boundaries-parse-dont-validate.md)) |
 
-### Cost Summary
+<a id="cost-summary"></a>
+### 비용 요약
 
-| What | Runtime cost |
+| 항목 | 런타임 비용 |
 |------|:------:|
-| `const fn` assertions (`assert!`, `panic!`) | Compile time only — 0 instructions |
-| `const _: () = { ... }` validation blocks | Compile time only — not in binary |
-| `Region`, `Register`, `Field` structs | Plain data — same layout as raw integers |
-| Inline `const { }` generic validation | Monomorphised at compile time — 0 cost |
-| Lookup tables (`crc32_table()`) | Computed at compile time — placed in `.rodata` |
-| Phantom-typed access markers (`TypedRegion<RW>`) | Zero-sized — optimised away |
+| `const fn` 단언(`assert!`, `panic!`) | 컴파일 타임만 — 명령 0개 |
+| `const _: () = { ... }` 검증 블록 | 컴파일 타임만 — 바이너리에 없음 |
+| `Region`, `Register`, `Field` 구조체 | 순수 데이터 — 원시 정수와 같은 레이아웃 |
+| 인라인 `const { }` 제네릭 검증 | 컴파일 타임에 단일화 — 비용 0 |
+| 룩업 테이블(`crc32_table()`) | 컴파일 타임 계산 — `.rodata`에 배치 |
+| 팬텀 타입 접근 마커(`TypedRegion<RW>`) | 0 크기 — 최적화로 제거 |
 
-Every row is **zero runtime cost** — the proofs exist only during compilation. The resulting binary contains only the verified constants and lookup tables, with no assertion-checking code.
+모든 행이 **런타임 비용 0** — 증명은 컴파일 중에만 존재합니다. 결과 바이너리에는 검증된 상수와 룩업 테이블만 들어가며 단언 검사 코드는 없습니다.
 
-## Exercise: Flash Partition Map
+<a id="exercise-flash-partition-map"></a>
+## 연습: 플래시 파티션 맵
 
-Design a verified flash partition map for a 1 MB NOR flash starting at `0x0800_0000`. Requirements:
+`0x0800_0000`부터 시작하는 1 MB NOR 플래시에 대한 검증된 플래시 파티션 맵을 설계하세요. 요구사항:
 
-1. Four partitions: **bootloader** (64 KB), **application** (640 KB), **config** (64 KB), **OTA staging** (256 KB)
-2. Every partition must be **4 KB aligned** (flash erase granularity): both base and size must be multiples of 4096
-3. No partition may overlap another
-4. All partitions must fit within flash
-5. Add a `const fn total_used()` that returns the sum of all partition sizes and assert it equals 1 MB
+1. 네 파티션: **bootloader** (64 KB), **application** (640 KB), **config** (64 KB), **OTA staging** (256 KB)
+2. 모든 파티션은 **4 KB 정렬**(플래시 지우기 단위): base와 size 모두 4096의 배수
+3. 파티션끼리 겹치면 안 됨
+4. 모든 파티션이 플래시 안에 들어가야 함
+5. 모든 파티션 크기의 합을 반환하는 `const fn total_used()`를 추가하고 합이 1 MB와 같음을 단언
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -790,7 +810,7 @@ const FLASH: FlashMap = FlashMap::verified(
     FlashRegion::new(0x080C_0000,  256 * 1024),   // OTA staging: 256 KB
 );
 
-// Every byte of flash is accounted for
+// 플래시의 모든 바이트가 집계됨
 const _: () = assert!(
     FLASH.total_used() == 1024 * 1024,
     "partitions must exactly fill flash"
@@ -807,16 +827,16 @@ fn main() {
 
 ```mermaid
 flowchart LR
-    subgraph compile["Compile Time — zero runtime cost"]
+    subgraph compile["컴파일 타임 — 런타임 비용 0"]
         direction TB
-        RGN["Region::new()<br/>✅ size &gt; 0<br/>✅ no overflow"]
-        MAP["SramMap::verified()<br/>✅ containment<br/>✅ non-overlap"]
-        ACC["TypedRegion&lt;RW&gt;<br/>✅ access control"]
-        PROV["VerifiedAddr::new()<br/>✅ provenance"]
+        RGN["Region::new()<br/>✅ size &gt; 0<br/>✅ 오버플로 없음"]
+        MAP["SramMap::verified()<br/>✅ 포함 관계<br/>✅ 비중첩"]
+        ACC["TypedRegion&lt;RW&gt;<br/>✅ 접근 제어"]
+        PROV["VerifiedAddr::new()<br/>✅ 출처"]
     end
 
-    subgraph runtime["Runtime"]
-        HW["Hardware access<br/>No bounds checks<br/>No permission checks"]
+    subgraph runtime["런타임"]
+        HW["하드웨어 접근<br/>범위 검사 없음<br/>권한 검사 없음"]
     end
 
     RGN --> MAP --> ACC --> PROV --> HW
@@ -828,20 +848,21 @@ flowchart LR
     style HW fill:#fff3e0,color:#000
 ```
 
-## Key Takeaways
+<a id="key-takeaways-ch15"></a>
+## 핵심 정리
 
-1. **`const fn` + `assert!` = compile-time proof obligation** — if the assertion fails during const evaluation, the program does not compile. No test needed, no code review catch — the compiler proves it.
+1. **`const fn` + `assert!` = 컴파일 타임 증명 의무** — const 평가 중 단언이 실패하면 프로그램은 컴파일되지 않습니다. 테스트도, 코드 리뷰도 필요 없습니다 — 컴파일러가 증명합니다.
 
-2. **Memory maps are ideal candidates** — sub-region containment, overlap freedom, total-size bounds, and alignment constraints are all expressible as const fn assertions. The C `#define` approach offers none of these guarantees.
+2. **메모리 맵은 이상적인 후보** — 하위 영역 포함, 겹침 없음, 전체 크기 상한, 정렬 제약은 모두 const fn 단언으로 표현할 수 있습니다. C의 `#define` 방식은 이런 보장을 주지 않습니다.
 
-3. **Phantom types layer on top** — combine const fn (value verification) with phantom-typed access markers (permission verification) for defense in depth at zero runtime cost.
+3. **Phantom type은 위에 얹습니다** — const fn(값 검증)과 팬텀 타입 접근 마커(권한 검증)를 결합해 런타임 비용 없이 심층 방어를 합니다.
 
-4. **Provenance can be established at compile time** — `VerifiedAddr` proves at compile time that an address belongs to a specific region, eliminating runtime bounds checks on every access.
+4. **출처는 컴파일 타임에 확정할 수 있음** — `VerifiedAddr`는 주소가 특정 영역에 속함을 컴파일 타임에 증명합니다. 매 접근마다 런타임 범위 검사가 필요 없습니다.
 
-5. **The pattern generalizes beyond memory** — register maps, bitfield masks, protocol frames, clock trees, DMA parameters — anywhere you have compile-time-known values with structural invariants.
+5. **패턴은 메모리를 넘어 일반화됩니다** — 레지스터 맵, 비트필드 마스크, 프로토콜 프레임, 클럭 트리, DMA 매개변수 — 구조적 불변식을 가진 컴파일 타임에 알려진 값이 있는 곳이면 어디에나.
 
-6. **Bitfields and clock trees are ideal candidates** — intra-register bit disjointness and derived-value constraint chains (VCO range, divider limits) are exactly the kind of invariant that `const fn` proves effortlessly.
+6. **비트필드와 클럭 트리는 이상적인 후보** — 레지스터 내부 비트 서로소와 유도 값 제약 체인(VCO 범위, 분주기 한도)은 `const fn`이 수월하게 증명하는 불변식입니다.
 
-7. **`const fn` replaces code generators and build scripts for lookup tables** — CRC tables, trigonometry, encoding maps — computed at compile time, placed in `.rodata`, with zero startup cost and no external tooling.
+7. **룩업 테이블에는 `const fn`이 코드 생성기·빌드 스크립트를 대체** — CRC 테이블, 삼각함수, 인코딩 맵 — 컴파일 타임에 계산해 `.rodata`에 넣고, 시작 비용 0, 외부 도구 없음.
 
-8. **Inline `const { }` blocks validate generic parameters** — since Rust 1.79, you can enforce constraints on const generics at the call site, catching misuse before any code runs.
+8. **인라인 `const { }` 블록이 제네릭 매개변수를 검증** — Rust 1.79부터 호출 지점에서 const 제네릭에 제약을 걸어, 코드가 돌기 전에 오용을 잡을 수 있습니다.

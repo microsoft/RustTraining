@@ -1,13 +1,14 @@
-## Exhaustive Pattern Matching: Compiler Guarantees vs Runtime Errors
+<a id="exhaustive-pattern-matching-compiler-guarantees-vs-runtime-errors"></a>
+## 완전한 패턴 매칭: 컴파일러 보장 vs 런타임 오류
 
-> **What you'll learn:** Why C# `switch` expressions silently miss cases while Rust's `match` catches them at compile time,
-> `Option<T>` vs `Nullable<T>` for null safety, and custom error types with `Result<T, E>`.
+> **학습할 내용:** 왜 C#의 `switch` 표현식은 분기를 조용히 놓칠 수 있지만 Rust의 `match`는 이를 컴파일 타임에 잡아내는지,
+> null 안전성을 위한 `Option<T>`와 `Nullable<T>`의 차이, 그리고 `Result<T, E>`를 활용한 사용자 정의 오류 타입.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-### C# Switch Expressions - Still Incomplete
+### C# switch 표현식 - 여전히 불완전함
 ```csharp
-// C# switch expressions look exhaustive but aren't guaranteed
+// C# switch 표현식은 완전해 보이지만 보장되지는 않습니다.
 public enum HttpStatus { Ok, NotFound, ServerError, Unauthorized }
 
 public string HandleResponse(HttpStatus status) => status switch
@@ -15,11 +16,11 @@ public string HandleResponse(HttpStatus status) => status switch
     HttpStatus.Ok => "Success",
     HttpStatus.NotFound => "Resource not found",
     HttpStatus.ServerError => "Internal error",
-    // Missing Unauthorized case - compiles fine!
-    // Runtime: System.InvalidOperationException at runtime
+    // Unauthorized 분기가 빠져 있어도 컴파일은 됩니다!
+    // 런타임: System.InvalidOperationException 발생
 };
 
-// Even with nullable warnings, this compiles:
+// nullable 경고가 있어도 이것은 컴파일됩니다.
 public class User 
 {
     public string Name { get; set; }
@@ -30,22 +31,22 @@ public string ProcessUser(User? user) => user switch
 {
     { IsActive: true } => $"Active: {user.Name}",
     { IsActive: false } => $"Inactive: {user.Name}",
-    // Missing null case - warning only, not error
-    // Runtime: NullReferenceException possible
+    // null 분기가 빠져도 경고일 뿐 오류는 아닙니다.
+    // 런타임: NullReferenceException 가능
 };
 
-// Adding enum values breaks existing code silently
+// enum 값을 추가해도 기존 코드가 조용히 깨집니다.
 public enum HttpStatus 
 { 
     Ok, 
     NotFound, 
     ServerError, 
     Unauthorized,
-    Forbidden  // Adding this doesn't break compilation of HandleResponse()!
+    Forbidden  // 이것을 추가해도 HandleResponse()는 컴파일이 깨지지 않음!
 }
 ```
 
-### Rust Pattern Matching - True Exhaustiveness
+### Rust 패턴 매칭 - 진짜 완전성
 ```rust
 #[derive(Debug)]
 enum HttpStatus {
@@ -61,41 +62,41 @@ fn handle_response(status: HttpStatus) -> &'static str {
         HttpStatus::NotFound => "Resource not found", 
         HttpStatus::ServerError => "Internal error",
         HttpStatus::Unauthorized => "Authentication required",
-        // Compiler ERROR if any case is missing!
-        // This literally will not compile
+        // 분기가 하나라도 빠지면 컴파일러가 오류를 냅니다!
+        // 실제로 컴파일되지 않습니다.
     }
 }
 
-// Adding a new variant breaks compilation everywhere it's used
+// 새 변형을 추가하면 사용하는 모든 곳의 컴파일이 깨집니다.
 #[derive(Debug)]
 enum HttpStatus {
     Ok,
     NotFound,
     ServerError, 
     Unauthorized,
-    Forbidden,  // Adding this breaks compilation in handle_response()
+    Forbidden,  // 이것을 추가하면 handle_response() 컴파일이 깨짐
 }
-// The compiler forces you to handle ALL cases
+// 컴파일러가 모든 경우를 처리하도록 강제합니다.
 
-// Option<T> pattern matching is also exhaustive
+// Option<T>에 대한 패턴 매칭도 완전해야 합니다.
 fn process_optional_value(value: Option<i32>) -> String {
     match value {
         Some(n) => format!("Got value: {}", n),
         None => "No value".to_string(),
-        // Forgetting either case = compilation error
+        // 둘 중 하나라도 빠뜨리면 컴파일 오류
     }
 }
 ```
 
 ```mermaid
 graph TD
-    subgraph "C# Pattern Matching Limitations"
-        CS_SWITCH["switch expression"]
-        CS_WARNING["⚠️ Compiler warnings only"]
-        CS_COMPILE["✅ Compiles successfully"]
-        CS_RUNTIME["💥 Runtime exceptions"]
-        CS_DEPLOY["❌ Bugs reach production"]
-        CS_SILENT["😰 Silent failures on enum changes"]
+    subgraph "C# 패턴 매칭의 한계"
+        CS_SWITCH["switch 표현식"]
+        CS_WARNING["⚠️ 컴파일러 경고만 표시"]
+        CS_COMPILE["✅ 일단 컴파일은 성공"]
+        CS_RUNTIME["💥 런타임 예외"]
+        CS_DEPLOY["❌ 버그가 프로덕션까지 도달"]
+        CS_SILENT["😰 enum 변경 시 조용히 실패"]
         
         CS_SWITCH --> CS_WARNING
         CS_WARNING --> CS_COMPILE
@@ -104,13 +105,13 @@ graph TD
         CS_SWITCH --> CS_SILENT
     end
     
-    subgraph "Rust Exhaustive Matching"
-        RUST_MATCH["match expression"]
-        RUST_ERROR["🛑 Compilation fails"]
-        RUST_FIX["✅ Must handle all cases"]
-        RUST_SAFE["✅ Zero runtime surprises"]
-        RUST_EVOLUTION["🔄 Enum changes break compilation"]
-        RUST_REFACTOR["🛠️ Forced refactoring"]
+    subgraph "Rust의 완전한 매칭"
+        RUST_MATCH["match 표현식"]
+        RUST_ERROR["🛑 컴파일 실패"]
+        RUST_FIX["✅ 모든 경우를 반드시 처리"]
+        RUST_SAFE["✅ 런타임 놀라움이 없음"]
+        RUST_EVOLUTION["🔄 enum 변경 시 컴파일 깨짐"]
+        RUST_REFACTOR["🛠️ 강제 리팩터링"]
         
         RUST_MATCH --> RUST_ERROR
         RUST_ERROR --> RUST_FIX
@@ -128,20 +129,21 @@ graph TD
 
 ***
 
-## Null Safety: `Nullable<T>` vs `Option<T>`
+<a id="null-safety-nullablet-vs-optiont"></a>
+## null 안전성: `Nullable<T>` vs `Option<T>`
 
-### C# Null Handling Evolution
+### C# null 처리의 진화
 ```csharp
-// C# - Traditional null handling (error-prone)
+// C# - 전통적인 null 처리(오류가 나기 쉬움)
 public class User
 {
-    public string Name { get; set; }  // Can be null!
-    public string Email { get; set; } // Can be null!
+    public string Name { get; set; }  // null일 수 있음!
+    public string Email { get; set; } // null일 수 있음!
 }
 
 public string GetUserDisplayName(User user)
 {
-    if (user?.Name != null)  // Null conditional operator
+    if (user?.Name != null)  // null 조건부 연산자
     {
         return user.Name;
     }
@@ -151,11 +153,11 @@ public string GetUserDisplayName(User user)
 // C# 8+ Nullable Reference Types
 public class User
 {
-    public string Name { get; set; }    // Non-nullable
-    public string? Email { get; set; }  // Explicitly nullable
+    public string Name { get; set; }    // nullable 아님
+    public string? Email { get; set; }  // 명시적으로 nullable
 }
 
-// C# Nullable<T> for value types
+// 값 타입을 위한 C# Nullable<T>
 int? maybeNumber = GetNumber();
 if (maybeNumber.HasValue)
 {
@@ -163,18 +165,18 @@ if (maybeNumber.HasValue)
 }
 ```
 
-### Rust `Option<T>` System
+### Rust `Option<T>` 시스템
 ```rust
-// Rust - Explicit null handling with Option<T>
+// Rust - Option<T>를 통한 명시적 null 처리
 #[derive(Debug)]
 pub struct User {
-    name: String,           // Never null
-    email: Option<String>,  // Explicitly optional
+    name: String,           // 절대 null이 아님
+    email: Option<String>,  // 명시적으로 선택 사항
 }
 
 impl User {
     pub fn get_display_name(&self) -> &str {
-        &self.name  // No null check needed - guaranteed to exist
+        &self.name  // null 체크가 필요 없음 - 항상 존재함
     }
     
     pub fn get_email_or_default(&self) -> String {
@@ -185,41 +187,41 @@ impl User {
     }
 }
 
-// Pattern matching forces handling of None case
+// 패턴 매칭은 None 처리도 강제합니다.
 fn handle_optional_user(user: Option<User>) {
     match user {
         Some(u) => println!("User: {}", u.get_display_name()),
         None => println!("No user found"),
-        // Compiler error if None case is not handled!
+        // None 분기를 처리하지 않으면 컴파일 오류!
     }
 }
 ```
 
 ```mermaid
 graph TD
-    subgraph "C# Null Handling Evolution"
-        CS_NULL["Traditional: string name<br/>[ERROR] Can be null"]
-        CS_NULLABLE["Nullable<T>: int? value<br/>[OK] Explicit for value types"]
-        CS_NRT["Nullable Reference Types<br/>string? name<br/>[WARNING] Compile-time warnings only"]
+    subgraph "C# null 처리의 진화"
+        CS_NULL["전통 방식: string name<br/>[ERROR] null 가능"]
+        CS_NULLABLE["Nullable<T>: int? value<br/>[OK] 값 타입에는 명시적"]
+        CS_NRT["Nullable Reference Types<br/>string? name<br/>[WARNING] 컴파일 타임 경고만"]
         
-        CS_RUNTIME["Runtime NullReferenceException<br/>[ERROR] Can still crash"]
+        CS_RUNTIME["런타임 NullReferenceException<br/>[ERROR] 여전히 크래시 가능"]
         CS_NULL --> CS_RUNTIME
         CS_NRT -.-> CS_RUNTIME
         
-        CS_CHECKS["Manual null checks<br/>if (obj?.Property != null)"]
+        CS_CHECKS["수동 null 체크<br/>if (obj?.Property != null)"]
     end
     
-    subgraph "Rust Option<T> System"
+    subgraph "Rust Option<T> 시스템"
         RUST_OPTION["Option<T><br/>Some(value) | None"]
-        RUST_FORCE["Compiler forces handling<br/>[OK] Cannot ignore None"]
-        RUST_MATCH["Pattern matching<br/>match option { ... }"]
-        RUST_METHODS["Rich API<br/>.map(), .unwrap_or(), .and_then()"]
+        RUST_FORCE["컴파일러가 처리 강제<br/>[OK] None을 무시할 수 없음"]
+        RUST_MATCH["패턴 매칭<br/>match option { ... }"]
+        RUST_METHODS["풍부한 API<br/>.map(), .unwrap_or(), .and_then()"]
         
         RUST_OPTION --> RUST_FORCE
         RUST_FORCE --> RUST_MATCH
         RUST_FORCE --> RUST_METHODS
         
-        RUST_SAFE["Compile-time null safety<br/>[OK] No null pointer exceptions"]
+        RUST_SAFE["컴파일 타임 null 안전성<br/>[OK] null 포인터 예외 없음"]
         RUST_MATCH --> RUST_SAFE
         RUST_METHODS --> RUST_SAFE
     end
@@ -250,7 +252,7 @@ fn describe_point(point: Point) -> String {
 }
 ```
 
-### Option and Result Types
+### Option과 Result 타입
 ```csharp
 // C# nullable reference types (C# 8+)
 public class PersonService
@@ -267,7 +269,7 @@ public class PersonService
         return FindPerson(id) ?? "Unknown";
     }
     
-    // Exception-based error handling
+    // 예외 기반 오류 처리
     public void SavePerson(int id, string name)
     {
         if (string.IsNullOrEmpty(name))
@@ -281,7 +283,7 @@ public class PersonService
 ```rust
 use std::collections::HashMap;
 
-// Rust uses Option<T> instead of null
+// Rust는 null 대신 Option<T>를 사용합니다.
 struct PersonService {
     people: HashMap<i32, String>,
 }
@@ -293,12 +295,12 @@ impl PersonService {
         }
     }
     
-    // Returns Option<T> - no null!
+    // Option<T> 반환 - null 없음!
     fn find_person(&self, id: i32) -> Option<&String> {
         self.people.get(&id)
     }
     
-    // Pattern matching on Option
+    // Option에 대한 패턴 매칭
     fn get_person_or_default(&self, id: i32) -> String {
         match self.find_person(id) {
             Some(name) => name.clone(),
@@ -306,14 +308,14 @@ impl PersonService {
         }
     }
     
-    // Using Option methods (more functional style)
+    // Option 메서드 사용(좀 더 함수형 스타일)
     fn get_person_or_default_functional(&self, id: i32) -> String {
         self.find_person(id)
             .map(|name| name.clone())
             .unwrap_or_else(|| "Unknown".to_string())
     }
     
-    // Result<T, E> for error handling
+    // 오류 처리를 위한 Result<T, E>
     fn save_person(&mut self, id: i32, name: String) -> Result<(), String> {
         if name.is_empty() {
             return Err("Name cannot be empty".to_string());
@@ -323,7 +325,7 @@ impl PersonService {
         Ok(())
     }
     
-    // Chaining operations
+    // 연산 체이닝
     fn get_person_length(&self, id: i32) -> Option<usize> {
         self.find_person(id).map(|name| name.len())
     }
@@ -332,27 +334,27 @@ impl PersonService {
 fn main() {
     let mut service = PersonService::new();
     
-    // Handle Result
+    // Result 처리
     match service.save_person(1, "Alice".to_string()) {
         Ok(()) => println!("Person saved successfully"),
         Err(error) => println!("Error: {}", error),
     }
     
-    // Handle Option
+    // Option 처리
     match service.find_person(1) {
         Some(name) => println!("Found: {}", name),
         None => println!("Person not found"),
     }
     
-    // Functional style with Option
+    // Option을 활용한 함수형 스타일
     let name_length = service.get_person_length(1)
         .unwrap_or(0);
     println!("Name length: {}", name_length);
     
-    // Question mark operator for early returns
+    // 조기 반환을 위한 물음표 연산자
     fn try_operation(service: &mut PersonService) -> Result<String, String> {
-        service.save_person(2, "Bob".to_string())?; // Early return if error
-        let name = service.find_person(2).ok_or("Person not found")?; // Convert Option to Result
+        service.save_person(2, "Bob".to_string())?; // 오류면 즉시 반환
+        let name = service.find_person(2).ok_or("Person not found")?; // Option을 Result로 변환
         Ok(format!("Hello, {}", name))
     }
     
@@ -363,9 +365,10 @@ fn main() {
 }
 ```
 
-### Custom Error Types
+<a id="custom-error-types"></a>
+### 사용자 정의 오류 타입
 ```rust
-// Define custom error enum
+// 사용자 정의 오류 enum 정의
 #[derive(Debug)]
 enum PersonError {
     NotFound(i32),
@@ -385,14 +388,14 @@ impl std::fmt::Display for PersonError {
 
 impl std::error::Error for PersonError {}
 
-// Enhanced PersonService with custom errors
+// 사용자 정의 오류를 쓰는 향상된 PersonService
 impl PersonService {
     fn save_person_enhanced(&mut self, id: i32, name: String) -> Result<(), PersonError> {
         if name.is_empty() || name.len() > 50 {
             return Err(PersonError::InvalidName(name));
         }
         
-        // Simulate database operation that might fail
+        // 실패할 수 있는 데이터베이스 작업을 시뮬레이션
         if id < 0 {
             return Err(PersonError::DatabaseError("Negative IDs not allowed".to_string()));
         }
@@ -409,7 +412,7 @@ impl PersonService {
 fn demo_error_handling() {
     let mut service = PersonService::new();
     
-    // Handle different error types
+    // 서로 다른 오류 타입 처리
     match service.save_person_enhanced(-1, "Invalid".to_string()) {
         Ok(()) => println!("Success"),
         Err(PersonError::NotFound(id)) => println!("Not found: {}", id),
@@ -421,12 +424,12 @@ fn demo_error_handling() {
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Option Combinators</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: Option 조합자</strong> (펼쳐서 보기)</summary>
 
-Rewrite this deeply nested C# null-checking code using Rust `Option` combinators (`and_then`, `map`, `unwrap_or`):
+깊게 중첩된 다음 C# null 검사 코드를 Rust의 `Option` 조합자(`and_then`, `map`, `unwrap_or`)로 다시 작성해 보세요.
 
 ```csharp
 string GetCityName(User? user)
@@ -439,16 +442,16 @@ string GetCityName(User? user)
 }
 ```
 
-Use these Rust types:
+다음 Rust 타입을 사용하세요.
 ```rust
 struct User { address: Option<Address> }
 struct Address { city: Option<String> }
 ```
 
-Write it as a **single expression** with no `if let` or `match`.
+`if let`이나 `match` 없이 **단일 표현식**으로 작성하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 struct User { address: Option<Address> }
@@ -473,11 +476,9 @@ fn main() {
 }
 ```
 
-**Key insight**: `and_then` is Rust's `?.` operator for `Option`. Each step returns `Option`, and the chain short-circuits on `None` — exactly like C#'s null-conditional operator `?.`, but explicit and type-safe.
+**핵심 통찰:** `and_then`은 `Option`에 대한 Rust의 `?.` 연산자처럼 동작합니다. 각 단계가 `Option`을 반환하고, `None`이 나오면 체인이 즉시 중단됩니다. 즉, C#의 null 조건부 연산자 `?.`와 비슷하지만 더 명시적이고 타입 안전합니다.
 
 </details>
 </details>
 
 ***
-
-

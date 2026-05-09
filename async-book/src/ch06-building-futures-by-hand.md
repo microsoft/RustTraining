@@ -1,16 +1,19 @@
-# 6. Building Futures by Hand 🟡
+<a id="building-futures-by-hand"></a>
+# 6. Future를 직접 만들기 🟡
 
-> **What you'll learn:**
-> - Implementing a `TimerFuture` with thread-based waking
-> - Building a `Join` combinator: run two futures concurrently
-> - Building a `Select` combinator: race two futures
-> - How combinators compose — futures all the way down
+> **배울 내용:**
+> - 스레드 기반 wake를 사용하는 `TimerFuture` 구현하기
+> - `Join` 컴비네이터 만들기: 두 future를 동시에 실행하기
+> - `Select` 컴비네이터 만들기: 두 future를 경주시키기
+> - 컴비네이터가 합성되는 방식: 끝까지 future로 이루어진 구조
 
-## A Simple Timer Future
+<a id="a-simple-timer-future"></a>
+## 간단한 TimerFuture
 
-Now let's build real, useful futures from scratch. This cements the theory from chapters 2-5.
+이제 실제로 쓸 수 있는 future를 처음부터 직접 만들어 봅시다. 이렇게 하면 2장부터 5장까지의 이론이 더 단단하게 연결됩니다.
 
-### TimerFuture: A Complete Example
+<a id="timerfuture-a-complete-example"></a>
+### TimerFuture: 완전한 예제
 
 ```rust
 use std::future::Future;
@@ -36,14 +39,14 @@ impl TimerFuture {
             waker: None,
         }));
 
-        // Spawn a thread that sets completed=true after the duration
+        // 주어진 시간이 지나면 completed=true로 바꾸는 스레드를 시작
         let thread_shared_state = Arc::clone(&shared_state);
         thread::spawn(move || {
             thread::sleep(duration);
             let mut state = thread_shared_state.lock().unwrap();
             state.completed = true;
             if let Some(waker) = state.waker.take() {
-                waker.wake(); // Notify the executor
+                waker.wake(); // executor에 알림
             }
         });
 
@@ -59,37 +62,38 @@ impl Future for TimerFuture {
         if state.completed {
             Poll::Ready(())
         } else {
-            // Store the waker so the timer thread can wake us
-            // IMPORTANT: Always update the waker — the executor may
-            // have changed it between polls
+            // 타이머 스레드가 현재 future를 깨울 수 있도록 waker를 저장
+            // 중요: waker는 항상 최신 것으로 갱신해야 함
+            // executor가 poll 사이에 waker를 바꿨을 수 있기 때문
             state.waker = Some(cx.waker().clone());
             Poll::Pending
         }
     }
 }
 
-// Usage:
+// 사용 예:
 // async fn example() {
 //     println!("Starting timer...");
 //     TimerFuture::new(Duration::from_secs(2)).await;
 //     println!("Timer done!");
 // }
 //
-// ⚠️ This spawns an OS thread per timer — fine for learning, but in
-// production use `tokio::time::sleep` which is backed by a shared
-// timer wheel and requires zero extra threads.
+// ⚠️ 이 구현은 타이머마다 OS 스레드를 하나씩 만듭니다.
+// 학습용으로는 괜찮지만, 실제 코드에서는 공유 타이머 휠 위에서 동작하고
+// 추가 스레드를 만들지 않는 `tokio::time::sleep`을 사용하세요.
 ```
 
-### Join: Running Two Futures Concurrently
+<a id="join-running-two-futures-concurrently"></a>
+### Join: 두 future를 동시에 실행하기
 
-`Join` polls two futures and completes when *both* finish. This is how `tokio::join!` works internally:
+`Join`은 두 future를 모두 poll하고, *둘 다* 끝났을 때 완료됩니다. 내부적으로는 `tokio::join!`이 이런 식으로 동작합니다:
 
 ```rust
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// Polls two futures concurrently, returns both results as a tuple
+/// 두 future를 동시에 poll해서, 두 결과를 튜플로 반환한다
 pub struct Join<A, B>
 where
     A: Future,
@@ -102,7 +106,7 @@ where
 enum MaybeDone<F: Future> {
     Pending(F),
     Done(F::Output),
-    Taken, // Output has been taken
+    Taken, // Output을 이미 꺼냈음
 }
 
 impl<A, B> Join<A, B>
@@ -126,24 +130,24 @@ where
     type Output = (A::Output, B::Output);
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Poll A if not done
+        // 아직 끝나지 않았다면 A를 poll
         if let MaybeDone::Pending(ref mut fut) = self.a {
             if let Poll::Ready(val) = Pin::new(fut).poll(cx) {
                 self.a = MaybeDone::Done(val);
             }
         }
 
-        // Poll B if not done
+        // 아직 끝나지 않았다면 B를 poll
         if let MaybeDone::Pending(ref mut fut) = self.b {
             if let Poll::Ready(val) = Pin::new(fut).poll(cx) {
                 self.b = MaybeDone::Done(val);
             }
         }
 
-        // Both done?
+        // 둘 다 끝났는가?
         match (&self.a, &self.b) {
             (MaybeDone::Done(_), MaybeDone::Done(_)) => {
-                // Take both outputs
+                // 두 결과를 꺼낸다
                 let a_val = match std::mem::replace(&mut self.a, MaybeDone::Taken) {
                     MaybeDone::Done(v) => v,
                     _ => unreachable!(),
@@ -154,31 +158,31 @@ where
                 };
                 Poll::Ready((a_val, b_val))
             }
-            _ => Poll::Pending, // At least one is still pending
+            _ => Poll::Pending, // 적어도 하나는 아직 pending
         }
     }
 }
 
-// Usage:
+// 사용 예:
 // let (page1, page2) = Join::new(
 //     http_get("https://example.com/a"),
 //     http_get("https://example.com/b"),
 // ).await;
-// Both requests run concurrently!
+// 두 요청은 동시에 진행된다!
 ```
 
-> **Key insight**: "Concurrent" here means *interleaved on the same thread*.
-> Join doesn't spawn threads — it polls both futures in the same `poll()` call.
-> This is cooperative concurrency, not parallelism.
+> **핵심 통찰**: 여기서 "동시에"는 *같은 스레드에서 번갈아 진행된다*는 뜻입니다.
+> `Join`은 스레드를 만들지 않고, 같은 `poll()` 호출 안에서 두 future를 모두 poll합니다.
+> 이것은 병렬성(parallelism)이 아니라 협력적 동시성(cooperative concurrency)입니다.
 
 ```mermaid
 graph LR
-    subgraph "Future Combinators"
+    subgraph "Future 컴비네이터"
         direction TB
-        TIMER["TimerFuture<br/>Single future, wake after delay"]
-        JOIN["Join&lt;A, B&gt;<br/>Wait for BOTH"]
-        SELECT["Select&lt;A, B&gt;<br/>Wait for FIRST"]
-        RETRY["RetryFuture<br/>Re-create on failure"]
+        TIMER["TimerFuture<br/>단일 future, 지연 후 깨움"]
+        JOIN["Join&lt;A, B&gt;<br/>둘 다 기다림"]
+        SELECT["Select&lt;A, B&gt;<br/>먼저 끝나는 쪽을 기다림"]
+        RETRY["RetryFuture<br/>실패 시 다시 생성"]
     end
 
     TIMER --> JOIN
@@ -191,9 +195,10 @@ graph LR
     style RETRY fill:#fadbd8,stroke:#e74c3c,color:#000
 ```
 
-### Select: Racing Two Futures
+<a id="select-racing-two-futures"></a>
+### Select: 두 future 경주시키기
 
-`Select` completes when *either* future finishes first (the other is dropped):
+`Select`는 두 future 가운데 *어느 하나라도* 먼저 끝나면 완료됩니다. 나머지 하나는 drop됩니다:
 
 ```rust
 use std::future::Future;
@@ -205,7 +210,7 @@ pub enum Either<A, B> {
     Right(B),
 }
 
-/// Returns whichever future completes first; drops the other
+/// 먼저 완료된 future의 결과를 반환하고, 다른 future는 drop한다
 pub struct Select<A, B> {
     a: A,
     b: B,
@@ -229,12 +234,12 @@ where
     type Output = Either<A::Output, B::Output>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Poll A first
+        // 먼저 A를 poll
         if let Poll::Ready(val) = Pin::new(&mut self.a).poll(cx) {
             return Poll::Ready(Either::Left(val));
         }
 
-        // Then poll B
+        // 그다음 B를 poll
         if let Poll::Ready(val) = Pin::new(&mut self.b).poll(cx) {
             return Poll::Ready(Either::Right(val));
         }
@@ -243,25 +248,26 @@ where
     }
 }
 
-// Usage with timeout:
+// 타임아웃과 함께 사용:
 // match Select::new(http_get(url), TimerFuture::new(timeout)).await {
 //     Either::Left(response) => println!("Got response: {}", response),
 //     Either::Right(()) => println!("Request timed out!"),
 // }
 ```
 
-> **Fairness note**: Our `Select` always polls A first — if both are ready, A
-> always wins. Tokio's `select!` macro randomizes the poll order for fairness.
+> **공정성 참고**: 이 `Select`는 항상 A를 먼저 poll하므로 둘 다 준비되어 있으면 항상 A가 이깁니다.
+> Tokio의 `select!` 매크로는 공정성을 위해 poll 순서를 무작위화합니다.
+
+<a id="exercise-build-a-retryfuture"></a>
+<details>
+<summary><strong>🏋️ 연습문제: RetryFuture 만들기</strong> (클릭하여 펼치기)</summary>
+
+**도전 과제**: `F: Fn() -> Fut` 클로저를 받아 내부 future가 `Err`를 반환할 때 최대 N번까지 재시도하는 `RetryFuture<F, Fut>`를 만들어 보세요. 첫 번째 `Ok` 결과를 반환하거나, 끝까지 실패하면 마지막 `Err`를 반환해야 합니다.
+
+*힌트*: "현재 시도 실행 중" 상태와 "모든 시도가 소진됨" 상태가 필요합니다.
 
 <details>
-<summary><strong>🏋️ Exercise: Build a RetryFuture</strong> (click to expand)</summary>
-
-**Challenge**: Build a `RetryFuture<F, Fut>` that takes a closure `F: Fn() -> Fut` and retries up to N times if the inner future returns `Err`. It should return the first `Ok` result or the last `Err`.
-
-*Hint*: You'll need states for "running attempt" and "all attempts exhausted."
-
-<details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::future::Future;
@@ -314,7 +320,7 @@ where
                         if self.remaining > 0 {
                             self.remaining -= 1;
                             self.current = Some((self.factory)());
-                            // Loop to poll the new future immediately
+                            // 새 future를 즉시 poll하기 위해 루프를 계속 돈다
                         } else {
                             return Poll::Ready(Err(self.last_error.take().unwrap()));
                         }
@@ -328,24 +334,24 @@ where
     }
 }
 
-// Usage:
+// 사용 예:
 // let result = RetryFuture::new(3, || async {
 //     http_get("https://flaky-server.com/api").await
 // }).await;
 ```
 
-**Key takeaway**: The retry future is itself a state machine: it holds the current attempt and creates new inner futures on failure. This is how combinators compose — futures all the way down.
+**핵심 요점**: 이 retry future 역시 상태 머신입니다. 현재 시도 중인 future를 들고 있다가 실패하면 새로운 내부 future를 만들어 다시 시도합니다. 컴비네이터가 합성된다는 말은 바로 이런 뜻입니다. 끝까지 내려가면 결국 전부 future입니다.
 
 </details>
 </details>
 
-> **Key Takeaways — Building Futures by Hand**
-> - A future needs three things: state, a `poll()` implementation, and a waker registration
-> - `Join` polls both sub-futures; `Select` returns whichever finishes first
-> - Combinators are themselves futures wrapping other futures — it's turtles all the way down
-> - Building futures by hand gives deep insight, but in production use `tokio::join!`/`select!`
+> **핵심 요약 — Future를 직접 만들기**
+> - future에는 세 가지가 필요합니다: 상태, `poll()` 구현, 그리고 waker 등록
+> - `Join`은 두 하위 future를 모두 poll하고, `Select`는 먼저 끝나는 쪽을 반환합니다
+> - 컴비네이터는 다른 future를 감싸는 또 다른 future입니다. 끝까지 내려가도 future입니다
+> - 직접 future를 만들어 보면 이해가 깊어지지만, 실제 코드에서는 `tokio::join!`/`select!`를 사용하세요
 
-> **See also:** [Ch 2 — The Future Trait](ch02-the-future-trait.md) for the trait definition, [Ch 8 — Tokio Deep Dive](ch08-tokio-deep-dive.md) for production-grade equivalents
+> **함께 보기:** trait 정의는 [Ch 2 — The Future Trait](ch02-the-future-trait.md), 실전용 대응물은 [Ch 8 — Tokio Deep Dive](ch08-tokio-deep-dive.md)에서 다룹니다
 
 ***
 

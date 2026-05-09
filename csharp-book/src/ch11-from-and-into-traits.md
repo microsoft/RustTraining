@@ -1,15 +1,17 @@
-## Type Conversions in Rust
+<a id="type-conversions-in-rust"></a>
+## Rust에서의 타입 변환
 
-> **What you'll learn:** `From`/`Into` traits vs C#'s implicit/explicit operators, `TryFrom`/`TryInto`
-> for fallible conversions, `FromStr` for parsing, and idiomatic string conversion patterns.
+> **학습할 내용:** `From`/`Into` 트레잇과 C#의 암묵적/명시적 연산자 비교,
+> 실패 가능한 변환을 위한 `TryFrom`/`TryInto`, 파싱을 위한 `FromStr`,
+> 그리고 관용적인 문자열 변환 패턴을 배웁니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-C# uses implicit/explicit conversions and casting operators. Rust uses the `From` and `Into` traits for safe, explicit conversions.
+C#은 암묵적/명시적 변환과 캐스팅 연산자를 사용합니다. Rust는 안전하고 명시적인 변환을 위해 `From`과 `Into` 트레잇을 사용합니다.
 
-### C# Conversion Patterns
+### C#의 변환 패턴
 ```csharp
-// C# implicit/explicit conversions
+// C#의 암묵적/명시적 변환
 public class Temperature
 {
     public double Celsius { get; }
@@ -27,7 +29,8 @@ double temp = new Temperature(100.0);  // implicit
 Temperature t = (Temperature)37.5;     // explicit
 ```
 
-### Rust From and Into
+<a id="rust-from-and-into"></a>
+### Rust의 From과 Into
 ```rust
 #[derive(Debug)]
 struct Temperature {
@@ -50,10 +53,10 @@ fn main() {
     // From
     let temp = Temperature::from(100.0);
     
-    // Into (automatically available when From is implemented)
+    // Into(From을 구현하면 자동으로 사용 가능)
     let temp2: Temperature = 37.5.into();
     
-    // Works in function arguments too
+    // 함수 인자에서도 사용 가능
     fn process_temp(temp: impl Into<Temperature>) {
         let t: Temperature = temp.into();
         println!("Temperature: {:.1}°C", t.celsius);
@@ -66,18 +69,18 @@ fn main() {
 
 ```mermaid
 graph LR
-    A["impl From&lt;f64&gt; for Temperature"] -->|"auto-generates"| B["impl Into&lt;Temperature&gt; for f64"]
-    C["Temperature::from(37.5)"] -->|"explicit"| D["Temperature"]
-    E["37.5.into()"] -->|"implicit via Into"| D
-    F["fn process(t: impl Into&lt;Temperature&gt;)"] -->|"accepts both"| D
+    A["impl From&lt;f64&gt; for Temperature"] -->|"자동 생성"| B["impl Into&lt;Temperature&gt; for f64"]
+    C["Temperature::from(37.5)"] -->|"명시적"| D["Temperature"]
+    E["37.5.into()"] -->|"Into를 통한 사용"| D
+    F["fn process(t: impl Into&lt;Temperature&gt;)"] -->|"둘 다 허용"| D
 
     style A fill:#c8e6c9,color:#000
     style B fill:#bbdefb,color:#000
 ```
 
-> **Rule of thumb**: Implement `From`, and you get `Into` for free. Callers can use whichever reads better.
+> **실전 규칙:** `From`을 구현하면 `Into`는 자동으로 따라옵니다. 호출자는 읽기 좋은 쪽을 선택하면 됩니다.
 
-### TryFrom for Fallible Conversions
+### 실패 가능한 변환을 위한 `TryFrom`
 ```rust
 use std::convert::TryFrom;
 
@@ -101,19 +104,19 @@ fn main() {
 }
 ```
 
-### String Conversions
+### 문자열 변환
 ```rust
-// ToString via Display trait
+// Display 트레잇을 구현하면 ToString 가능
 impl std::fmt::Display for Temperature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.1}°C", self.celsius)
     }
 }
 
-// Now .to_string() works automatically
+// 이제 .to_string()이 자동으로 동작
 let s = Temperature::from(100.0).to_string(); // "100.0°C"
 
-// FromStr for parsing
+// 파싱을 위한 FromStr
 use std::str::FromStr;
 
 impl FromStr for Temperature {
@@ -131,22 +134,22 @@ let t: Temperature = "100.0°C".parse().unwrap();
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Currency Converter</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 통화 변환기</strong> (펼쳐서 보기)</summary>
 
-Create a `Money` struct that demonstrates the full conversion ecosystem:
+전체 변환 생태계를 보여 주는 `Money` 구조체를 만들어 보세요.
 
-1. `Money { cents: i64 }` (stores value in cents to avoid floating-point issues)
-2. Implement `From<i64>` (treats input as whole dollars → `cents = dollars * 100`)
-3. Implement `TryFrom<f64>` — reject negative amounts, round to nearest cent
-4. Implement `Display` to show `"$1.50"` format
-5. Implement `FromStr` to parse `"$1.50"` or `"1.50"` back into `Money`
-6. Write a function `fn total(items: &[impl Into<Money> + Copy]) -> Money` that sums values
+1. `Money { cents: i64 }` (`부동소수점 문제를 피하려고 센트 단위로 저장`)
+2. `From<i64>` 구현 (`입력을 달러 전체 값으로 보고 -> cents = dollars * 100`)
+3. `TryFrom<f64>` 구현 - 음수 금액은 거부하고, 가장 가까운 센트로 반올림
+4. `Display` 구현 - `"$1.50"` 형식으로 출력
+5. `FromStr` 구현 - `"$1.50"` 또는 `"1.50"`을 다시 `Money`로 파싱
+6. 값을 모두 더하는 `fn total(items: &[impl Into<Money> + Copy]) -> Money` 함수 작성
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해설</summary>
 
 ```rust
 use std::fmt;
@@ -188,7 +191,7 @@ impl FromStr for Money {
 }
 
 fn main() {
-    let a = Money::from(10);                       // $10.00
+    let a = Money::from(10);                         // $10.00
     let b = Money::try_from(3.50).unwrap();         // $3.50
     let c: Money = "$7.25".parse().unwrap();        // $7.25
     println!("{a} + {b} + {c}");

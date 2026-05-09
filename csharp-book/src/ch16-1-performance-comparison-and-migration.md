@@ -1,29 +1,30 @@
-## Performance Comparison: Managed vs Native
+<a id="performance-comparison-managed-vs-native"></a>
+## 성능 비교: 관리형 런타임 vs 네이티브
 
-> **What you'll learn:** Real-world performance differences between C# and Rust — startup time,
-> memory usage, throughput benchmarks, CPU-intensive workloads, and a decision tree
-> for when to migrate vs when to stay in C#.
+> **이 장에서 배울 내용:** C#과 Rust의 실제 성능 차이, 즉 시작 시간, 메모리 사용량,
+> 처리량 벤치마크, CPU 집약적 워크로드, 그리고 언제 마이그레이션하고 언제 C#에 남아야 하는지를
+> 판단하는 의사결정 트리를 다룹니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-### Real-World Performance Characteristics
+### 실제 환경에서의 성능 특성
 
-| **Aspect** | **C# (.NET)** | **Rust** | **Performance Impact** |
-|------------|---------------|----------|------------------------|
-| **Startup Time** | 100-500ms (JIT); 5-30ms (.NET 8 AOT) | 1-10ms (native binary) | 🚀 **10-50x faster** (vs JIT) |
-| **Memory Usage** | +30-100% (GC overhead + metadata) | Baseline (minimal runtime) | 💾 **30-50% less RAM** |
-| **GC Pauses** | 1-100ms periodic pauses | Never (no GC) | ⚡ **Consistent latency** |
-| **CPU Usage** | +10-20% (GC + JIT overhead) | Baseline (direct execution) | 🔋 **10-20% better efficiency** |
-| **Binary Size** | 30-200MB (with runtime); 10-30MB (AOT trimmed) | 1-20MB (static binary) | 📦 **Smaller deployments** |
-| **Memory Safety** | Runtime checks | Compile-time proofs | 🛡️ **Zero overhead safety** |
-| **Concurrent Performance** | Good (with careful synchronization) | Excellent (fearless concurrency) | 🏃 **Superior scalability** |
+| **항목** | **C# (.NET)** | **Rust** | **성능 영향** |
+|----------|---------------|----------|---------------|
+| **시작 시간** | 100-500ms (JIT); 5-30ms (.NET 8 AOT) | 1-10ms (네이티브 바이너리) | 🚀 **10-50배 더 빠름** (JIT 대비) |
+| **메모리 사용량** | +30-100% (GC 오버헤드 + 메타데이터) | 기준선 수준 (최소 런타임) | 💾 **RAM 30-50% 절감** |
+| **GC 일시 중단** | 1-100ms 주기적 pause | 없음 (GC 없음) | ⚡ **일관된 지연 시간** |
+| **CPU 사용량** | +10-20% (GC + JIT 오버헤드) | 기준선 수준 (직접 실행) | 🔋 **효율 10-20% 향상** |
+| **바이너리 크기** | 30-200MB (런타임 포함); 10-30MB (AOT 트리밍) | 1-20MB (정적 바이너리) | 📦 **더 작은 배포물** |
+| **메모리 안전성** | 런타임 검사 | 컴파일 타임 증명 | 🛡️ **오버헤드 없는 안전성** |
+| **동시성 성능** | 좋음 (주의 깊은 동기화 필요) | 매우 우수함 (두려움 없는 동시성) | 🏃 **더 뛰어난 확장성** |
 
-> **Note on .NET 8+ AOT**: Native AOT compilation closes the startup gap significantly (5-30ms). For throughput and memory, GC overhead and pauses remain. When evaluating a migration, benchmark your *specific workload* — headline numbers can be misleading.
+> **.NET 8+ AOT 참고:** Native AOT 컴파일은 시작 시간 격차를 크게 줄여줍니다(5-30ms). 하지만 처리량과 메모리 측면에서는 GC 오버헤드와 일시 중단이 여전히 남습니다. 마이그레이션을 평가할 때는 반드시 *자신의 실제 워크로드*를 벤치마크하세요. 눈에 띄는 요약 수치만 보면 오해하기 쉽습니다.
 
-### Benchmark Examples
+### 벤치마크 예시
 
 ```csharp
-// C# - JSON processing benchmark
+// C# - JSON 처리 벤치마크
 public class JsonProcessor
 {
     public async Task<List<User>> ProcessJsonFile(string path)
@@ -38,13 +39,13 @@ public class JsonProcessor
     }
 }
 
-// Typical performance: ~200ms for 100MB file
-// Memory usage: ~500MB peak (GC overhead)
-// Binary size: ~80MB (self-contained)
+// 일반적인 성능: 100MB 파일 기준 약 200ms
+// 메모리 사용량: 피크 약 500MB (GC 오버헤드 포함)
+// 바이너리 크기: 약 80MB (self-contained)
 ```
 
 ```rust
-// Rust - Equivalent JSON processing
+// Rust - 동등한 JSON 처리
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -65,15 +66,15 @@ pub async fn process_json_file(path: &str) -> Result<Vec<User>, Box<dyn std::err
     Ok(users)
 }
 
-// Typical performance: ~120ms for same 100MB file
-// Memory usage: ~200MB peak (no GC overhead)
-// Binary size: ~8MB (static binary)
+// 일반적인 성능: 같은 100MB 파일 기준 약 120ms
+// 메모리 사용량: 피크 약 200MB (GC 오버헤드 없음)
+// 바이너리 크기: 약 8MB (정적 바이너리)
 ```
 
-### CPU-Intensive Workloads
+### CPU 집약적 워크로드
 
 ```csharp
-// C# - Mathematical computation
+// C# - 수치 계산
 public class Mandelbrot
 {
     public static int[,] Generate(int width, int height, int maxIterations)
@@ -96,12 +97,12 @@ public class Mandelbrot
     }
 }
 
-// Performance: ~2.3 seconds (8-core machine)
-// Memory: ~500MB
+// 성능: 약 2.3초 (8코어 머신)
+// 메모리: 약 500MB
 ```
 
 ```rust
-// Rust - Same computation with Rayon
+// Rust - Rayon으로 같은 계산 수행
 use rayon::prelude::*;
 use num_complex::Complex;
 
@@ -122,57 +123,57 @@ pub fn generate_mandelbrot(width: usize, height: usize, max_iterations: u32) -> 
         .collect()
 }
 
-// Performance: ~1.1 seconds (same 8-core machine)  
-// Memory: ~200MB
-// 2x faster with 60% less memory usage
+// 성능: 약 1.1초 (같은 8코어 머신)
+// 메모리: 약 200MB
+// 2배 빠르고 메모리는 60% 덜 사용
 ```
 
-### When to Choose Each Language
+### 어떤 언어를 선택할까
 
-**Choose C# when:**
-- **Rapid development is crucial** - Rich tooling ecosystem
-- **Team expertise in .NET** - Existing knowledge and skills
-- **Enterprise integration** - Heavy use of Microsoft ecosystem
-- **Moderate performance requirements** - Performance is adequate
-- **Rich UI applications** - WPF, WinUI, Blazor applications
-- **Prototyping and MVPs** - Fast time to market
+**C#을 선택할 때:**
+- **빠른 개발 속도가 중요할 때** - 풍부한 툴링 생태계
+- **팀이 .NET에 익숙할 때** - 기존 지식과 역량을 그대로 활용 가능
+- **엔터프라이즈 통합이 중요할 때** - Microsoft 생태계를 많이 활용할 때
+- **성능 요구가 중간 수준일 때** - 현재 성능으로도 충분할 때
+- **풍부한 UI 애플리케이션이 필요할 때** - WPF, WinUI, Blazor 애플리케이션
+- **프로토타입과 MVP가 필요할 때** - 시장 출시 속도가 중요할 때
 
-**Choose Rust when:**
-- **Performance is critical** - CPU/memory-intensive applications
-- **Resource constraints matter** - Embedded, edge computing, serverless
-- **Long-running services** - Web servers, databases, system services
-- **System-level programming** - OS components, drivers, network tools
-- **High reliability requirements** - Financial systems, safety-critical applications
-- **Concurrent/parallel workloads** - High-throughput data processing
+**Rust를 선택할 때:**
+- **성능이 핵심일 때** - CPU/메모리 집약적 애플리케이션
+- **자원 제약이 중요할 때** - 임베디드, 엣지 컴퓨팅, 서버리스
+- **장시간 실행되는 서비스를 만들 때** - 웹 서버, 데이터베이스, 시스템 서비스
+- **시스템 수준 프로그래밍이 필요할 때** - OS 구성요소, 드라이버, 네트워크 도구
+- **높은 신뢰성이 필요할 때** - 금융 시스템, 안전 필수 애플리케이션
+- **동시성/병렬성 워크로드가 클 때** - 고처리량 데이터 처리
 
-### Migration Strategy Decision Tree
+### 마이그레이션 전략 의사결정 트리
 
 ```mermaid
 graph TD
-    START["Considering Rust?"]
-    PERFORMANCE["Is performance critical?"]
-    TEAM["Team has time to learn?"]
-    EXISTING["Large existing C# codebase?"]
-    NEW_PROJECT["New project or component?"]
+    START["Rust를 고려 중인가요?"]
+    PERFORMANCE["성능이 중요한가요?"]
+    TEAM["팀이 학습할 시간을<br/>확보할 수 있나요?"]
+    EXISTING["기존 C# 코드베이스가 큰가요?"]
+    NEW_PROJECT["새 프로젝트인가요,<br/>새 컴포넌트인가요?"]
     
-    INCREMENTAL["Incremental adoption:<br/>• CLI tools first<br/>• Performance-critical components<br/>• New microservices"]
+    INCREMENTAL["점진적 도입:<br/>• 먼저 CLI 도구부터<br/>• 성능 병목 컴포넌트<br/>• 신규 마이크로서비스"]
     
-    FULL_RUST["Full Rust adoption:<br/>• Greenfield projects<br/>• System-level services<br/>• High-performance APIs"]
+    FULL_RUST["전면 Rust 도입:<br/>• 그린필드 프로젝트<br/>• 시스템 수준 서비스<br/>• 고성능 API"]
     
-    STAY_CSHARP["Stay with C#:<br/>• Optimize existing code<br/>• Use .NET AOT / performance features<br/>• Consider .NET Native"]
+    STAY_CSHARP["C# 유지:<br/>• 기존 코드 최적화<br/>• .NET AOT / 성능 기능 활용<br/>• .NET Native 검토"]
     
     START --> PERFORMANCE
-    PERFORMANCE -->|Yes| TEAM
-    PERFORMANCE -->|No| STAY_CSHARP
+    PERFORMANCE -->|예| TEAM
+    PERFORMANCE -->|아니오| STAY_CSHARP
     
-    TEAM -->|Yes| EXISTING
-    TEAM -->|No| STAY_CSHARP
+    TEAM -->|예| EXISTING
+    TEAM -->|아니오| STAY_CSHARP
     
-    EXISTING -->|Yes| NEW_PROJECT
-    EXISTING -->|No| FULL_RUST
+    EXISTING -->|예| NEW_PROJECT
+    EXISTING -->|아니오| FULL_RUST
     
-    NEW_PROJECT -->|New| FULL_RUST
-    NEW_PROJECT -->|Existing| INCREMENTAL
+    NEW_PROJECT -->|신규| FULL_RUST
+    NEW_PROJECT -->|기존| INCREMENTAL
     
     style FULL_RUST fill:#c8e6c9,color:#000
     style INCREMENTAL fill:#fff3e0,color:#000

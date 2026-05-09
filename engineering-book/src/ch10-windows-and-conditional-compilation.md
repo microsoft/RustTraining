@@ -1,21 +1,21 @@
-# Windows and Conditional Compilation 🟡
+<a id="windows-and-conditional-compilation"></a>
+# Windows와 조건부 컴파일 🟡
 
-> **What you'll learn:**
-> - Windows support patterns: `windows-sys`/`windows` crates, `cargo-xwin`
-> - Conditional compilation with `#[cfg]` — checked by the compiler, not the preprocessor
-> - Platform abstraction architecture: when `#[cfg]` blocks suffice vs when to use traits
-> - Cross-compiling for Windows from Linux
+> **이 장에서 배우는 것:**
+> - Windows 지원 패턴: `windows-sys`/`windows` 크레이트, `cargo-xwin`
+> - `#[cfg]`로 하는 조건부 컴파일 — 전처리기가 아니라 컴파일러가 검사
+> - 플랫폼 추상화 아키텍처: `#[cfg]` 블록으로 충분할 때 vs 트레잇이 필요할 때
+> - Linux에서 Windows용 크로스 컴파일
 >
-> **Cross-references:** [`no_std` & Features](ch09-no-std-and-feature-verification.md) — `cargo-hack` and feature verification · [Cross-Compilation](ch02-cross-compilation-one-source-many-target.md) — general cross-build setup · [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) — `cfg` flags emitted by `build.rs`
+> **교차 참고:** [`no_std`와 Features](ch09-no-std-and-feature-verification.md) — `cargo-hack`과 feature 검증 · [크로스 컴파일](ch02-cross-compilation-one-source-many-target.md) — 일반 크로스 빌드 설정 · [빌드 스크립트](ch01-build-scripts-buildrs-in-depth.md) — `build.rs`가 내보내는 `cfg` 플래그
 
-### Windows Support — Platform Abstractions
+<a id="windows-support-platform-abstractions"></a>
+### Windows 지원 — 플랫폼 추상화
 
-Rust's `#[cfg()]` attributes and Cargo features allow a single codebase to
-target both Linux and Windows cleanly. The project already
-demonstrates this pattern in `platform::run_command`:
+Rust의 `#[cfg()]` 속성과 Cargo feature로 단일 코드베이스에서 Linux와 Windows를 깔끔하게 타깃할 수 있습니다. 프로젝트는 이미 `platform::run_command`에서 이 패턴을 보여 줍니다:
 
 ```rust
-// Real pattern from the project — platform-specific shell invocation
+// 프로젝트의 실제 패턴 — 플랫폼별 셸 호출
 pub fn exec_cmd(cmd: &str, timeout_secs: Option<u64>) -> Result<CommandResult, CommandError> {
     #[cfg(windows)]
     let mut child = Command::new("cmd")
@@ -31,50 +31,51 @@ pub fn exec_cmd(cmd: &str, timeout_secs: Option<u64>) -> Result<CommandResult, C
         .stderr(Stdio::piped())
         .spawn()?;
 
-    // ... rest is platform-independent ...
+    // ... 나머지는 플랫폼 독립 ...
 }
 ```
 
-**Available `cfg` predicates:**
+**사용 가능한 `cfg` 술어:**
 
 ```rust
-// Operating system
-#[cfg(target_os = "linux")]         // Linux specifically
+// 운영체제
+#[cfg(target_os = "linux")]         // Linux만
 #[cfg(target_os = "windows")]       // Windows
 #[cfg(target_os = "macos")]         // macOS
-#[cfg(unix)]                        // Linux, macOS, BSDs, etc.
-#[cfg(windows)]                     // Windows (shorthand)
+#[cfg(unix)]                        // Linux, macOS, BSD 등
+#[cfg(windows)]                     // Windows(약칭)
 
-// Architecture
-#[cfg(target_arch = "x86_64")]      // x86 64-bit
-#[cfg(target_arch = "aarch64")]     // ARM 64-bit
-#[cfg(target_arch = "x86")]         // x86 32-bit
+// 아키텍처
+#[cfg(target_arch = "x86_64")]      // x86 64비트
+#[cfg(target_arch = "aarch64")]     // ARM 64비트
+#[cfg(target_arch = "x86")]         // x86 32비트
 
-// Pointer width (portable alternative to arch)
-#[cfg(target_pointer_width = "64")] // Any 64-bit platform
-#[cfg(target_pointer_width = "32")] // Any 32-bit platform
+// 포인터 너비(아키텍처 대신 쓸 수 있는 이식 가능한 대안)
+#[cfg(target_pointer_width = "64")] // 임의 64비트 플랫폼
+#[cfg(target_pointer_width = "32")] // 임의 32비트 플랫폼
 
-// Environment / C library
+// 환경 / C 라이브러리
 #[cfg(target_env = "gnu")]          // glibc
 #[cfg(target_env = "musl")]         // musl libc
-#[cfg(target_env = "msvc")]         // MSVC on Windows
+#[cfg(target_env = "msvc")]         // Windows의 MSVC
 
-// Endianness
+// 엔디안
 #[cfg(target_endian = "little")]
 #[cfg(target_endian = "big")]
 
-// Combinations with any(), all(), not()
+// any(), all(), not() 조합
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[cfg(not(windows))]
 ```
 
-### The `windows-sys` and `windows` Crates
+<a id="the-windows-sys-and-windows-crates"></a>
+### `windows-sys`와 `windows` 크레이트
 
-For calling Windows APIs directly:
+Windows API를 직접 호출할 때:
 
 ```toml
-# Cargo.toml — use windows-sys for raw FFI (lighter, no abstraction)
+# Cargo.toml — raw FFI에는 windows-sys(가볍고 추상화 없음)
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
@@ -82,12 +83,11 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Registry",
     "Win32_System_Power",
 ] }
-# NOTE: windows-sys uses semver-incompatible releases (0.48 → 0.52 → 0.59).
-# Pin to a single minor version — each release may remove or rename API bindings.
-# Check https://github.com/microsoft/windows-rs for the latest version
-# before starting a new project.
+# 참고: windows-sys는 semver 비호환 릴리스를 씀(0.48 → 0.52 → 0.59).
+# 단일 마이너 버전에 고정 — 릴리스마다 API 바인딩이 바뀌거나 사라질 수 있음.
+# 새 프로젝트 전에 https://github.com/microsoft/windows-rs 에서 최신 버전 확인.
 
-# Or use the windows crate for safe wrappers (heavier, more ergonomic)
+# 또는 안전한 래퍼에는 windows 크레이트( heavier, 더 인체공학적)
 # windows = { version = "0.59", features = [...] }
 ```
 
@@ -101,8 +101,8 @@ mod win {
 
     pub fn get_battery_status() -> Option<u8> {
         let mut status = SYSTEM_POWER_STATUS::default();
-        // SAFETY: GetSystemPowerStatus writes to the provided buffer.
-        // The buffer is correctly sized and aligned.
+        // SAFETY: GetSystemPowerStatus가 제공한 버퍼에 씀.
+        // 버퍼 크기와 정렬이 올바름.
         let ok = unsafe { GetSystemPowerStatus(&mut status) };
         if ok != 0 {
             Some(status.BatteryLifePercent)
@@ -113,53 +113,55 @@ mod win {
 }
 ```
 
-**`windows-sys` vs `windows` crate:**
+**`windows-sys` vs `windows` 크레이트:**
 
-| Aspect | `windows-sys` | `windows` |
-|--------|---------------|----------|
-| API style | Raw FFI (`unsafe` calls) | Safe Rust wrappers |
-| Binary size | Minimal (just extern declarations) | Larger (wrapper code) |
-| Compile time | Fast | Slower |
-| Ergonomics | C-style, manual safety | Rust-idiomatic |
-| Error handling | Raw `BOOL` / `HRESULT` | `Result<T, windows::core::Error>` |
-| Use when | Performance-critical, thin wrapper | Application code, ease of use |
+| 측면 | `windows-sys` | `windows` |
+|------|----------------|-----------|
+| API 스타일 | Raw FFI(`unsafe` 호출) | 안전한 Rust 래퍼 |
+| 바이너리 크기 | 최소(extern 선언만) | 더 큼(래퍼 코드) |
+| 컴파일 시간 | 빠름 | 느림 |
+| 인체공학 | C 스타일, 수동 안전 | Rust다운 사용감 |
+| 에러 처리 | Raw `BOOL` / `HRESULT` | `Result<T, windows::core::Error>` |
+| 쓸 때 | 성능 중요, 얇은 래퍼 | 앱 코드, 사용 편의 |
 
-### Cross-Compiling for Windows from Linux
+<a id="cross-compiling-for-windows-from-linux"></a>
+### Linux에서 Windows용 크로스 컴파일
 
 ```bash
-# Option 1: MinGW (GNU ABI)
+# 옵션 1: MinGW(GNU ABI)
 rustup target add x86_64-pc-windows-gnu
 sudo apt install gcc-mingw-w64-x86-64
 cargo build --target x86_64-pc-windows-gnu
-# Produces a .exe — runs on Windows, links against msvcrt
+# .exe 생성 — Windows에서 실행, msvcrt에 링크
 
-# Option 2: MSVC ABI via xwin (for full MSVC compatibility)
+# 옵션 2: xwin으로 MSVC ABI(완전한 MSVC 호환)
 cargo install cargo-xwin
 cargo xwin build --target x86_64-pc-windows-msvc
-# Uses Microsoft's CRT and SDK headers downloaded automatically
+# Microsoft CRT와 SDK 헤더/라이브러리를 자동 다운로드
 
-# Option 3: Zig-based cross-compilation
+# 옵션 3: Zig 기반 크로스 컴파일
 cargo zigbuild --target x86_64-pc-windows-gnu
 ```
 
-**GNU vs MSVC ABI on Windows:**
+**Windows에서 GNU vs MSVC ABI:**
 
-| Aspect | `x86_64-pc-windows-gnu` | `x86_64-pc-windows-msvc` |
-|--------|-------------------------|---------------------------|
-| Linker | MinGW `ld` | MSVC `link.exe` or `lld-link` |
-| C runtime | `msvcrt.dll` (universal) | `ucrtbase.dll` (modern) |
-| C++ interop | GCC ABI | MSVC ABI |
-| Cross-compile from Linux | Easy (MinGW) | Possible (`cargo-xwin`) |
-| Windows API support | Full | Full |
-| Debug info format | DWARF | PDB |
-| Recommended for | Simple tools, CI builds | Full Windows integration |
+| 측면 | `x86_64-pc-windows-gnu` | `x86_64-pc-windows-msvc` |
+|------|-------------------------|---------------------------|
+| 링커 | MinGW `ld` | MSVC `link.exe` 또는 `lld-link` |
+| C 런타임 | `msvcrt.dll`(범용) | `ucrtbase.dll`(모던) |
+| C++ 상호운용 | GCC ABI | MSVC ABI |
+| Linux에서 크로스 | 쉬움(MinGW) | 가능(`cargo-xwin`) |
+| Windows API 지원 | 전체 | 전체 |
+| 디버그 정보 형식 | DWARF | PDB |
+| 권장 | 단순 도구, CI 빌드 | 완전한 Windows 통합 |
 
-### Conditional Compilation Patterns
+<a id="conditional-compilation-patterns"></a>
+### 조건부 컴파일 패턴
 
-**Pattern 1: Platform module selection**
+**패턴 1: 플랫폼 모듈 선택**
 
 ```rust
-// src/platform/mod.rs — compile different modules per OS
+// src/platform/mod.rs — OS마다 다른 모듈 컴파일
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
@@ -170,34 +172,34 @@ mod windows;
 #[cfg(target_os = "windows")]
 pub use windows::*;
 
-// Both modules implement the same public API:
+// 두 모듈 모두 동일한 공개 API 구현:
 // pub fn get_cpu_temperature() -> Result<f64, PlatformError>
 // pub fn list_pci_devices() -> Result<Vec<PciDevice>, PlatformError>
 ```
 
-**Pattern 2: Feature-gated platform support**
+**패턴 2: feature로 게이트한 플랫폼 지원**
 
 ```toml
 # Cargo.toml
 [features]
 default = ["linux"]
-linux = []              # Linux-specific hardware access
-windows = ["dep:windows-sys"]  # Windows-specific APIs
+linux = []              # Linux 전용 하드웨어 접근
+windows = ["dep:windows-sys"]  # Windows 전용 API
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [...], optional = true }
 ```
 
 ```rust
-// Compile error if someone tries to build for Windows without the feature:
+// feature 없이 Windows 빌드하려 하면 컴파일 오류:
 #[cfg(all(target_os = "windows", not(feature = "windows")))]
 compile_error!("Enable the 'windows' feature to build for Windows");
 ```
 
-**Pattern 3: Trait-based platform abstraction**
+**패턴 3: 트레잇 기반 플랫폼 추상화**
 
 ```rust
-/// Platform-independent interface for hardware access.
+/// 하드웨어 접근용 플랫폼 독립 인터페이스.
 pub trait HardwareAccess {
     type Error: std::error::Error;
 
@@ -215,7 +217,7 @@ impl HardwareAccess for LinuxHardware {
     type Error = LinuxHwError;
 
     fn read_cpu_temperature(&self) -> Result<f64, Self::Error> {
-        // Read from /sys/class/thermal/thermal_zone0/temp
+        // /sys/class/thermal/thermal_zone0/temp 에서 읽기
         let raw = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp")?;
         Ok(raw.trim().parse::<f64>()? / 1000.0)
     }
@@ -230,13 +232,13 @@ impl HardwareAccess for WindowsHardware {
     type Error = WindowsHwError;
 
     fn read_cpu_temperature(&self) -> Result<f64, Self::Error> {
-        // Read via WMI (Win32_TemperatureProbe) or Open Hardware Monitor
+        // WMI(Win32_TemperatureProbe) 또는 Open Hardware Monitor로 읽기
         todo!("WMI temperature query")
     }
     // ...
 }
 
-/// Create the platform-appropriate implementation
+/// 플랫폼에 맞는 구현체 생성
 pub fn create_hardware() -> impl HardwareAccess {
     #[cfg(target_os = "linux")]
     { LinuxHardware }
@@ -245,24 +247,25 @@ pub fn create_hardware() -> impl HardwareAccess {
 }
 ```
 
-### Platform Abstraction Architecture
+<a id="platform-abstraction-architecture"></a>
+### 플랫폼 추상화 아키텍처
 
-For a project that targets multiple platforms, organize code into three layers:
+여러 플랫폼을 타깃하는 프로젝트는 코드를 세 층으로 나눕니다:
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│ Application Logic (platform-independent)          │
-│  diag_tool, accel_diag, network_diag, event_log, etc.      │
-│  Uses only the platform abstraction trait          │
+│ 애플리케이션 로직(플랫폼 독립)                     │
+│  diag_tool, accel_diag, network_diag, event_log 등  │
+│  플랫폼 추상화 트레잇만 사용                         │
 ├──────────────────────────────────────────────────┤
-│ Platform Abstraction Layer (trait definitions)    │
+│ 플랫폼 추상화 층(트레잇 정의)                      │
 │  trait HardwareAccess { ... }                     │
 │  trait CommandRunner { ... }                      │
 │  trait FileSystem { ... }                         │
 ├──────────────────────────────────────────────────┤
-│ Platform Implementations (cfg-gated)              │
+│ 플랫폼 구현(cfg로 게이트)                         │
 │  ┌──────────────┐  ┌──────────────┐              │
-│  │ Linux impl   │  │ Windows impl │              │
+│  │ Linux 구현   │  │ Windows 구현 │              │
 │  │ /sys, /proc  │  │ WMI, Registry│              │
 │  │ ipmitool     │  │ ipmiutil     │              │
 │  │ lspci        │  │ devcon       │              │
@@ -270,7 +273,7 @@ For a project that targets multiple platforms, organize code into three layers:
 └──────────────────────────────────────────────────┘
 ```
 
-**Testing the abstraction**: Mock the platform trait for unit tests:
+**추상화 테스트**: 단위 테스트에서 플랫폼 트레잇을 모의(mock)하세요:
 
 ```rust
 #[cfg(test)]
@@ -299,7 +302,7 @@ mod tests {
         }
 
         fn list_pci_devices(&self) -> Result<Vec<PciDevice>, Self::Error> {
-            Ok(vec![]) // Mock returns empty
+            Ok(vec![]) // 모의는 빈 목록
         }
 
         fn send_ipmi_command(&self, _cmd: &IpmiCmd) -> Result<IpmiResponse, Self::Error> {
@@ -319,72 +322,66 @@ mod tests {
 }
 ```
 
-### Application: Linux-First, Windows-Ready
+<a id="application-linux-first-windows-ready"></a>
+### 적용: Linux 우선, Windows 대비
 
-The project is already partially Windows-ready. Use
-[`cargo-hack`](ch09-no-std-and-feature-verification.md) to verify all feature
-combinations, and [cross-compile](ch02-cross-compilation-one-source-many-target.md)
-to test on Windows from Linux:
+프로젝트는 이미 부분적으로 Windows 대비가 되어 있습니다. 모든 feature 조합은 [`cargo-hack`](ch09-no-std-and-feature-verification.md)으로 검증하고, Linux에서 Windows를 [크로스 컴파일](ch02-cross-compilation-one-source-many-target.md)해 테스트하세요:
 
-**Already done:**
-- `platform::run_command` uses `#[cfg(windows)]` for shell selection
-- Tests use `#[cfg(windows)]` / `#[cfg(not(windows))]` for platform-appropriate
-  test commands
+**이미 완료된 것:**
+- `platform::run_command`가 셸 선택에 `#[cfg(windows)]` 사용
+- 테스트가 `#[cfg(windows)]` / `#[cfg(not(windows))]`로 플랫폼에 맞는 명령 사용
 
-**Recommended evolution path for Windows support:**
+**Windows 지원을 위한 권장 진화 경로:**
 
 ```text
-Phase 1: Extract platform abstraction trait (current → 2 weeks)
-  ├─ Define HardwareAccess trait in core_lib
-  ├─ Wrap current Linux code behind LinuxHardware impl
-  └─ All diagnostic modules depend on trait, not Linux specifics
+1단계: 플랫폼 추상화 트레잇 추출(현재 → 약 2주)
+  ├─ core_lib에 HardwareAccess 트레잇 정의
+  ├─ 기존 Linux 코드를 LinuxHardware impl 뒤로 감쌈
+  └─ 모든 진단 모듈이 Linux 세부가 아니라 트레잇에 의존
 
-Phase 2: Add Windows stubs (2 weeks)
-  ├─ Implement WindowsHardware with TODO stubs
-  ├─ CI builds for x86_64-pc-windows-msvc (compile check only)
-  └─ Tests pass with MockHardware on all platforms
+2단계: Windows 스텁 추가(약 2주)
+  ├─ TODO 스텁으로 WindowsHardware 구현
+  ├─ CI에서 x86_64-pc-windows-msvc 빌드(컴파일 검사만)
+  └─ 모든 플랫폼에서 MockHardware로 테스트 통과
 
-Phase 3: Windows implementation (ongoing)
-  ├─ IPMI via ipmiutil.exe or OpenIPMI Windows driver
-  ├─ GPU via accel-mgmt (accel-api.dll) — same API as Linux
-  ├─ PCIe via Windows Setup API (SetupDiEnumDeviceInfo)
-  └─ NIC via WMI (Win32_NetworkAdapter)
+3단계: Windows 구현(지속)
+  ├─ IPMI는 ipmiutil.exe 또는 OpenIPMI Windows 드라이버
+  ├─ GPU는 accel-mgmt(accel-api.dll) — Linux와 동일 API
+  ├─ PCIe는 Windows Setup API(SetupDiEnumDeviceInfo)
+  └─ NIC는 WMI(Win32_NetworkAdapter)
 ```
 
-**Cross-platform CI addition:**
+**크로스 플랫폼 CI 추가:**
 
 ```yaml
-# Add to CI matrix
+# CI 매트릭스에 추가
 - target: x86_64-pc-windows-msvc
   os: windows-latest
   name: windows-x86_64
 ```
 
-This ensures the codebase compiles on Windows even before full Windows
-implementation is complete — catching `cfg` mistakes early.
+전체 Windows 구현 전에도 코드베이스가 Windows에서 컴파일되게 해 `cfg` 실수를 일찍 잡습니다.
 
-> **Key insight**: The abstraction doesn't need to be perfect on day one.
-> Start with `#[cfg]` blocks in leaf functions (like `exec_cmd` already does),
-> then refactor to traits when you have two or more platform implementations.
-> Premature abstraction is worse than `#[cfg]` blocks.
+> **핵심**: 추상화가 첫날부터 완벽할 필요는 없습니다. `exec_cmd`처럼 리프 함수에 `#[cfg]` 블록으로 시작하고, 플랫폼 구현이 둘 이상 생기면 트레잇으로 리팩터하세요. 때 이른 추상화는 `#[cfg]` 블록보다 나쁩니다.
 
-### Conditional Compilation Decision Tree
+<a id="conditional-compilation-decision-tree"></a>
+### 조건부 컴파일 의사결정 트리
 
 ```mermaid
 flowchart TD
-    START["Platform-specific code?"] --> HOW_MANY{"How many platforms?"}
+    START["플랫폼별 코드?"] --> HOW_MANY{"플랫폼 수?"}
     
-    HOW_MANY -->|"2 (Linux + Windows)"| CFG_BLOCKS["#[cfg] blocks\nin leaf functions"]
-    HOW_MANY -->|"3+"| TRAIT_APPROACH["Platform trait\n+ per-platform impl"]
+    HOW_MANY -->|"2 (Linux + Windows)"| CFG_BLOCKS["리프 함수의\n#[cfg] 블록"]
+    HOW_MANY -->|"3+"| TRAIT_APPROACH["플랫폼 트레잇\n+ 플랫폼별 impl"]
     
-    CFG_BLOCKS --> WINAPI{"Need Windows APIs?"}
-    WINAPI -->|"Minimal"| WIN_SYS["windows-sys\nRaw FFI bindings"]
-    WINAPI -->|"Rich (COM, etc)"| WIN_RS["windows crate\nSafe idiomatic wrappers"]
-    WINAPI -->|"None\n(just #[cfg])"| NATIVE["cfg(windows)\ncfg(unix)"]
+    CFG_BLOCKS --> WINAPI{"Windows API\n필요?"}
+    WINAPI -->|"최소"| WIN_SYS["windows-sys\nRaw FFI 바인딩"]
+    WINAPI -->|"풍부(COM 등)"| WIN_RS["windows 크레이트\n안전한 래퍼"]
+    WINAPI -->|"없음\n(#[cfg]만)"| NATIVE["cfg(windows)\ncfg(unix)"]
     
     TRAIT_APPROACH --> CI_CHECK["cargo-hack\n--each-feature"]
     CFG_BLOCKS --> CI_CHECK
-    CI_CHECK --> XCOMPILE["Cross-compile in CI\ncargo-xwin or\nnative runners"]
+    CI_CHECK --> XCOMPILE["CI에서 크로스 컴파일\ncargo-xwin 또는\n네이티브 러너"]
     
     style CFG_BLOCKS fill:#91e5a3,color:#000
     style TRAIT_APPROACH fill:#ffd43b,color:#000
@@ -392,14 +389,14 @@ flowchart TD
     style WIN_RS fill:#e3f2fd,color:#000
 ```
 
-### 🏋️ Exercises
+### 🏋️ 연습문제
 
-#### 🟢 Exercise 1: Platform-Conditional Module
+#### 🟢 연습 1: 플랫폼 조건부 모듈
 
-Create a module with `#[cfg(unix)]` and `#[cfg(windows)]` implementations of a `get_hostname()` function. Verify both compile with `cargo check` and `cargo check --target x86_64-pc-windows-msvc`.
+`#[cfg(unix)]`와 `#[cfg(windows)]`로 `get_hostname()` 구현을 나눈 모듈을 만드세요. `cargo check`와 `cargo check --target x86_64-pc-windows-msvc` 둘 다 컴파일되는지 확인하세요.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust
 // src/hostname.rs
@@ -431,44 +428,43 @@ mod tests {
 ```
 
 ```bash
-# Verify Linux compilation
+# Linux 컴파일 확인
 cargo check
 
-# Verify Windows compilation (cross-check)
+# Windows 컴파일 확인(크로스)
 rustup target add x86_64-pc-windows-msvc
 cargo check --target x86_64-pc-windows-msvc
 ```
 </details>
 
-#### 🟡 Exercise 2: Cross-Compile for Windows with cargo-xwin
+#### 🟡 연습 2: cargo-xwin으로 Windows 크로스 컴파일
 
-Install `cargo-xwin` and build a simple binary for `x86_64-pc-windows-msvc` from Linux. Verify the output is a `.exe`.
+`cargo-xwin`을 설치하고 Linux에서 `x86_64-pc-windows-msvc`용 단순 바이너리를 빌드하세요. 출력이 `.exe`인지 확인하세요.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```bash
 cargo install cargo-xwin
 rustup target add x86_64-pc-windows-msvc
 
 cargo xwin build --release --target x86_64-pc-windows-msvc
-# Downloads Windows SDK headers/libs automatically
+# Windows SDK 헤더/라이브러리를 자동 다운로드
 
 file target/x86_64-pc-windows-msvc/release/my-binary.exe
-# Output: PE32+ executable (console) x86-64, for MS Windows
+# 출력: PE32+ executable (console) x86-64, for MS Windows
 
-# You can also test with Wine:
+# Wine으로도 테스트 가능:
 wine target/x86_64-pc-windows-msvc/release/my-binary.exe
 ```
 </details>
 
-### Key Takeaways
+### 핵심 정리
 
-- Start with `#[cfg]` blocks in leaf functions; refactor to traits only when three or more platforms diverge
-- `windows-sys` is for raw FFI; the `windows` crate provides safe, idiomatic wrappers
-- `cargo-xwin` cross-compiles to Windows MSVC ABI from Linux — no Windows machine needed
-- Always check `--target x86_64-pc-windows-msvc` in CI even if you only ship on Linux
-- Combine `#[cfg]` with Cargo features for optional platform support (e.g., `feature = "windows"`)
+- 리프 함수부터 `#[cfg]` 블록으로 시작하고, 플랫폼이 셋 이상 갈라질 때만 트레잇으로 리팩터하세요
+- `windows-sys`는 raw FFI용, `windows` 크레이트는 안전하고 익숙한 래퍼용
+- `cargo-xwin`은 Linux에서 Windows MSVC ABI로 크로스 컴파일 — Windows 머신 없이 가능
+- Linux만 배포해도 CI에서 `x86_64-pc-windows-msvc`를 확인하세요
+- 선택적 플랫폼 지원에는 `#[cfg]`와 Cargo feature를 함께 쓰세요(예: `feature = "windows"`)
 
 ---
-

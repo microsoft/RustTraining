@@ -1,26 +1,27 @@
-# Putting It All Together — A Complete Diagnostic Platform 🟡
+<a id="putting-it-all-together-a-complete-diagnostic-platform"></a>
+# 모두 합치기 — 완전한 진단 플랫폼 🟡
 
-> **What you'll learn:** How all seven core patterns (ch02–ch09) compose into a single diagnostic workflow — authentication, sessions, typed commands, audit tokens, dimensional results, validated data, and phantom-typed registers — with zero total runtime overhead.
+> **이 장에서 배울 내용:** 2–9장의 핵심 패턴 일곱 가지(typed commands, capability token, type-state, single-use types, dimensional types, validated boundaries, phantom types)가 **하나의 진단 워크플로**로 어떻게 조합되는지 — 인증, 세션, 타입이 있는 명령, 감사 토큰, 차원이 있는 결과, 검증된 데이터, 팬텀 타입 레지스터 — **런타임 오버헤드 합계는 0**입니다.
 >
-> **Cross-references:** Every core pattern chapter (ch02–ch09), [ch14](ch14-testing-type-level-guarantees.md) (testing these guarantees)
+> **상호 참조:** 핵심 패턴 장 전부(ch02–ch09), [ch14](ch14-testing-type-level-guarantees.md)(이 보장들을 테스트하는 방법)
 
-## Goal
+<a id="goal"></a>
+## 목표
 
-This chapter combines **seven patterns** from chapters 2–9 into a single, realistic
-diagnostic workflow. We'll build a server health check that:
+이 장은 2–9장의 **패턴 일곱 가지**를 **하나의 현실적인 진단 워크플로**로 묶습니다. 다음을 수행하는 서버 헬스 체크를 만듭니다.
 
-1. **Authenticates** (capability token — ch04)
-2. **Opens an IPMI session** (type-state — ch05)
-3. **Sends typed commands** (typed commands — ch02)
-4. **Uses single-use tokens** for audit logging (single-use types — ch03)
-5. **Returns dimensional results** (dimensional analysis — ch06)
-6. **Validates FRU data** (validated boundaries — ch07)
-7. **Reads typed registers** (phantom types — ch09)
+1. **인증**(capability token — ch04)
+2. **IPMI 세션 열기**(type-state — ch05)
+3. **타입이 있는 명령 전송**(typed commands — ch02)
+4. 감사 로깅에 **단일 사용 토큰**(single-use types — ch03)
+5. **차원이 있는 결과** 반환(dimensional analysis — ch06)
+6. **FRU 데이터 검증**(validated boundaries — ch07)
+7. **타입이 있는 레지스터 읽기**(phantom types — ch09)
 
 ```rust,ignore
 use std::marker::PhantomData;
 use std::io;
-// ──── Pattern 1: Dimensional Types (ch06) ────
+// ──── 패턴 1: 차원 타입(ch06) ────
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Celsius(pub f64);
@@ -31,11 +32,10 @@ pub struct Rpm(pub f64);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Volts(pub f64);
 
-// ──── Pattern 2: Typed Commands (ch02) ────
+// ──── 패턴 2: 타입이 있는 명령(ch02) ────
 
-/// Same trait shape as ch02, using methods (not associated constants)
-/// for consistency. Associated constants (`const NETFN: u8`) are an
-/// equally valid alternative when the value is truly fixed per type.
+/// ch02와 같은 트레잇 형태이며, 일관성을 위해 메서드를 사용합니다(연관 상수 아님).
+/// 값이 타입마다 고정이면 연관 상수(`const NETFN: u8`)도 동일하게 유효한 대안입니다.
 pub trait IpmiCmd {
     type Response;
     fn net_fn(&self) -> u8;
@@ -46,7 +46,7 @@ pub trait IpmiCmd {
 
 pub struct ReadTemp { pub sensor_id: u8 }
 impl IpmiCmd for ReadTemp {
-    type Response = Celsius;   // ← dimensional type!
+    type Response = Celsius;   // ← 차원 타입!
     fn net_fn(&self) -> u8 { 0x04 }
     fn cmd_byte(&self) -> u8 { 0x2D }
     fn payload(&self) -> Vec<u8> { vec![self.sensor_id] }
@@ -72,7 +72,7 @@ impl IpmiCmd for ReadFanSpeed {
     }
 }
 
-// ──── Pattern 3: Capability Token (ch04) ────
+// ──── 패턴 3: Capability Token(ch04) ────
 
 pub struct AdminToken { _private: () }
 
@@ -84,7 +84,7 @@ pub fn authenticate(user: &str, pass: &str) -> Result<AdminToken, &'static str> 
     }
 }
 
-// ──── Pattern 4: Type-State Session (ch05) ────
+// ──── 패턴 4: Type-State 세션(ch05) ────
 
 pub struct Idle;
 pub struct Active;
@@ -101,7 +101,7 @@ impl Session<Idle> {
 
     pub fn activate(
         self,
-        _admin: &AdminToken,  // ← requires capability token
+        _admin: &AdminToken,  // ← capability token 필요
     ) -> Result<Session<Active>, String> {
         println!("Session activated on {}", self.host);
         Ok(Session { host: self.host, _state: PhantomData })
@@ -109,24 +109,24 @@ impl Session<Idle> {
 }
 
 impl Session<Active> {
-    /// Execute a typed command — only available on Active sessions.
-    /// Returns io::Result to propagate transport errors (consistent with ch02).
+    /// 타입이 있는 명령 실행 — Active 세션에서만 사용 가능.
+    /// ch02와 일관되게 전송 오류 전파를 위해 io::Result를 반환합니다.
     pub fn execute<C: IpmiCmd>(&mut self, cmd: &C) -> io::Result<C::Response> {
         let raw_response = self.raw_send(cmd.net_fn(), cmd.cmd_byte(), &cmd.payload())?;
         cmd.parse_response(&raw_response)
     }
 
     fn raw_send(&self, _nf: u8, _cmd: u8, _data: &[u8]) -> io::Result<Vec<u8>> {
-        Ok(vec![42, 0x1E]) // stub: raw IPMI response
+        Ok(vec![42, 0x1E]) // 스텁: 원시 IPMI 응답
     }
 
     pub fn close(self) { println!("Session closed"); }
 }
 
-// ──── Pattern 5: Single-Use Audit Token (ch03) ────
+// ──── 패턴 5: 단일 사용 감사 토큰(ch03) ────
 
-/// Each diagnostic run gets a unique audit token.
-/// Not Clone, not Copy — ensures each audit entry is unique.
+/// 각 진단 실행마다 고유한 감사 토큰.
+/// Clone, Copy 아님 — 감사 항목이 유일하도록 보장.
 pub struct AuditToken {
     run_id: u64,
 }
@@ -136,16 +136,16 @@ impl AuditToken {
         AuditToken { run_id }
     }
 
-    /// Consume the token to write an audit log entry.
+    /// 토큰을 소비해 감사 로그 항목을 씁니다.
     pub fn log(self, message: &str) {
         println!("[AUDIT run_id={}] {}", self.run_id, message);
-        // token is consumed — can't log the same run_id twice
+        // 토큰 소비 — 같은 run_id로 두 번 로그할 수 없음
     }
 }
 
-// ──── Pattern 6: Validated Boundary (ch07) ────
-// Simplified from ch07's full ValidFru — only the fields needed for this
-// composite example.  See ch07 for the complete TryFrom<RawFruData> version.
+// ──── 패턴 6: 검증된 경계(ch07) ────
+// ch07의 전체 ValidFru에서 단순화 — 이 복합 예제에 필요한 필드만.
+// 전체 TryFrom<RawFruData> 버전은 ch07을 참고하세요.
 
 pub struct ValidFru {
     pub board_serial: String,
@@ -157,19 +157,19 @@ impl ValidFru {
         if raw.len() < 8 { return Err("FRU too short"); }
         if raw[0] != 0x01 { return Err("bad FRU version"); }
         Ok(ValidFru {
-            board_serial: "SN12345".to_string(),  // stub
+            board_serial: "SN12345".to_string(),  // 스텁
             product_name: "ServerX".to_string(),
         })
     }
 }
 
-// ──── Pattern 7: Phantom-Typed Registers (ch09) ────
+// ──── 패턴 7: 팬텀 타입 레지스터(ch09) ────
 
 pub struct Width16;
 pub struct Reg<W> { offset: u16, _w: PhantomData<W> }
 
 impl Reg<Width16> {
-    pub fn read(&self) -> u16 { 0x8086 } // stub
+    pub fn read(&self) -> u16 { 0x8086 } // 스텁
 }
 
 pub struct PcieDev {
@@ -186,82 +186,83 @@ impl PcieDev {
     }
 }
 
-// ──── Composite Workflow ────
+// ──── 복합 워크플로 ────
 
 fn full_diagnostic() -> Result<(), String> {
-    // 1. Authenticate → get capability token
+    // 1. 인증 → capability token 획득
     let admin = authenticate("admin", "secret")
         .map_err(|e| e.to_string())?;
 
-    // 2. Connect and activate session (type-state: Idle → Active)
+    // 2. 연결 및 세션 활성화(type-state: Idle → Active)
     let session = Session::connect("192.168.1.100");
-    let mut session = session.activate(&admin)?;  // requires AdminToken
+    let mut session = session.activate(&admin)?;  // AdminToken 필요
 
-    // 3. Send typed commands (response type matches command)
+    // 3. 타입이 있는 명령 전송(응답 타입이 명령과 일치)
     let temp: Celsius = session.execute(&ReadTemp { sensor_id: 0 })
         .map_err(|e| e.to_string())?;
     let fan: Rpm = session.execute(&ReadFanSpeed { fan_id: 1 })
         .map_err(|e| e.to_string())?;
 
-    // Type mismatch would be caught:
+    // 타입 불일치는 여기서 잡힘:
     // let wrong: Volts = session.execute(&ReadTemp { sensor_id: 0 })?;
     //  ❌ ERROR: expected Celsius, found Volts
 
-    // 4. Read phantom-typed PCIe registers
+    // 4. 팬텀 타입 PCIe 레지스터 읽기
     let pcie = PcieDev::new();
-    let vid: u16 = pcie.vendor_id.read();  // guaranteed u16
+    let vid: u16 = pcie.vendor_id.read();  // u16 보장
 
-    // 5. Validate FRU data at the boundary
+    // 5. 경계에서 FRU 데이터 검증
     let raw_fru = vec![0x01, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0xFD];
     let fru = ValidFru::parse(&raw_fru)
         .map_err(|e| e.to_string())?;
 
-    // 6. Issue single-use audit token
+    // 6. 단일 사용 감사 토큰 발급
     let audit = AuditToken::issue(1001);
 
-    // 7. Generate report (all data is typed and validated)
+    // 7. 보고서 생성(모든 데이터가 타입이 있고 검증됨)
     let report = format!(
         "Server: {} (SN: {}), VID: 0x{:04X}, CPU: {:?}, Fan: {:?}",
         fru.product_name, fru.board_serial, vid, temp, fan,
     );
 
-    // 8. Consume audit token — can't log twice
+    // 8. 감사 토큰 소비 — 두 번 로그할 수 없음
     audit.log(&report);
     // audit.log("oops");  // ❌ use of moved value
 
-    // 9. Close session (type-state: Active → dropped)
+    // 9. 세션 종료(type-state: Active → drop)
     session.close();
 
     Ok(())
 }
 ```
 
-### What the Compiler Proves
+<a id="what-the-compiler-proves"></a>
+### 컴파일러가 증명하는 것
 
-| Bug class | How it's prevented | Pattern |
-|-----------|-------------------|---------|
-| Unauthenticated access | `activate()` requires `&AdminToken` | Capability token |
-| Command in wrong session state | `execute()` only exists on `Session<Active>` | Type-state |
-| Wrong response type | `ReadTemp::Response = Celsius`, fixed by trait | Typed commands |
-| Unit confusion (°C vs RPM) | `Celsius` ≠ `Rpm` ≠ `Volts` | Dimensional types |
-| Register width mismatch | `Reg<Width16>` returns `u16` | Phantom types |
-| Processing unvalidated data | Must call `ValidFru::parse()` first | Validated boundary |
-| Duplicate audit entries | `AuditToken` is consumed on log | Single-use type |
-| Out-of-order power sequencing | Each step requires previous token | Capability tokens (ch04) |
+| 버그 종류 | 방지 방법 | 패턴 |
+|-----------|-----------|------|
+| 미인증 접근 | `activate()`에 `&AdminToken` 필요 | Capability token |
+| 잘못된 세션 상태에서 명령 | `execute()`는 `Session<Active>`에만 존재 | Type-state |
+| 잘못된 응답 타입 | `ReadTemp::Response = Celsius`, 트레잇으로 고정 | Typed commands |
+| 단위 혼동(°C vs RPM) | `Celsius` ≠ `Rpm` ≠ `Volts` | Dimensional types |
+| 레지스터 폭 불일치 | `Reg<Width16>`이 `u16` 반환 | Phantom types |
+| 검증되지 않은 데이터 처리 | 먼저 `ValidFru::parse()` 호출 필요 | Validated boundary |
+| 감사 항목 중복 | `log`에서 `AuditToken` 소비 | Single-use type |
+| 전원 시퀀싱 순서 위반 | 각 단계가 이전 토큰 필요 | Capability tokens(ch04) |
 
-**Total runtime overhead of ALL these guarantees: zero.**
+**이 모든 보장의 합계 런타임 오버헤드: 0입니다.**
 
-Every check happens at compile time. The generated assembly is identical to
-hand-written C code with no checks at all — but **C can have bugs, this can't**.
+모든 검사는 컴파일 타임에 일어납니다. 생성된 어셈블리는 검사 없는 순수 C 코드와 동일하지만, **C는 버그가 있을 수 있고 여기서는 없습니다.**
 
-## Key Takeaways
+<a id="key-takeaways"></a>
+## 핵심 정리
 
-1. **Seven patterns compose seamlessly** — capability tokens, type-state, typed commands, single-use types, dimensional types, validated boundaries, and phantom types all work together.
-2. **The compiler proves eight bug classes impossible** — see the "What the Compiler Proves" table above.
-3. **Zero total runtime overhead** — the generated assembly is identical to unchecked C code.
-4. **Each pattern is independently useful** — you don't need all seven; adopt them incrementally.
-5. **The integration chapter is a design template** — use it as a starting point for your own typed diagnostic workflows.
-6. **From IPMI to Redfish at scale** — ch17 and ch18 apply these same seven patterns (plus capability mixins from ch08) to a full Redfish client and server. The IPMI workflow here is the foundation; the Redfish walkthroughs show how the composition scales to production systems with multiple data sources and schema-version constraints.
+1. **일곱 패턴이 매끄럽게 조합됩니다** — capability token, type-state, typed commands, single-use types, dimensional types, validated boundaries, phantom types가 함께 동작합니다.
+2. **컴파일러가 여덟 가지 버그 클래스를 불가능함을 증명합니다** — 위 "컴파일러가 증명하는 것" 표를 참고하세요.
+3. **합계 런타임 오버헤드는 0** — 생성된 어셈블리는 검사 없는 C 코드와 같습니다.
+4. **각 패턴은 그 자체로 유용합니다** — 일곱 가지를 모두 쓸 필요는 없습니다. 점진적으로 도입하세요.
+5. **통합 장은 설계 템플릿입니다** — 자신만의 타입이 있는 진단 워크플로의 출발점으로 쓰세요.
+6. **IPMI에서 Redfish로 확장** — ch17과 ch18은 같은 일곱 패턴(여기에 ch08 capability mixin 추가)을 전체 Redfish 클라이언트·서버에 적용합니다. 여기 IPMI 워크플로는 기초이고, Redfish 워크스루는 여러 데이터 소스와 스키마 버전 제약이 있는 프로덕션 시스템으로 조합이 어떻게 커지는지 보여 줍니다.
 
 ---
 

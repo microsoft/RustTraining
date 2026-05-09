@@ -1,7 +1,7 @@
 [book]
-title = "Type-Driven Correctness in Rust"
+title = "Rust의 타입 주도 정확성"
 authors = ["Rust Training Team"]
-language = "en"
+language = "ko"
 src = "src"
 
 [build]

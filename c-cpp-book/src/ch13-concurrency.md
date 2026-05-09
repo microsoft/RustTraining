@@ -1,12 +1,13 @@
-# Rust concurrency
+<a id="rust-concurrency"></a>
+# Rust 동시성
 
-> **What you'll learn:** Rust's concurrency model — threads, `Send`/`Sync` marker traits, `Mutex<T>`, `Arc<T>`, channels, and how the compiler prevents data races at compile time. No runtime overhead for thread safety you don't use.
+> **이 장에서 배우는 것:** Rust의 동시성 모델, 즉 스레드, `Send`/`Sync` 마커 트레잇, `Mutex<T>`, `Arc<T>`, 채널, 그리고 컴파일러가 어떻게 데이터 레이스를 컴파일 시점에 막는지를 배웁니다. 사용하지 않는 스레드 안전성에 대한 런타임 오버헤드는 없습니다.
 
-- Rust has built-in support for concurrency, similar to `std::thread` in C++
-    - Key difference: Rust **prevents data races at compile time** through `Send` and `Sync` marker traits
-    - In C++, sharing a `std::vector` across threads without a mutex is UB but compiles fine. In Rust, it won't compile.
-    - `Mutex<T>` in Rust wraps the **data**, not just the access — you literally cannot read the data without locking
-- The `thread::spawn()` can be used to create a separate thread that executes the closure `||` in parallel
+- Rust는 C++의 `std::thread` 와 비슷하게 동시성을 기본 지원합니다
+    - 핵심 차이: Rust는 `Send` 와 `Sync` 마커 트레잇을 통해 **데이터 레이스를 컴파일 시점에 방지**합니다
+    - C++에서는 뮤텍스 없이 `std::vector` 를 여러 스레드가 공유해도 컴파일은 되지만 UB입니다. Rust에서는 애초에 컴파일되지 않습니다.
+    - Rust의 `Mutex<T>` 는 접근만 감싸는 것이 아니라 **데이터 자체**를 감쌉니다. 즉, 잠그지 않고는 그 데이터에 접근할 수 없습니다
+- `thread::spawn()` 을 사용하면 클로저 `||` 를 병렬로 실행하는 별도 스레드를 만들 수 있습니다
 ```rust
 use std::thread;
 use std::time::Duration;
@@ -27,9 +28,9 @@ fn main() {
 }
 ```
 
-# Rust concurrency
-- ```thread::scope()``` can be used in cases where it is necessary to borrow from the environment. This works because ```thread::scope``` waits until the internal thread returns
-- Try executing this exercise without ```thread::scope``` to see the issue
+# Rust 동시성
+- 환경으로부터 값을 빌려와야 할 때는 ```thread::scope()``` 를 사용할 수 있습니다. ```thread::scope``` 는 내부 스레드가 끝날 때까지 기다리기 때문에 이런 패턴이 가능합니다
+- 문제가 무엇인지 보려면 이 예제를 ```thread::scope``` 없이 실행해 보세요
 ```rust
 use std::thread;
 fn main() {
@@ -44,8 +45,8 @@ fn main() {
 }
 ```
 ----
-# Rust concurrency
-- We can also use ```move``` to transfer ownership to the thread. For `Copy` types like `[i32; 3]`, the `move` keyword copies the data into the closure, and the original remains usable
+# Rust 동시성
+- ```move``` 를 사용해 소유권을 스레드로 넘길 수도 있습니다. `[i32; 3]` 같은 `Copy` 타입에서는 `move` 키워드가 데이터를 클로저 안으로 복사하며, 원본은 계속 사용할 수 있습니다
 ```rust
 use std::thread;
 fn main() {
@@ -60,10 +61,10 @@ fn main() {
 }
 ```
 
-# Rust concurrency
-- ```Arc<T>``` can be used to share *read-only* references between multiple threads
-    - ```Arc``` stands for Atomic Reference Counted. The reference isn't released until the reference count reaches 0
-    - ```Arc::clone()``` simply increases the reference count without cloning the data
+# Rust 동시성
+- ```Arc<T>``` 는 여러 스레드 사이에서 *읽기 전용* 참조를 공유할 때 사용할 수 있습니다
+    - ```Arc``` 는 Atomic Reference Counted의 약자입니다. 참조 카운트가 0이 될 때까지 값이 해제되지 않습니다
+    - ```Arc::clone()``` 는 데이터를 복제하지 않고 참조 카운트만 증가시킵니다
 ```rust
 use std::sync::Arc;
 use std::thread;
@@ -80,10 +81,10 @@ fn main() {
 }
 ```
 
-# Rust concurrency
-- ```Arc<T>``` can be combined with ```Mutex<T>``` to provide mutable references.
-    - ```Mutex``` guards the protected data and ensures that only the thread holding the lock has access.
-    - The `MutexGuard` is automatically released when it goes out of scope (RAII). Note: `std::mem::forget` can still leak a guard — so "impossible to forget to unlock" is more accurate than "impossible to leak."
+# Rust 동시성
+- ```Arc<T>``` 는 ```Mutex<T>``` 와 함께 사용해 가변 참조를 제공할 수 있습니다.
+    - ```Mutex``` 는 보호 대상 데이터를 감싸며, 락을 잡은 스레드만 접근할 수 있게 보장합니다.
+    - `MutexGuard` 는 스코프를 벗어날 때 자동으로 해제됩니다 (RAII). 참고로 `std::mem::forget` 으로는 guard를 누수시킬 수 있으므로, "누수될 수 없다"보다는 "unlock을 잊기 어렵다"가 더 정확한 표현입니다.
 ```rust
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -110,10 +111,11 @@ fn main() {
 }
 ```
 
-# Rust concurrency: RwLock
-- `RwLock<T>` allows **multiple concurrent readers** or **one exclusive writer** — the read/write lock pattern from C++ (`std::shared_mutex`)
-    - Use `RwLock` when reads far outnumber writes (e.g., configuration, caches)
-    - Use `Mutex` when read/write frequency is similar or critical sections are short
+<a id="rust-concurrency-rwlock"></a>
+# Rust 동시성: RwLock
+- `RwLock<T>` 는 **여러 동시 읽기** 또는 **하나의 배타적 쓰기** 를 허용합니다. C++의 읽기/쓰기 락 패턴 (`std::shared_mutex`) 에 해당합니다
+    - 읽기가 쓰기보다 훨씬 많은 경우 (예: 설정, 캐시)에는 `RwLock` 을 사용하세요
+    - 읽기/쓰기 빈도가 비슷하거나 임계 구역이 짧다면 `Mutex` 가 더 적합합니다
 ```rust
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -147,11 +149,12 @@ fn main() {
 }
 ```
 
-# Rust concurrency: Mutex poisoning
-- If a thread **panics** while holding a `Mutex` or `RwLock`, the lock becomes **poisoned**
-    - Subsequent calls to `.lock()` return `Err(PoisonError)` — the data may be in an inconsistent state
-    - You can recover with `.into_inner()` if you're confident the data is still valid
-    - This has no C++ equivalent — `std::mutex` has no poisoning concept; a panicking thread just leaves the lock held
+<a id="rust-concurrency-mutex-poisoning"></a>
+# Rust 동시성: Mutex poisoning
+- 어떤 스레드가 `Mutex` 나 `RwLock` 을 잡은 상태에서 **panic** 하면, 그 락은 **poisoned** 상태가 됩니다
+    - 이후 `.lock()` 호출은 `Err(PoisonError)` 를 반환합니다. 데이터가 불일치 상태일 수 있기 때문입니다
+    - 데이터가 여전히 유효하다고 확신한다면 `.into_inner()` 로 복구할 수 있습니다
+    - C++의 `std::mutex` 에는 이런 poisoning 개념이 없으므로 직접적인 대응 개념은 없습니다
 ```rust
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -180,10 +183,11 @@ fn main() {
 }
 ```
 
-# Rust concurrency: Atomics
-- For simple counters and flags, `std::sync::atomic` types avoid the overhead of a `Mutex`
-    - `AtomicBool`, `AtomicI32`, `AtomicU64`, `AtomicUsize`, etc.
-    - Equivalent to C++ `std::atomic<T>` — same memory ordering model (`Relaxed`, `Acquire`, `Release`, `SeqCst`)
+<a id="rust-concurrency-atomics"></a>
+# Rust 동시성: Atomics
+- 단순한 카운터나 플래그에는 `std::sync::atomic` 타입을 사용하면 `Mutex` 의 오버헤드를 피할 수 있습니다
+    - `AtomicBool`, `AtomicI32`, `AtomicU64`, `AtomicUsize` 등이 있습니다
+    - C++의 `std::atomic<T>` 에 대응하며, 메모리 순서 모델도 동일합니다 (`Relaxed`, `Acquire`, `Release`, `SeqCst`)
 ```rust
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -211,18 +215,19 @@ fn main() {
 }
 ```
 
-| Primitive | When to use | C++ equivalent |
+| 프리미티브 | 언제 쓰나 | C++ 대응 |
 |-----------|-------------|----------------|
-| `Mutex<T>` | General mutable shared state | `std::mutex` + manual data association |
-| `RwLock<T>` | Read-heavy workloads | `std::shared_mutex` |
-| `Atomic*` | Simple counters, flags, lock-free patterns | `std::atomic<T>` |
-| `Condvar` | Wait for a condition to become true | `std::condition_variable` |
+| `Mutex<T>` | 일반적인 가변 공유 상태 | `std::mutex` + 수동 데이터 연결 |
+| `RwLock<T>` | 읽기 비중이 큰 작업 부하 | `std::shared_mutex` |
+| `Atomic*` | 단순 카운터, 플래그, lock-free 패턴 | `std::atomic<T>` |
+| `Condvar` | 어떤 조건이 참이 될 때까지 대기 | `std::condition_variable` |
 
-# Rust concurrency: Condvar
-- `Condvar` (condition variable) lets a thread **sleep until another thread signals** that a condition has changed
-    - Always paired with a `Mutex` — the pattern is: lock, check condition, wait if not ready, act when ready
-    - Equivalent to C++ `std::condition_variable` / `std::condition_variable::wait`
-    - Handles **spurious wakeups** — always re-check the condition in a loop (or use `wait_while`/`wait_until`)
+<a id="rust-concurrency-condvar"></a>
+# Rust 동시성: Condvar
+- `Condvar` (condition variable) 는 다른 스레드가 조건 변화를 알릴 때까지 스레드를 **잠들게** 할 수 있습니다
+    - 항상 `Mutex` 와 함께 사용합니다. 패턴은 보통 "락 획득, 조건 확인, 준비되지 않았으면 대기, 준비되면 동작" 입니다
+    - C++의 `std::condition_variable` / `std::condition_variable::wait` 에 대응합니다
+    - **spurious wakeup** 을 처리해야 하므로 항상 반복문 안에서 조건을 다시 확인해야 합니다 (또는 `wait_while`/`wait_until` 사용)
 ```rust
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
@@ -255,12 +260,12 @@ fn main() {
 }
 ```
 
-> **When to use Condvar vs channels:** Use `Condvar` when threads share mutable state and need to wait for a condition on that state (e.g., "buffer not empty"). Use channels (`mpsc`) when threads need to pass *messages*. Channels are generally easier to reason about.
+> **Condvar와 채널을 언제 쓸까:** 스레드들이 가변 상태를 공유하고, 그 상태에 대한 어떤 조건을 기다려야 할 때 (예: "버퍼가 비어 있지 않음") 는 `Condvar` 를 사용하세요. 스레드 사이에 *메시지* 를 주고받아야 할 때는 채널 (`mpsc`) 이 더 적합합니다. 일반적으로는 채널이 더 이해하기 쉽습니다.
 
-# Rust concurrency
-- Rust channels can be used to exchange messages between ```Sender``` and ```Receiver```
-    - This uses a paradigm called ```mpsc``` or ```Multi-producer, Single-Consumer```
-    - Both ```send()``` and ```recv()``` can block the thread
+# Rust 동시성
+- Rust 채널은 ```Sender``` 와 ```Receiver``` 사이에서 메시지를 주고받는 데 사용할 수 있습니다
+    - 이를 ```mpsc``` 또는 ```Multi-producer, Single-Consumer``` 패턴이라고 합니다
+    - ```send()``` 와 ```recv()``` 는 모두 스레드를 block할 수 있습니다
 ```rust
 use std::sync::mpsc;
 
@@ -279,8 +284,8 @@ fn main() {
 }
 ```
 
-# Rust concurrency
-- Channels can be combined with threads
+# Rust 동시성
+- 채널은 스레드와 함께 사용할 수 있습니다
 ```rust
 use std::sync::mpsc;
 use std::thread;
@@ -313,34 +318,36 @@ fn main() {
 
 
 
-## Why Rust prevents data races: Send and Sync
+<a id="why-rust-prevents-data-races-send-and-sync"></a>
+## Rust가 데이터 레이스를 막는 이유: Send와 Sync
 
-- Rust uses two marker traits to enforce thread safety at compile time:
-    - `Send`: A type is `Send` if it can be safely **transferred** to another thread
-    - `Sync`: A type is `Sync` if it can be safely **shared** (via `&T`) between threads
-- Most types are automatically `Send + Sync`. Notable exceptions:
-    - `Rc<T>` is **neither** Send nor Sync (use `Arc<T>` for threads)
-    - `Cell<T>` and `RefCell<T>` are **not** Sync (use `Mutex<T>` or `RwLock<T>`)
-    - Raw pointers (`*const T`, `*mut T`) are **neither** Send nor Sync
-- This is why the compiler stops you from using `Rc<T>` across threads -- it literally doesn't implement `Send`
-- `Arc<Mutex<T>>` is the thread-safe equivalent of `Rc<RefCell<T>>`
+- Rust는 두 개의 마커 트레잇으로 스레드 안전성을 컴파일 시점에 강제합니다:
+    - `Send`: 어떤 타입이 다른 스레드로 **이동** 되어도 안전하면 `Send` 입니다
+    - `Sync`: 어떤 타입이 여러 스레드 사이에서 (`&T` 를 통해) **공유** 되어도 안전하면 `Sync` 입니다
+- 대부분의 타입은 자동으로 `Send + Sync` 가 됩니다. 대표적인 예외는 다음과 같습니다:
+    - `Rc<T>` 는 `Send` 도 `Sync` 도 아닙니다 (스레드에서는 `Arc<T>` 사용)
+    - `Cell<T>` 와 `RefCell<T>` 는 `Sync` 가 아닙니다 (`Mutex<T>` 나 `RwLock<T>` 사용)
+    - raw pointer (`*const T`, `*mut T`) 는 `Send` 도 `Sync` 도 아닙니다
+- 그래서 컴파일러가 `Rc<T>` 를 스레드 사이에서 쓰지 못하게 막습니다. 실제로 `Send` 를 구현하지 않기 때문입니다
+- `Arc<Mutex<T>>` 는 `Rc<RefCell<T>>` 의 스레드 안전 버전이라고 볼 수 있습니다
 
-> **Intuition** *(Jon Gjengset)*: Think of values as toys.
-> **`Send`** = you can **give your toy away** to another child (thread) — transferring ownership is safe.
-> **`Sync`** = you can **let others play with your toy at the same time** — sharing a reference is safe.
-> An `Rc<T>` has a fragile (non-atomic) reference counter; handing it off or sharing it would corrupt the count, so it is neither `Send` nor `Sync`.
+> **직관적으로 이해하기** *(Jon Gjengset)*: 값을 장난감이라고 생각해 봅시다.
+> **`Send`** = 내 장난감을 다른 아이 (스레드) 에게 **건네줘도 된다**. 즉, 소유권 이전이 안전하다.
+> **`Sync`** = 다른 아이들이 내 장난감을 **동시에 가지고 놀아도 된다**. 즉, 참조 공유가 안전하다.
+> `Rc<T>` 는 약한 (원자적이지 않은) 참조 카운터를 가지므로, 넘겨주거나 공유하면 카운트가 망가질 수 있습니다. 그래서 `Send` 도 `Sync` 도 아닙니다.
 
 
-# Exercise: Multi-threaded word count
+<a id="exercise-multi-threaded-word-count"></a>
+# 연습문제: 멀티스레드 단어 수 세기
 
-🔴 **Challenge** — combines threads, Arc, Mutex, and HashMap
+🔴 **Challenge** — 스레드, Arc, Mutex, HashMap을 함께 사용하는 문제
 
-- Given a `Vec<String>` of text lines, spawn one thread per line to count the words in that line
-- Use `Arc<Mutex<HashMap<String, usize>>>` to collect results
-- Print the total word count across all lines
-- **Bonus**: Try implementing this with channels (`mpsc`) instead of shared state
+- 텍스트 줄들이 담긴 `Vec<String>` 이 주어졌을 때, 각 줄마다 하나의 스레드를 생성해 그 줄의 단어 수를 세어 보세요
+- 결과를 모으는 데 `Arc<Mutex<HashMap<String, usize>>>` 를 사용하세요
+- 모든 줄에 대한 총 단어 수를 출력하세요
+- **Bonus**: 공유 상태 대신 채널 (`mpsc`) 로도 구현해 보세요
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 use std::collections::HashMap;

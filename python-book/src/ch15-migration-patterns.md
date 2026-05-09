@@ -1,11 +1,12 @@
-## Common Python Patterns in Rust
+<a id="common-python-patterns-in-rust"></a>
+## Rust에서 보는 흔한 Python 패턴
 
-> **What you'll learn:** How to translate dict→struct, class→struct+impl, list comprehension→iterator chain,
-> decorator→trait, and context manager→Drop/RAII. Plus essential crates and an incremental adoption strategy.
+> **이 장에서 배울 내용:** `dict`를 `struct`로, 클래스를 `struct + impl`로, 리스트 컴프리헨션을 이터레이터 체인으로,
+> 데코레이터를 트레잇/고차 함수/매크로로, 컨텍스트 매니저를 `Drop`/RAII로 옮기는 방법을 다룹니다. 여기에 Python 개발자에게 유용한 핵심 크레이트와 점진적 도입 전략도 함께 정리합니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-### Dictionary → Struct
+### 딕셔너리 → `struct`
 ```python
 # Python — dict as data container (very common)
 user = {
@@ -36,7 +37,7 @@ let user = User {
 println!("{}", user.name);
 ```
 
-### Context Manager → RAII (Drop)
+### 컨텍스트 매니저 → RAII(`Drop`)
 ```python
 # Python — context manager for resource cleanup
 class FileManager:
@@ -68,7 +69,7 @@ fn write_file() -> std::io::Result<()> {
 }
 ```
 
-### Decorator → Higher-Order Function or Macro
+### 데코레이터 → 고차 함수 또는 매크로
 ```python
 # Python — decorator for timing
 import functools, time
@@ -109,7 +110,7 @@ let result = timed("slow_function", || {
 });
 ```
 
-### Iterator Pipeline (Data Processing)
+### 이터레이터 파이프라인(데이터 처리)
 ```python
 # Python — chain of transformations
 import csv
@@ -155,7 +156,7 @@ fn analyze_sales(filename: &str) -> Vec<(String, usize)> {
 }
 ```
 
-### Global Config / Singleton
+### 전역 설정 / 싱글턴
 ```python
 # Python — module-level singleton (common pattern)
 # config.py
@@ -196,68 +197,70 @@ let db_host = get_config()["database"]["host"].as_str().unwrap();
 
 ***
 
-## Essential Crates for Python Developers
+<a id="essential-crates-for-python-developers"></a>
+## Python 개발자를 위한 필수 크레이트
 
-### Data Processing & Serialization
+### 데이터 처리와 직렬화
 
-| Task | Python | Rust Crate | Notes |
-|------|--------|-----------|-------|
-| JSON | `json` | `serde_json` | Type-safe serialization |
-| CSV | `csv`, `pandas` | `csv` | Streaming, low memory |
-| YAML | `pyyaml` | `serde_yaml` | Config files |
-| TOML | `tomllib` | `toml` | Config files |
-| Data validation | `pydantic` | `serde` + custom | Compile-time validation |
-| Date/time | `datetime` | `chrono` | Full timezone support |
-| Regex | `re` | `regex` | Very fast |
-| UUID | `uuid` | `uuid` | Same concept |
+| 작업 | Python | Rust 크레이트 | 메모 |
+|------|--------|---------------|------|
+| JSON | `json` | `serde_json` | 타입 안전 직렬화 |
+| CSV | `csv`, `pandas` | `csv` | 스트리밍, 낮은 메모리 사용량 |
+| YAML | `pyyaml` | `serde_yaml` | 설정 파일 |
+| TOML | `tomllib` | `toml` | 설정 파일 |
+| 데이터 검증 | `pydantic` | `serde` + custom | 컴파일 시점 검증에 가깝게 설계 가능 |
+| 날짜/시간 | `datetime` | `chrono` | 전체 타임존 지원 |
+| 정규식 | `re` | `regex` | 매우 빠름 |
+| UUID | `uuid` | `uuid` | 같은 개념 |
 
-### Web & Network
+### 웹과 네트워크
 
-| Task | Python | Rust Crate | Notes |
-|------|--------|-----------|-------|
-| HTTP client | `requests` | `reqwest` | Async-first |
-| Web framework | `FastAPI`/`Flask` | `axum` / `actix-web` | Very fast |
-| WebSocket | `websockets` | `tokio-tungstenite` | Async |
-| gRPC | `grpcio` | `tonic` | Full support |
-| Database (SQL) | `sqlalchemy` | `sqlx` / `diesel` | Compile-time checked SQL |
-| Redis | `redis-py` | `redis` | Async support |
+| 작업 | Python | Rust 크레이트 | 메모 |
+|------|--------|---------------|------|
+| HTTP 클라이언트 | `requests` | `reqwest` | 비동기 우선 |
+| 웹 프레임워크 | `FastAPI`/`Flask` | `axum` / `actix-web` | 매우 빠름 |
+| WebSocket | `websockets` | `tokio-tungstenite` | 비동기 |
+| gRPC | `grpcio` | `tonic` | 완전 지원 |
+| 데이터베이스(SQL) | `sqlalchemy` | `sqlx` / `diesel` | 컴파일 시점 SQL 검사 |
+| Redis | `redis-py` | `redis` | 비동기 지원 |
 
-### CLI & System
+### CLI와 시스템
 
-| Task | Python | Rust Crate | Notes |
-|------|--------|-----------|-------|
-| CLI args | `argparse`/`click` | `clap` | Derive macros |
-| Colored output | `colorama` | `colored` | Terminal colors |
-| Progress bar | `tqdm` | `indicatif` | Same UX |
-| File watching | `watchdog` | `notify` | Cross-platform |
-| Logging | `logging` | `tracing` | Structured, async-ready |
-| Env vars | `os.environ` | `std::env` + `dotenvy` | .env support |
-| Subprocess | `subprocess` | `std::process::Command` | Built-in |
-| Temp files | `tempfile` | `tempfile` | Same name! |
+| 작업 | Python | Rust 크레이트 | 메모 |
+|------|--------|---------------|------|
+| CLI 인자 | `argparse`/`click` | `clap` | derive 매크로 제공 |
+| 컬러 출력 | `colorama` | `colored` | 터미널 색상 |
+| 진행 표시줄 | `tqdm` | `indicatif` | 비슷한 UX |
+| 파일 감시 | `watchdog` | `notify` | 크로스 플랫폼 |
+| 로깅 | `logging` | `tracing` | 구조화 로그, async 친화적 |
+| 환경 변수 | `os.environ` | `std::env` + `dotenvy` | `.env` 지원 |
+| 서브프로세스 | `subprocess` | `std::process::Command` | 표준 라이브러리 내장 |
+| 임시 파일 | `tempfile` | `tempfile` | 이름도 동일 |
 
-### Testing
+### 테스트
 
-| Task | Python | Rust Crate | Notes |
-|------|--------|-----------|-------|
-| Test framework | `pytest` | Built-in + `rstest` | `cargo test` |
-| Mocking | `unittest.mock` | `mockall` | Trait-based |
-| Property testing | `hypothesis` | `proptest` | Similar API |
-| Snapshot testing | `syrupy` | `insta` | Snapshot approval |
-| Benchmarking | `pytest-benchmark` | `criterion` | Statistical |
-| Code coverage | `coverage.py` | `cargo-tarpaulin` | LLVM-based |
+| 작업 | Python | Rust 크레이트 | 메모 |
+|------|--------|---------------|------|
+| 테스트 프레임워크 | `pytest` | 내장 + `rstest` | `cargo test` |
+| 목 객체 | `unittest.mock` | `mockall` | 트레잇 기반 |
+| 프로퍼티 테스트 | `hypothesis` | `proptest` | 비슷한 API |
+| 스냅샷 테스트 | `syrupy` | `insta` | 스냅샷 승인 방식 |
+| 벤치마킹 | `pytest-benchmark` | `criterion` | 통계 기반 |
+| 코드 커버리지 | `coverage.py` | `cargo-tarpaulin` | LLVM 기반 |
 
 ***
 
-## Incremental Adoption Strategy
+<a id="incremental-adoption-strategy"></a>
+## 점진적 도입 전략
 
 ```mermaid
 flowchart LR
-    A["1️⃣ Profile Python\n(find hotspots)"] --> B["2️⃣ Write Rust Extension\n(PyO3 + maturin)"]
-    B --> C["3️⃣ Replace Python Call\n(same API)"]
-    C --> D["4️⃣ Expand Gradually\n(more functions)"]
-    D --> E{"Full rewrite\nworth it?"}
-    E -->|Yes| F["Pure Rust🦀"]
-    E -->|No| G["Hybrid🐍+🦀"]
+    A["1️⃣ Python 프로파일링\n(병목 찾기)"] --> B["2️⃣ Rust 확장 작성\n(PyO3 + maturin)"]
+    B --> C["3️⃣ Python 호출 교체\n(같은 API 유지)"]
+    C --> D["4️⃣ 점진적으로 확장\n(함수 더 이전하기)"]
+    D --> E{"전체 재작성의 가치가 있는가?"}
+    E -->|예| F["순수 Rust🦀"]
+    E -->|아니오| G["하이브리드🐍+🦀"]
     style A fill:#ffeeba
     style B fill:#fff3cd
     style C fill:#d4edda
@@ -266,9 +269,9 @@ flowchart LR
     style G fill:#c3e6cb
 ```
 
-> 📌 **See also**: [Ch. 14 — Unsafe Rust and FFI](ch14-unsafe-rust-and-ffi.md) covers the low-level FFI details needed for PyO3 bindings.
+> 📌 **함께 보기**: [14장 - Unsafe Rust와 FFI](ch14-unsafe-rust-and-ffi.md)에서는 PyO3 바인딩에 필요한 더 낮은 수준의 FFI 세부 사항을 다룹니다.
 
-### Step 1: Identify Hotspots
+### 1단계: 병목 찾기
 
 ```python
 # Profile your Python code first
@@ -280,7 +283,7 @@ cProfile.run('main()')  # Find the CPU-intensive functions
 # py-spy record -o profile.svg -- python main.py
 ```
 
-### Step 2: Write Rust Extension for Hotspot
+### 2단계: 병목 구간을 위한 Rust 확장 작성
 
 ```bash
 # Create a Rust extension with maturin
@@ -292,7 +295,7 @@ maturin init --bindings pyo3
 maturin develop --release
 ```
 
-### Step 3: Replace Python Call with Rust Call
+### 3단계: Python 호출을 Rust 호출로 교체
 
 ```python
 # Before:
@@ -305,22 +308,22 @@ result = my_rust_extension.hot_function(data)  # Fast!
 # Same API, same tests, 10-100x faster
 ```
 
-### Step 4: Expand Gradually
+### 4단계: 점진적으로 넓혀가기
 
 ```rust
-Week 1-2: Replace one CPU-bound function with Rust
-Week 3-4: Replace data parsing/validation layer
-Month 2:  Replace core data pipeline
-Month 3+: Consider full Rust rewrite if benefits justify it
+1-2주차: CPU 바운드 함수 하나를 Rust로 교체
+3-4주차: 데이터 파싱/검증 계층 교체
+2개월차: 핵심 데이터 파이프라인 교체
+3개월차+: 효과가 충분하면 전체 Rust 재작성 검토
 
-Key principle: keep Python for orchestration, use Rust for computation.
+핵심 원칙: 오케스트레이션은 Python에 맡기고, 계산은 Rust에 맡긴다.
 ```
 
 ---
 
-## 💼 Case Study: Accelerating a Data Pipeline with PyO3
+## 💼 사례 연구: PyO3로 데이터 파이프라인 가속하기
 
-A fintech startup has a Python data pipeline that processes 2GB of daily transaction CSV files. The critical bottleneck is a validation + transformation step:
+한 핀테크 스타트업이 하루 2GB 규모의 거래 CSV 파일을 처리하는 Python 데이터 파이프라인을 운영하고 있습니다. 가장 큰 병목은 검증 + 변환 단계입니다.
 
 ```python
 # Python — the slow part (~12 minutes for 2GB)
@@ -350,9 +353,9 @@ def validate_and_transform(filepath: str) -> list[dict]:
 # ~12 minutes for 15M rows. Tried pandas — got to ~8 minutes but 6GB RAM.
 ```
 
-**Step 1**: Profile and identify the hotspot (CSV parsing + Decimal conversion + string matching = 95% of time).
+**1단계**: 먼저 프로파일링해 병목을 확인합니다(CSV 파싱 + `Decimal` 변환 + 문자열 매칭이 전체 시간의 95%).
 
-**Step 2**: Write the Rust extension:
+**2단계**: Rust 확장을 작성합니다.
 
 ```rust
 // src/lib.rs — PyO3 extension
@@ -404,7 +407,7 @@ fn fast_pipeline(_py: Python, m: &PyModule) -> PyResult<()> {
 }
 ```
 
-**Step 3**: Replace one line in Python:
+**3단계**: Python 코드 한 줄을 교체합니다.
 
 ```python
 # Before:
@@ -418,48 +421,46 @@ results = fast_pipeline.process_transactions("transactions.csv")  # 45 seconds
 # Just one function replaced
 ```
 
-**Results**:
-| Metric | Python (csv + Decimal) | Rust (PyO3 + csv crate) |
-|--------|----------------------|------------------------|
-| Time (2GB / 15M rows) | 12 minutes | 45 seconds |
-| Peak memory | 6GB (pandas) / 2GB (csv) | 200MB |
-| Lines changed in Python | — | 1 (import + call) |
-| Rust code written | — | ~60 lines |
-| Tests passing | 47/47 | 47/47 (unchanged) |
+**결과**:
+| 지표 | Python (`csv` + `Decimal`) | Rust (PyO3 + `csv` crate) |
+|------|----------------------------|----------------------------|
+| 시간(2GB / 1,500만 행) | 12분 | 45초 |
+| 최대 메모리 | 6GB(`pandas`) / 2GB(`csv`) | 200MB |
+| Python 쪽 수정 라인 수 | — | 1줄(`import` + 호출) |
+| 새로 작성한 Rust 코드 | — | 약 60줄 |
+| 테스트 통과 | 47/47 | 47/47(변경 없음) |
 
-> **Key lesson**: You don't need to rewrite your whole application. Find the 5% of code that takes 95% of the time, rewrite that in Rust with PyO3, and keep everything else in Python. The team went from "we need to add more servers" to "one server is enough."
+> **핵심 교훈**: 애플리케이션 전체를 다시 쓸 필요는 없습니다. 전체 시간의 95%를 잡아먹는 5% 코드만 찾아 PyO3로 Rust로 옮기고, 나머지는 Python에 남겨두세요. 이 팀은 "서버를 더 늘려야 하나?"에서 "서버 한 대면 충분하다"로 바뀌었습니다.
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Migration Decision Matrix</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 마이그레이션 의사결정 매트릭스</strong> (펼쳐서 보기)</summary>
 
-**Challenge**: You have a Python web application with these components. For each one, decide: **Keep in Python**, **Rewrite in Rust**, or **PyO3 bridge**. Justify each choice.
+**도전 과제**: 다음 구성 요소를 가진 Python 웹 애플리케이션이 있습니다. 각 항목에 대해 **Python 유지**, **Rust로 재작성**, **PyO3 브리지** 중 하나를 선택하고 이유를 설명해보세요.
 
-1. Flask route handlers (request parsing, JSON responses)
-2. Image thumbnail generation (CPU-bound, processes 10k images/day)
-3. Database ORM queries (SQLAlchemy)
-4. CSV parser for 2GB financial files (runs nightly)
-5. Admin dashboard (Jinja2 templates)
+1. Flask 라우트 핸들러(요청 파싱, JSON 응답)
+2. 이미지 썸네일 생성(CPU 바운드, 하루 1만 장 처리)
+3. 데이터베이스 ORM 쿼리(SQLAlchemy)
+4. 2GB 금융 CSV 파일 파서(매일 밤 실행)
+5. 관리자 대시보드(Jinja2 템플릿)
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
-| Component | Decision | Rationale |
+| 구성 요소 | 결정 | 이유 |
 |---|---|---|
-| Flask route handlers | 🐍 Keep Python | I/O-bound, framework-heavy, low benefit from Rust |
-| Image thumbnail generation | 🦀 PyO3 bridge | CPU-bound hot path, keep Python API, Rust internals |
-| Database ORM queries | 🐍 Keep Python | SQLAlchemy is mature, queries are I/O-bound |
-| CSV parser (2GB) | 🦀 PyO3 bridge or full Rust | CPU + memory bound, Rust's zero-copy parsing shines |
-| Admin dashboard | 🐍 Keep Python | UI/template code, no performance concern |
+| Flask 라우트 핸들러 | 🐍 Python 유지 | I/O 바운드이고 프레임워크 의존성이 크며, Rust로 옮겨도 이득이 작음 |
+| 이미지 썸네일 생성 | 🦀 PyO3 브리지 | CPU 바운드 병목이며, Python API는 유지하고 내부만 Rust로 바꾸기 좋음 |
+| 데이터베이스 ORM 쿼리 | 🐍 Python 유지 | SQLAlchemy는 성숙했고, 쿼리는 대부분 I/O 바운드 |
+| CSV 파서(2GB) | 🦀 PyO3 브리지 또는 전체 Rust | CPU + 메모리 병목이라 Rust의 zero-copy 파싱이 강력함 |
+| 관리자 대시보드 | 🐍 Python 유지 | UI/템플릿 코드이며 성능 이슈가 핵심이 아님 |
 
-**Key takeaway**: The migration sweet spot is CPU-bound, performance-critical code that has a clean boundary. Don't rewrite glue code or I/O-bound handlers — the gains don't justify the cost.
+**핵심 정리**: 마이그레이션의 최적 지점은 경계가 분명한 CPU 바운드 고성능 코드입니다. glue code나 I/O 바운드 핸들러까지 억지로 Rust로 옮길 필요는 없습니다. 얻는 이득보다 비용이 커질 가능성이 큽니다.
 
 </details>
 </details>
 
 ***
-
-

@@ -1,26 +1,25 @@
-## When and Why to Use Unsafe
+<a id="when-and-why-to-use-unsafe"></a>
+## `unsafe`를 언제, 왜 써야 하는가
 
-> **What you'll learn:** What `unsafe` permits and why it exists, writing Python extensions with PyO3 (the killer feature for Python devs),
-> Rust's testing framework vs pytest, mocking with mockall, and benchmarking.
+> **이 장에서 배울 내용:** `unsafe`가 무엇을 허용하며 왜 존재하는지, PyO3로 Python 확장을 만드는 방법,
+> Rust의 테스트 프레임워크와 `pytest`의 차이, `mockall`을 이용한 목 객체 작성, 그리고 벤치마킹의 기본 감각까지 함께 익힙니다.
 >
-> **Difficulty:** 🔴 Advanced
+> **난이도:** 🔴 고급
 
-`unsafe` in Rust is an escape hatch — it tells the compiler "I'm doing something
-you can't verify, but I promise it's correct." Python has no equivalent because
-Python never gives you direct memory access.
+Rust의 `unsafe`는 탈출구입니다. 컴파일러에게 "당신이 검증할 수 없는 일을 내가 하고 있지만, 그 코드가 올바르다고 내가 보증하겠다"라고 선언하는 셈입니다. Python에는 직접적인 대응물이 없습니다. Python은 메모리에 직접 접근할 수 있게 해주지 않기 때문입니다.
 
 ```mermaid
 flowchart TB
-    subgraph Safe ["Safe Rust (99% of code)"]
-        S1["Your application logic"]
+    subgraph Safe ["안전한 Rust (코드의 99%)"]
+        S1["애플리케이션 로직"]
         S2["pub fn safe_api\(&self\) -> Result"]
     end
-    subgraph Unsafe ["unsafe block (minimal, audited)"]
-        U1["Raw pointer dereference"]
-        U2["FFI call to C/Python"]
+    subgraph Unsafe ["`unsafe` 블록 (작고, 감사 가능하게)"]
+        U1["raw pointer 역참조"]
+        U2["C/Python으로의 FFI 호출"]
     end
-    subgraph External ["External (C / Python / OS)"]
-        E1["libc / PyO3 / system calls"]
+    subgraph External ["외부 세계 (C / Python / OS)"]
+        E1["libc / PyO3 / 시스템 호출"]
     end
     S1 --> S2
     S2 --> U1
@@ -32,11 +31,11 @@ flowchart TB
     style External fill:#f8d7da,stroke:#dc3545
 ```
 
-> **The pattern**: Safe API wraps a small `unsafe` block. Callers never see `unsafe`. Python's `ctypes` has no such boundary — every FFI call is implicitly unsafe.
+> **전형적인 패턴**: 안전한 API가 아주 작은 `unsafe` 블록을 감쌉니다. 호출자는 `unsafe`를 직접 볼 필요가 없습니다. Python의 `ctypes`에는 이런 경계가 없어서, 모든 FFI 호출이 사실상 암묵적으로 unsafe입니다.
 >
-> 📌 **See also**: [Ch. 13 — Concurrency](ch13-concurrency.md) covers `Send`/`Sync` traits which are `unsafe` auto-traits that the compiler checks for thread safety.
+> 📌 **함께 보면 좋은 장**: [13장 - 동시성](ch13-concurrency.md)에서는 컴파일러가 스레드 안전성을 검사할 때 사용하는 `unsafe` 자동 트레잇 `Send`/`Sync`를 다룹니다.
 
-### What unsafe Allows
+### `unsafe`가 허용하는 것
 ```rust
 // unsafe lets you do FIVE things that safe Rust forbids:
 // 1. Dereference raw pointers
@@ -56,7 +55,7 @@ fn main() {
 }
 ```
 
-### When to Use unsafe
+### `unsafe`를 써야 하는 때
 ```rust
 // 1. FFI — calling C libraries (most common reason)
 // 2. Performance-critical inner loops (rare)
@@ -74,18 +73,18 @@ fn main() {
 
 ***
 
-## PyO3: Rust Extensions for Python
+<a id="pyo3-rust-extensions-for-python"></a>
+## PyO3: Python을 위한 Rust 확장
 
-PyO3 is the bridge between Python and Rust. It lets you write Rust functions and
-classes that are callable from Python — perfect for replacing slow Python hotspots.
+PyO3는 Python과 Rust를 이어주는 다리입니다. Python에서 호출할 수 있는 Rust 함수와 클래스를 만들 수 있으므로, 느린 Python 병목 구간을 Rust로 치환할 때 특히 강력합니다.
 
-### Creating a Python Extension in Rust
+### Rust로 Python 확장 만들기
 ```bash
-# Setup
-pip install maturin    # Build tool for Rust Python extensions
-maturin init           # Creates project structure
+# 설정
+pip install maturin    # Rust Python 확장을 빌드하는 도구
+maturin init           # 프로젝트 구조 생성
 
-# Project structure:
+# 프로젝트 구조:
 # my_extension/
 # ├── Cargo.toml
 # ├── pyproject.toml
@@ -101,7 +100,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]    # Shared library for Python
+crate-type = ["cdylib"]    # Python용 공유 라이브러리
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }
@@ -111,7 +110,7 @@ pyo3 = { version = "0.22", features = ["extension-module"] }
 // src/lib.rs — Rust functions callable from Python
 use pyo3::prelude::*;
 
-/// A fast Fibonacci function written in Rust.
+/// Rust로 작성한 빠른 Fibonacci 함수.
 #[pyfunction]
 fn fibonacci(n: u64) -> u64 {
     let (mut a, mut b) = (0u64, 1u64);
@@ -123,7 +122,7 @@ fn fibonacci(n: u64) -> u64 {
     a
 }
 
-/// Find all prime numbers up to n (Sieve of Eratosthenes).
+/// n 이하의 모든 소수를 찾는다(에라토스테네스의 체).
 #[pyfunction]
 fn primes_up_to(n: usize) -> Vec<usize> {
     let mut is_prime = vec![true; n + 1];
@@ -139,7 +138,7 @@ fn primes_up_to(n: usize) -> Vec<usize> {
     (2..=n).filter(|&i| is_prime[i]).collect()
 }
 
-/// A Rust class usable from Python.
+/// Python에서 사용할 수 있는 Rust 클래스.
 #[pyclass]
 struct Counter {
     value: i64,
@@ -165,7 +164,7 @@ impl Counter {
     }
 }
 
-/// The Python module definition.
+/// Python 모듈 정의.
 #[pymodule]
 fn my_extension(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(fibonacci, m)?)?;
@@ -175,10 +174,10 @@ fn my_extension(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 ```
 
-### Using from Python
+### Python에서 사용하기
 ```bash
-# Build and install:
-maturin develop --release   # Builds and installs into current venv
+# 빌드 및 설치:
+maturin develop --release   # 현재 venv에 빌드해서 설치
 ```
 
 ```python
@@ -221,53 +220,54 @@ print(f"Rust:   {rs_time:.3f}s")    # ~0.05s — 70x faster!
 print(f"Same results: {py_result == rs_result}")  # True
 ```
 
-### PyO3 Quick Reference
+### PyO3 빠른 참조
 
-| Python Concept | PyO3 Attribute | Notes |
-|---------------|----------------|-------|
-| Function | `#[pyfunction]` | Exposed to Python |
-| Class | `#[pyclass]` | Python-visible class |
-| Method | `#[pymethods]` | Methods on a pyclass |
-| `__init__` | `#[new]` | Constructor |
-| `__repr__` | `fn __repr__()` | String representation |
-| `__str__` | `fn __str__()` | Display string |
-| `__len__` | `fn __len__()` | Length |
-| `__getitem__` | `fn __getitem__()` | Indexing |
-| Property | `#[getter]` / `#[setter]` | Attribute access |
-| Static method | `#[staticmethod]` | No self |
-| Class method | `#[classmethod]` | Takes cls |
+| Python 개념 | PyO3 attribute | 설명 |
+|-------------|----------------|------|
+| 함수 | `#[pyfunction]` | Python에 노출되는 함수 |
+| 클래스 | `#[pyclass]` | Python에서 보이는 클래스 |
+| 메서드 | `#[pymethods]` | `pyclass`의 메서드 모음 |
+| `__init__` | `#[new]` | 생성자 |
+| `__repr__` | `fn __repr__()` | 문자열 표현 |
+| `__str__` | `fn __str__()` | 표시용 문자열 |
+| `__len__` | `fn __len__()` | 길이 |
+| `__getitem__` | `fn __getitem__()` | 인덱싱 |
+| 프로퍼티 | `#[getter]` / `#[setter]` | 속성 접근 |
+| 정적 메서드 | `#[staticmethod]` | `self` 없음 |
+| 클래스 메서드 | `#[classmethod]` | `cls`를 받음 |
 
-### FFI Safety Patterns
+### FFI 안전성 패턴
 
-When exposing Rust to Python (via PyO3 or raw C FFI), these rules prevent the most common bugs:
+Rust 코드를 Python에 노출할 때(PyO3든 raw C FFI든) 아래 규칙을 지키면 가장 흔한 버그를 피할 수 있습니다.
 
-1. **Never let a panic cross the FFI boundary** — a Rust panic unwinding into Python (or C) is **undefined behavior**. PyO3 handles this automatically for `#[pyfunction]`, but raw `extern "C"` functions need explicit protection:
-    ```rust
-    #[no_mangle]
-    pub extern "C" fn raw_ffi_function() -> i32 {
-        match std::panic::catch_unwind(|| {
-            // actual logic
-            42
-        }) {
-            Ok(result) => result,
-            Err(_) => -1,  // Return error code instead of panicking into C/Python
-        }
-    }
-    ```
+1. **panic이 FFI 경계를 넘지 않게 하라**. Rust panic이 Python(또는 C) 쪽으로 unwinding되면 **정의되지 않은 동작**입니다. PyO3는 `#[pyfunction]`에서 이를 자동으로 처리해주지만, raw `extern "C"` 함수에서는 직접 막아야 합니다.
 
-2. **`#[repr(C)]` for shared structs** — if Python/C reads struct fields directly, you **must** use `#[repr(C)]` to guarantee C-compatible layout. If you're passing opaque pointers (which PyO3 does for `#[pyclass]`), it's not needed.
+   ```rust
+   #[no_mangle]
+   pub extern "C" fn raw_ffi_function() -> i32 {
+       match std::panic::catch_unwind(|| {
+           // actual logic
+           42
+       }) {
+           Ok(result) => result,
+           Err(_) => -1,  // Return error code instead of panicking into C/Python
+       }
+   }
+   ```
 
-3. **`extern "C"`** — required for raw FFI functions so the calling convention matches what C/Python expects. PyO3's `#[pyfunction]` handles this for you.
+2. **공유 구조체에는 `#[repr(C)]`를 붙여라**. Python/C가 구조체 필드를 직접 읽는다면 C 호환 레이아웃을 보장하기 위해 반드시 `#[repr(C)]`가 필요합니다. 반대로 PyO3의 `#[pyclass]`처럼 opaque pointer만 넘기는 경우에는 필요하지 않습니다.
 
-> **PyO3 advantage**: PyO3 wraps most of these safety concerns for you — panic catching, type conversion, GIL management. Prefer PyO3 over raw FFI unless you have a specific reason not to.
+3. **raw FFI에는 `extern "C"`가 필요하다**. 호출 규약이 C/Python이 기대하는 것과 정확히 맞아야 하기 때문입니다. PyO3의 `#[pyfunction]`은 이 부분도 내부에서 처리해줍니다.
+
+> **PyO3의 장점**: panic 포착, 타입 변환, GIL 관리 등 대부분의 안전성 문제를 PyO3가 감싸줍니다. 특별한 이유가 없다면 raw FFI보다 PyO3를 우선 선택하세요.
 
 ***
 
-
 <!-- ch14a: Testing -->
-## Unit Tests vs pytest
+<a id="unit-tests-vs-pytest"></a>
+## 단위 테스트 vs `pytest`
 
-### Python Testing with pytest
+### `pytest`로 하는 Python 테스트
 ```python
 # test_calculator.py
 import pytest
@@ -306,15 +306,15 @@ def test_sum(sample_data):
 ```
 
 ```bash
-# Running tests
-pytest                      # Run all tests
-pytest test_calculator.py   # Run one file
-pytest -k "test_add"        # Run matching tests
-pytest -v                   # Verbose output
-pytest --tb=short           # Short tracebacks
+# 테스트 실행
+pytest                      # 전체 테스트 실행
+pytest test_calculator.py   # 파일 하나만 실행
+pytest -k "test_add"        # 이름이 맞는 테스트만 실행
+pytest -v                   # 자세한 출력
+pytest --tb=short           # 짧은 traceback
 ```
 
-### Rust Built-in Testing
+### Rust 내장 테스트
 ```rust
 // src/calculator.rs — tests live in the SAME file!
 fn add(a: i32, b: i32) -> i32 {
@@ -365,32 +365,32 @@ mod tests {
 ```
 
 ```bash
-# Running tests
-cargo test                         # Run all tests
-cargo test test_add                # Run matching tests
-cargo test -- --nocapture          # Show println! output
-cargo test -p my_crate             # Test one crate in workspace
-cargo test -- --test-threads=1     # Sequential (for tests with side effects)
+# 테스트 실행
+cargo test                         # 전체 테스트 실행
+cargo test test_add                # 이름이 맞는 테스트만 실행
+cargo test -- --nocapture          # println! 출력까지 표시
+cargo test -p my_crate             # 워크스페이스에서 크레이트 하나만 테스트
+cargo test -- --test-threads=1     # 순차 실행(부작용 있는 테스트용)
 ```
 
-### Testing Quick Reference
+### 테스트 빠른 참조
 
-| pytest | Rust | Notes |
-|--------|------|-------|
-| `assert x == y` | `assert_eq!(x, y)` | Equality |
-| `assert x != y` | `assert_ne!(x, y)` | Inequality |
-| `assert condition` | `assert!(condition)` | Boolean |
-| `assert condition, "msg"` | `assert!(condition, "msg")` | With message |
-| `pytest.raises(E)` | `#[should_panic]` | Expect panic |
-| `@pytest.fixture` | Setup in test or helper fn | No built-in fixtures |
-| `@pytest.mark.parametrize` | `rstest` crate | Parameterized tests |
-| `conftest.py` | `tests/common/mod.rs` | Shared test helpers |
-| `pytest.skip()` | `#[ignore]` | Skip a test |
-| `tmp_path` fixture | `tempfile` crate | Temporary directories |
+| `pytest` | Rust | 설명 |
+|----------|------|------|
+| `assert x == y` | `assert_eq!(x, y)` | 동등성 비교 |
+| `assert x != y` | `assert_ne!(x, y)` | 부등성 비교 |
+| `assert condition` | `assert!(condition)` | 불리언 검증 |
+| `assert condition, "msg"` | `assert!(condition, "msg")` | 메시지 포함 검증 |
+| `pytest.raises(E)` | `#[should_panic]` | panic 기대 |
+| `@pytest.fixture` | 테스트 내부 설정 또는 helper fn | 내장 fixture는 없음 |
+| `@pytest.mark.parametrize` | `rstest` 크레이트 | 매개변수화 테스트 |
+| `conftest.py` | `tests/common/mod.rs` | 공용 테스트 도우미 |
+| `pytest.skip()` | `#[ignore]` | 테스트 건너뛰기 |
+| `tmp_path` fixture | `tempfile` 크레이트 | 임시 디렉터리 |
 
 ***
 
-## Parameterized Tests with rstest
+## `rstest`로 매개변수화 테스트하기
 ```rust
 // Cargo.toml: rstest = "0.23"
 
@@ -422,7 +422,7 @@ fn test_sum(sample_data: Vec<i32>) {
 
 ***
 
-## Mocking with mockall
+## `mockall`로 목 객체 만들기
 ```python
 # Python — mocking with unittest.mock
 from unittest.mock import Mock, patch
@@ -466,15 +466,15 @@ fn test_fetch_user() {
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Safe Wrapper Around Unsafe</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: unsafe 위에 안전한 래퍼 만들기</strong> (펼쳐서 보기)</summary>
 
-**Challenge**: Write a safe function `split_at_mid` that takes a `&mut [i32]` and returns two mutable slices `(&mut [i32], &mut [i32])` split at the midpoint. Internally, use `unsafe` with raw pointers (simulating what `split_at_mut` does). Then wrap it in a safe API.
+**도전 과제**: `&mut [i32]`를 받아 가운데 지점에서 둘로 나눈 두 개의 가변 슬라이스 `(&mut [i32], &mut [i32])`를 반환하는 안전한 함수 `split_at_mid`를 작성해보세요. 내부 구현에서는 raw pointer와 `unsafe`를 사용해 `split_at_mut`가 하는 일을 흉내 내고, 바깥에는 안전한 API를 제공하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 fn split_at_mid(slice: &mut [i32]) -> (&mut [i32], &mut [i32]) {
@@ -502,11 +502,9 @@ fn main() {
 }
 ```
 
-**Key takeaway**: The `unsafe` block is small and guarded by the `assert!`. The public API is fully safe — callers never see `unsafe`. This is the Rust pattern: unsafe internals, safe interfaces. Python's `ctypes` gives you no such guarantees.
+**핵심 정리**: `unsafe` 블록은 아주 작고, 그 앞에 `assert!`로 전제 조건을 지켰습니다. 공개 API는 완전히 안전하므로 호출자는 `unsafe`를 볼 필요가 없습니다. 이것이 Rust의 전형적인 패턴입니다. 내부는 unsafe일 수 있어도, 외부 인터페이스는 안전하게 유지합니다. Python의 `ctypes`는 이런 보장을 제공하지 않습니다.
 
 </details>
 </details>
 
 ***
-
-

@@ -1,14 +1,15 @@
-## Rust closures
+<a id="rust-closures"></a>
+## Rust 클로저
 
-> **What you'll learn:** Closures as anonymous functions, the three capture traits (`Fn`, `FnMut`, `FnOnce`), `move` closures, and how Rust closures compare to C++ lambdas — with automatic capture analysis instead of manual `[&]`/`[=]` specifications.
+> **이 장에서 배우는 것:** 익명 함수로서의 클로저, 세 가지 캡처 트레잇 (`Fn`, `FnMut`, `FnOnce`), `move` 클로저, 그리고 Rust 클로저가 C++ 람다와 어떻게 비교되는지 배웁니다. Rust는 수동 `[&]`/`[=]` 지정 대신 캡처 방식을 자동으로 분석합니다.
 
-- Closures are anonymous functions that can capture their environment
-    - C++ equivalent: lambdas (`[&](int x) { return x + 1; }`)
-    - Key difference: Rust closures have **three** capture traits (`Fn`, `FnMut`, `FnOnce`) that the compiler selects automatically
-    - C++ capture modes (`[=]`, `[&]`, `[this]`) are manual and error-prone (dangling `[&]`!)
-    - Rust's borrow checker prevents dangling captures at compile time
-- Closures can be identified by the `||` symbol. The parameters for the types are enclosed within the `||` and can use type inference
-- Closures are frequently used in conjunction with iterators (next topic)
+- 클로저는 자신의 환경을 캡처할 수 있는 익명 함수입니다
+    - C++ 대응 개념: 람다 (`[&](int x) { return x + 1; }`)
+    - 핵심 차이: Rust 클로저에는 **세 가지** 캡처 트레잇 (`Fn`, `FnMut`, `FnOnce`)이 있으며, 컴파일러가 이를 자동으로 선택합니다
+    - C++ 캡처 모드 (`[=]`, `[&]`, `[this]`)는 수동 지정이라 실수하기 쉽습니다 (dangling `[&]`!)
+    - Rust의 borrow checker는 dangling capture를 컴파일 시점에 막아줍니다
+- 클로저는 `||` 기호로 알아볼 수 있습니다. 매개변수와 타입은 `||` 안에 쓰며, 타입 추론도 사용할 수 있습니다
+- 클로저는 이터레이터와 함께 매우 자주 사용됩니다 (다음 주제)
 ```rust
 fn add_one(x: u32) -> u32 {
     x + 1
@@ -22,14 +23,15 @@ fn main() {
 ```
 
 
-# Exercise: Closures and capturing
+<a id="exercise-closures-and-capturing"></a>
+# 연습문제: 클로저와 캡처
 
 🟡 **Intermediate**
 
-- Create a closure that captures a `String` from the enclosing scope and appends to it (hint: use `move`)
-- Create a vector of closures: `Vec<Box<dyn Fn(i32) -> i32>>` containing closures that add 1, multiply by 2, and square the input. Iterate over the vector and apply each closure to the number 5
+- 바깥 스코프의 `String`을 캡처해서 뒤에 문자열을 덧붙이는 클로저를 작성하세요 (힌트: `move` 사용)
+- 1을 더하는 클로저, 2를 곱하는 클로저, 입력값을 제곱하는 클로저를 담는 `Vec<Box<dyn Fn(i32) -> i32>>`를 만드세요. 그 벡터를 순회하면서 각 클로저를 숫자 5에 적용해 보세요
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 fn main() {
@@ -63,9 +65,10 @@ fn main() {
 
 </details>
 
-# Rust iterators
-- Iterators are one of the most powerful features of Rust. They enable very elegant methods for perform operations on collections, including filtering (```filter()```), transformation (```map()```), filter and map (```filter_and_map()```), searching (```find()```) and much more
-- In the example below, the ```|&x| *x >= 42``` is a closure that performs the same comparison. The ```|x| println!("{x}")``` is another closure
+<a id="rust-iterators"></a>
+# Rust 이터레이터
+- 이터레이터는 Rust의 가장 강력한 기능 중 하나입니다. 컬렉션에 대한 연산을 매우 우아하게 표현할 수 있으며, 필터링 (```filter()```), 변환 (```map()```), filter and map (```filter_and_map()```), 검색 (```find()```) 등 다양한 작업에 활용됩니다
+- 아래 예제의 ```|&x| *x >= 42``` 는 같은 비교를 수행하는 클로저입니다. ```|x| println!("{x}")``` 도 또 다른 클로저입니다
 ```rust
 fn main() {
     let a = [0, 1, 2, 3, 42, 43];
@@ -79,8 +82,8 @@ fn main() {
 }
 ```
 
-# Rust iterators
-- A key feature of iterators is that most of them are ```lazy```, i.e., they do not do anything until they are evaluated. For example, ```a.iter().filter(|&x| *x >= 42);``` wouldn't have done *anything* without the ```for_each```. The Rust compiler emits an explicit warning when it detects such a situation
+# Rust 이터레이터
+- 이터레이터의 핵심 특징 중 하나는 대부분이 ```lazy```하다는 점입니다. 즉, 실제로 평가되기 전까지는 아무 일도 하지 않습니다. 예를 들어 ```a.iter().filter(|&x| *x >= 42);``` 는 뒤의 ```for_each``` 가 없으면 *아무것도* 하지 않습니다. Rust 컴파일러는 이런 상황을 발견하면 명시적인 경고를 출력합니다
 ```rust
 fn main() {
     let a = [0, 1, 2, 3, 42, 43];
@@ -94,9 +97,9 @@ fn main() {
 }
 ```
 
-# Rust iterators
-- The ```collect()``` method can be used to gather the results into a separate collection
-    - In the below the ```_``` in ```Vec<_>``` is the equivalent of a wildcard character for the type returned by the ```map```. For example, we can even return a ```String``` from ```map``` 
+# Rust 이터레이터
+- ```collect()``` 메서드는 결과를 별도의 컬렉션으로 모을 때 사용할 수 있습니다
+    - 아래 예제에서 ```Vec<_>``` 의 ```_``` 는 ```map``` 이 반환하는 타입에 대한 와일드카드와 같습니다. 예를 들어 ```map``` 에서 ```String``` 을 반환하는 것도 가능합니다
 ```rust
 fn main() {
     let a = [0, 1, 2, 3, 42, 43];
@@ -112,13 +115,14 @@ fn main() {
 }
 ```
 
-# Exercise: Rust iterators
+<a id="exercise-rust-iterators"></a>
+# 연습문제: Rust 이터레이터
 
 🟢 **Starter**
-- Create an integer array composed of odd and even elements. Iterate over the array and split it into two different vectors with even and odd elements in each
-- Can this be done in a single pass (hint: use ```partition()```)?
+- 홀수와 짝수가 섞인 정수 배열을 만드세요. 배열을 순회하면서 짝수만 담은 벡터와 홀수만 담은 벡터, 이렇게 두 개로 나누어 보세요
+- 이 작업을 한 번의 순회로 할 수 있을까요? (힌트: ```partition()``` 사용)
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 fn main() {
@@ -153,15 +157,16 @@ fn main() {
 
 </details>
 
-> **Production patterns**: See [Collapsing assignment pyramids with closures](ch17-3-collapsing-assignment-pyramids.md#collapsing-assignment-pyramids-with-closures) for real iterator chains (`.map().collect()`, `.filter().collect()`, `.find_map()`) from production Rust code.
+> **프로덕션 패턴:** 실제 Rust 프로덕션 코드에서 쓰이는 이터레이터 체인 (`.map().collect()`, `.filter().collect()`, `.find_map()`) 예시는 [클로저로 중첩된 대입 피라미드 줄이기](ch17-3-collapsing-assignment-pyramids.md#collapsing-assignment-pyramids-with-closures)를 참고하세요.
 
-### Iterator power tools: the methods that replace C++ loops
+<a id="iterator-power-tools-the-methods-that-replace-c-loops"></a>
+### 이터레이터 활용 도구: C++ 루프를 대체하는 메서드들
 
-The following iterator adapters are used *extensively* in production Rust code. C++ has
-`<algorithm>` and C++20 ranges, but Rust's iterator chains are more composable
-and more commonly used.
+다음 이터레이터 어댑터들은 실제 Rust 코드에서 *매우 자주* 사용됩니다. C++에도
+`<algorithm>` 과 C++20 ranges가 있지만, Rust의 이터레이터 체인은 더 조합하기 쉽고
+실무에서도 더 흔하게 쓰입니다.
 
-#### `enumerate` — index + value (replaces `for (int i = 0; ...)`)
+#### `enumerate` — 인덱스 + 값 (`for (int i = 0; ...)` 대체)
 
 ```rust
 let sensors = vec!["temp0", "temp1", "temp2"];
@@ -173,9 +178,9 @@ for (idx, name) in sensors.iter().enumerate() {
 // Sensor 2: temp2
 ```
 
-C++ equivalent: `for (size_t i = 0; i < sensors.size(); ++i) { auto& name = sensors[i]; ... }`
+C++ 대응: `for (size_t i = 0; i < sensors.size(); ++i) { auto& name = sensors[i]; ... }`
 
-#### `zip` — pair elements from two iterators (replaces parallel index loops)
+#### `zip` — 두 이터레이터의 원소를 짝지어 묶기 (병렬 인덱스 루프 대체)
 
 ```rust
 let names = ["gpu0", "gpu1", "gpu2"];
@@ -191,9 +196,9 @@ println!("{report:?}");
 // Stops at the shorter iterator — no out-of-bounds risk
 ```
 
-C++ equivalent: `for (size_t i = 0; i < std::min(names.size(), temps.size()); ++i) { ... }`
+C++ 대응: `for (size_t i = 0; i < std::min(names.size(), temps.size()); ++i) { ... }`
 
-#### `flat_map` — map + flatten nested collections
+#### `flat_map` — 변환 후 중첩 컬렉션 평탄화
 
 ```rust
 // Each GPU has multiple PCIe BDFs; collect all BDFs across all GPUs
@@ -210,9 +215,9 @@ println!("{all_bdfs:?}");
 // ["0000:01:00.0", "0000:02:00.0", "0000:41:00.0", "0000:81:00.0", "0000:82:00.0"]
 ```
 
-C++ equivalent: nested `for` loop pushing into a single vector.
+C++ 대응: 중첩 `for` 루프를 돌며 하나의 벡터에 `push` 하는 패턴.
 
-#### `chain` — concatenate two iterators
+#### `chain` — 두 이터레이터 이어 붙이기
 
 ```rust
 let critical_gpus = vec!["gpu0", "gpu3"];
@@ -224,7 +229,7 @@ for gpu in critical_gpus.iter().chain(warning_gpus.iter()) {
 }
 ```
 
-#### `windows` and `chunks` — sliding/fixed-size views over slices
+#### `windows` 와 `chunks` — 슬라이딩/고정 크기 슬라이스 뷰
 
 ```rust
 let temps = [70, 72, 75, 73, 71, 68, 65];
@@ -244,9 +249,9 @@ for pair in temps.chunks(2) {
 // Pair: [65]       ← last chunk can be smaller
 ```
 
-C++ equivalent: manual index arithmetic with `i` and `i+1`/`i+2`.
+C++ 대응: `i` 와 `i+1`/`i+2` 를 직접 계산하는 수동 인덱스 연산.
 
-#### `fold` — accumulate into a single value (replaces `std::accumulate`)
+#### `fold` — 단일 값으로 누적하기 (`std::accumulate` 대체)
 
 ```rust
 let errors = vec![
@@ -270,7 +275,7 @@ println!("Total errors: {total}, details: {summary}");
 // Total errors: 11, details: gpu0:3 gpu2:7 gpu3:1
 ```
 
-#### `scan` — stateful transform (running total, delta detection)
+#### `scan` — 상태를 가진 변환 (누적 합, 변화량 감지)
 
 ```rust
 let readings = [100, 105, 103, 110, 108];
@@ -287,18 +292,18 @@ let deltas: Vec<i32> = readings.iter()
 println!("Deltas: {deltas:?}"); // [5, -2, 7, -2]
 ```
 
-#### Quick reference: C++ loop → Rust iterator
+#### 빠른 참조: C++ 루프 → Rust 이터레이터
 
-| **C++ Pattern** | **Rust Iterator** | **Example** |
+| **C++ 패턴** | **Rust 이터레이터** | **예시** |
 |----------------|------------------|------------|
 | `for (int i = 0; i < v.size(); i++)` | `.enumerate()` | `v.iter().enumerate()` |
-| Parallel iteration with index | `.zip()` | `a.iter().zip(b.iter())` |
-| Nested loop → flat result | `.flat_map()` | `vecs.iter().flat_map(\|v\| v.iter())` |
-| Concatenate two containers | `.chain()` | `a.iter().chain(b.iter())` |
-| Sliding window `v[i..i+n]` | `.windows(n)` | `v.windows(3)` |
-| Process in fixed-size groups | `.chunks(n)` | `v.chunks(4)` |
-| `std::accumulate` / manual accumulator | `.fold()` | `.fold(init, \|acc, x\| ...)` |
-| Running total / delta tracking | `.scan()` | `.scan(state, \|s, x\| ...)` |
+| 인덱스를 이용한 병렬 순회 | `.zip()` | `a.iter().zip(b.iter())` |
+| 중첩 루프 → 평탄한 결과 | `.flat_map()` | `vecs.iter().flat_map(\|v\| v.iter())` |
+| 두 컨테이너 이어 붙이기 | `.chain()` | `a.iter().chain(b.iter())` |
+| 슬라이딩 윈도우 `v[i..i+n]` | `.windows(n)` | `v.windows(3)` |
+| 고정 크기 그룹 단위 처리 | `.chunks(n)` | `v.chunks(4)` |
+| `std::accumulate` / 수동 누산기 | `.fold()` | `.fold(init, \|acc, x\| ...)` |
+| 누적 합 / 변화량 추적 | `.scan()` | `.scan(state, \|s, x\| ...)` |
 | `while (it != end && count < n) { ++it; ++count; }` | `.take(n)` | `.iter().take(5)` |
 | `while (it != end && !pred(*it)) { ++it; }` | `.skip_while()` | `.skip_while(\|x\| x < &threshold)` |
 | `std::any_of` | `.any()` | `.iter().any(\|x\| x > &limit)` |
@@ -306,20 +311,21 @@ println!("Deltas: {deltas:?}"); // [5, -2, 7, -2]
 | `std::none_of` | `!.any()` | `!iter.any(\|x\| x.failed())` |
 | `std::count_if` | `.filter().count()` | `.filter(\|x\| x > &0).count()` |
 | `std::min_element` / `std::max_element` | `.min()` / `.max()` | `.iter().max()` → `Option<&T>` |
-| `std::unique` | `.dedup()` (on sorted) | `v.dedup()` (in-place on Vec) |
+| `std::unique` | `.dedup()` (정렬된 경우) | `v.dedup()` (Vec에서 제자리 처리) |
 
-### Exercise: Iterator chains
+<a id="exercise-iterator-chains"></a>
+### 연습문제: 이터레이터 체인
 
-Given sensor data as `Vec<(String, f64)>` (name, temperature), write a **single
-iterator chain** that:
-1. Filters sensors with temp > 80.0
-2. Sorts them by temperature (descending)
-3. Formats each as `"{name}: {temp}°C [ALARM]"`
-4. Collects into `Vec<String>`
+센서 데이터가 `Vec<(String, f64)>` (이름, 온도) 형태로 주어졌을 때, 다음을 수행하는 **하나의
+이터레이터 체인**을 작성하세요:
+1. 온도가 80.0보다 큰 센서만 필터링한다
+2. 온도 기준 내림차순으로 정렬한다
+3. 각 항목을 `"{name}: {temp}°C [ALARM]"` 형식으로 만든다
+4. 결과를 `Vec<String>` 으로 수집한다
 
-Hint: you'll need `.collect()` before `.sort_by()`, since sorting requires a `Vec`.
+힌트: 정렬은 `Vec` 가 필요하므로 `.sort_by()` 전에 `.collect()` 가 필요합니다.
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 fn alarm_report(sensors: &[(String, f64)]) -> Vec<String> {
@@ -354,12 +360,12 @@ fn main() {
 
 ----
 
-# Rust iterators
-- The ```Iterator``` trait is used to implement iteration over user defined types (https://doc.rust-lang.org/std/iter/trait.IntoIterator.html)
-    - In the example, we'll implement an iterator for the Fibonacci sequence, which starts with 1, 1, 2, ... and the successor is the sum of the previous two numbers
-    - The ```associated type``` in the ```Iterator``` (```type Item = u32;```) defines the output type from our iterator (```u32```)
-    - The ```next()``` method simply contains the logic for implementing our iterator. In this case, all state information is available in the ```Fibonacci``` structure
-    - We could have implemented another trait called ```IntoIterator``` to implement the ```into_iter()``` method for more specialized iterators
-    - [▶ Try it in the Rust Playground](https://play.rust-lang.org/)
+# Rust 이터레이터
+- ```Iterator``` 트레잇은 사용자 정의 타입에 반복 기능을 구현할 때 사용합니다 (https://doc.rust-lang.org/std/iter/trait.IntoIterator.html)
+    - 이 예제에서는 1, 1, 2, ... 로 시작하고 다음 값이 앞의 두 수의 합이 되는 피보나치 수열용 이터레이터를 구현합니다
+    - ```Iterator``` 안의 ```associated type``` (```type Item = u32;```) 은 이 이터레이터가 반환하는 출력 타입 (```u32```) 을 정의합니다
+    - ```next()``` 메서드는 이터레이터의 동작 로직을 담습니다. 이 경우 필요한 상태는 모두 ```Fibonacci``` 구조체 안에 있습니다
+    - 더 특화된 이터레이터를 위해 ```into_iter()``` 메서드를 제공하는 ```IntoIterator``` 라는 다른 트레잇을 구현할 수도 있습니다
+    - [▶ Rust Playground에서 실행해 보기](https://play.rust-lang.org/)
 
 

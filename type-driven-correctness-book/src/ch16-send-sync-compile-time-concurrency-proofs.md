@@ -1,72 +1,75 @@
-# Send & Sync — Compile-Time Concurrency Proofs 🟠
+<a id="send-sync-compile-time-concurrency-proofs"></a>
+# Send & Sync — 컴파일 타임 동시성 증명 🟠
 
-> **What you'll learn:** How Rust's `Send` and `Sync` auto-traits turn the compiler into a concurrency auditor — proving at compile time which types can cross thread boundaries and which can be shared, with zero runtime cost.
+> **배울 내용:** Rust의 `Send`와 `Sync` 자동 트레잇이 컴파일러를 동시성 감사자로 만드는 방법 — 어떤 타입이 스레드 경계를 넘을 수 있고 어떤 타입이 공유될 수 있는지 컴파일 타임에 증명하며 런타임 비용은 0입니다.
 >
-> **Cross-references:** [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types), [ch15](ch15-const-fn-compile-time-correctness-proofs.md) (const fn proofs)
+> **교차 참조:** [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types), [ch15](ch15-const-fn-compile-time-correctness-proofs.md) (const fn proofs)
 
-## The Problem: Concurrent Access Without a Safety Net
+<a id="the-problem-concurrent-access-without-a-safety-net"></a>
+## 문제: 안전망 없는 동시 접근
 
-In systems programming, peripherals, shared buffers, and global state are accessed from multiple contexts — main loops, interrupt handlers, DMA callbacks, and worker threads. In C, the compiler offers no enforcement whatsoever:
+시스템 프로그래밍에서 주변 장치, 공유 버퍼, 전역 상태는 메인 루프, 인터럽트 핸들러, DMA 콜백, 워커 스레드 등 여러 맥락에서 접근됩니다. C에서는 컴파일러가 아무 강제도 하지 않습니다:
 
 ```c
-/* Shared sensor buffer — accessed from main loop and ISR */
+/* 공유 센서 버퍼 — 메인 루프와 ISR에서 접근 */
 volatile uint32_t sensor_buf[64];
 volatile uint32_t buf_index = 0;
 
 void SENSOR_IRQHandler(void) {
-    sensor_buf[buf_index++] = read_sensor();  /* Race: buf_index read + write */
+    sensor_buf[buf_index++] = read_sensor();  /* 레이스: buf_index 읽기+쓰기 */
 }
 
 void process_sensors(void) {
-    for (uint32_t i = 0; i < buf_index; i++) {  /* buf_index changes mid-loop */
-        process(sensor_buf[i]);                   /* Data overwritten mid-read */
+    for (uint32_t i = 0; i < buf_index; i++) {  /* 루프 도중 buf_index 변경 */
+        process(sensor_buf[i]);                   /* 읽는 도중 데이터 덮어씀 */
     }
-    buf_index = 0;                                /* ISR fires between these lines */
+    buf_index = 0;                                /* 이 사이에 ISR 발생 */
 }
 ```
 
-The `volatile` keyword prevents the compiler from optimizing away the reads, but it does **nothing** about data races. Two contexts can read and write `buf_index` simultaneously, producing torn values, lost updates, or buffer overruns. The same problem appears with `pthread_mutex_t` — the compiler will happily let you forget to lock:
+`volatile`은 컴파일러가 읽기를 최적화로 없애지 못하게 할 뿐, 데이터 레이스에는 **아무것도** 하지 않습니다. 두 맥락이 동시에 `buf_index`를 읽고 쓰면 찢어진 값, 유실된 갱신, 버퍼 오버런이 납니다. `pthread_mutex_t`에서도 같은 문제가 납니다 — 컴파일러는 잠그는 것을 잊어도 그대로 둡니다:
 
 ```c
 pthread_mutex_t lock;
 int shared_counter;
 
 void increment(void) {
-    shared_counter++;  /* Oops — forgot pthread_mutex_lock(&lock) */
+    shared_counter++;  /* 이런 — pthread_mutex_lock(&lock) 잊음 */
 }
 ```
 
-**Every concurrent bug is discovered at runtime** — typically under load, in production, and intermittently.
+**동시성 버그는 모두 런타임에서 발견됩니다** — 보통 부하가 걸린 프로덕션에서, 간헐적으로.
 
-## What Send and Sync Prove
+<a id="what-send-and-sync-prove"></a>
+## Send와 Sync가 증명하는 것
 
-Rust defines two marker traits that the compiler derives automatically:
+Rust는 컴파일러가 자동으로 파생하는 마커 트레잇 두 개를 정의합니다:
 
-| Trait | Proof | Informal meaning |
+| 트레잇 | 증명 | 비공식 의미 |
 |-------|-------|-------------------|
-| `Send` | A value of type `T` can be safely **moved** to another thread | "This can cross a thread boundary" |
-| `Sync` | A **shared reference** `&T` can be safely used by multiple threads | "This can be read from multiple threads" |
+| `Send` | 타입 `T` 값을 다른 스레드로 **이동**해도 안전함 | "스레드 경계를 넘을 수 있음" |
+| `Sync` | **공유 참조** `&T`를 여러 스레드가 안전하게 사용할 수 있음 | "여러 스레드에서 읽을 수 있음" |
 
-These are **auto-traits** — the compiler derives them by inspecting every field. A struct is `Send` if all its fields are `Send`. A struct is `Sync` if all its fields are `Sync`. If any field opts out, the entire struct opts out. No annotation needed, no runtime overhead — the proof is structural.
+이들은 **자동 트레잇** — 컴파일러가 모든 필드를 살펴 파생합니다. 구조체는 모든 필드가 `Send`이면 `Send`이고, 모든 필드가 `Sync`이면 `Sync`입니다. 필드 하나라도 빠지면 전체가 빠집니다. 어노테이션 불필요, 런타임 오버헤드 없음 — 증명은 구조적입니다.
 
 ```mermaid
 flowchart TD
-    STRUCT["Your struct"]
-    INSPECT["Compiler inspects<br/>every field"]
-    ALL_SEND{"All fields<br/>Send?"}
-    ALL_SYNC{"All fields<br/>Sync?"}
-    SEND_YES["Send ✅<br/><i>can cross thread boundaries</i>"]
-    SEND_NO["!Send ❌<br/><i>confined to one thread</i>"]
-    SYNC_YES["Sync ✅<br/><i>shareable across threads</i>"]
-    SYNC_NO["!Sync ❌<br/><i>no concurrent references</i>"]
+    STRUCT["당신의 struct"]
+    INSPECT["컴파일러가<br/>모든 필드 검사"]
+    ALL_SEND{"모든 필드<br/>Send?"}
+    ALL_SYNC{"모든 필드<br/>Sync?"}
+    SEND_YES["Send ✅<br/><i>스레드 경계 통과 가능</i>"]
+    SEND_NO["!Send ❌<br/><i>한 스레드에만 묶임</i>"]
+    SYNC_YES["Sync ✅<br/><i>스레드 간 공유 가능</i>"]
+    SYNC_NO["!Sync ❌<br/><i>동시 참조 불가</i>"]
 
     STRUCT --> INSPECT
     INSPECT --> ALL_SEND
     INSPECT --> ALL_SYNC
     ALL_SEND -->|Yes| SEND_YES
-    ALL_SEND -->|"Any field !Send<br/>(e.g., Rc, *const T)"| SEND_NO
+    ALL_SEND -->|"필드 중 !Send<br/>(예: Rc, *const T)"| SEND_NO
     ALL_SYNC -->|Yes| SYNC_YES
-    ALL_SYNC -->|"Any field !Sync<br/>(e.g., Cell, RefCell)"| SYNC_NO
+    ALL_SYNC -->|"필드 중 !Sync<br/>(예: Cell, RefCell)"| SYNC_NO
 
     style SEND_YES fill:#c8e6c9,color:#000
     style SYNC_YES fill:#c8e6c9,color:#000
@@ -74,32 +77,34 @@ flowchart TD
     style SYNC_NO fill:#ffcdd2,color:#000
 ```
 
-> **The compiler is the auditor.** In C, thread-safety annotations live in comments and header documentation — advisory, never enforced. In Rust, `Send` and `Sync` are derived from the structure of the type itself. Adding a single `Cell<f32>` field automatically makes the containing struct `!Sync`. No programmer action required, no way to forget.
+> **컴파일러가 감사자입니다.** C에서는 스레드 안전 주석이 주석과 헤더 문서에만 있고 — 권고일 뿐 강제되지 않습니다. Rust에서는 `Send`와 `Sync`가 타입 자체의 구조에서 파생됩니다. `Cell<f32>` 필드 하나만 추가해도 담는 구조체는 자동으로 `!Sync`가 됩니다. 프로그래머가 할 일이 없고, 잊을 방법도 없습니다.
 
-The two traits are linked by a key identity:
+두 트레잇은 핵심 동치식으로 연결됩니다:
 
-> **`T` is `Sync` if and only if `&T` is `Send`.**
+> **`T`가 `Sync`인 것은 `&T`가 `Send`인 것과 필요충분조건이다.**
 
-This makes intuitive sense: if a shared reference can be safely sent to another thread, then the underlying type is safe for concurrent reads.
+직관적으로도 맞습니다: 공유 참조를 다른 스레드로 안전하게 보낼 수 있으면, 기저 타입은 동시 읽기에 안전합니다.
 
-### Types That Opt Out
+<a id="types-that-opt-out"></a>
+### 빠지는 타입
 
-Certain types are deliberately `!Send` or `!Sync`:
+일부 타입은 의도적으로 `!Send`이거나 `!Sync`입니다:
 
-| Type | Send | Sync | Why |
+| 타입 | Send | Sync | 이유 |
 |------|:----:|:----:|-----|
-| `u32`, `String`, `Vec<T>` | ✅ | ✅ | No interior mutability, no raw pointers |
-| `Cell<T>`, `RefCell<T>` | ✅ | ❌ | Interior mutability without synchronization |
-| `Rc<T>` | ❌ | ❌ | Reference count is not atomic |
-| `*const T`, `*mut T` | ❌ | ❌ | Raw pointers have no safety guarantees |
-| `Arc<T>` (where `T: Send + Sync`) | ✅ | ✅ | Atomic reference count |
-| `Mutex<T>` (where `T: Send`) | ✅ | ✅ | Lock serializes all access |
+| `u32`, `String`, `Vec<T>` | ✅ | ✅ | 내부 가변성 없음, 원시 포인터 없음 |
+| `Cell<T>`, `RefCell<T>` | ✅ | ❌ | 동기화 없는 내부 가변성 |
+| `Rc<T>` | ❌ | ❌ | 참조 카운트가 원자적이 아님 |
+| `*const T`, `*mut T` | ❌ | ❌ | 원시 포인터는 안전 보장 없음 |
+| `Arc<T>` (`T: Send + Sync`일 때) | ✅ | ✅ | 원자적 참조 카운트 |
+| `Mutex<T>` (`T: Send`일 때) | ✅ | ✅ | 락이 모든 접근을 직렬화 |
 
-Every ❌ in this table is a **compile-time invariant**. You cannot accidentally send an `Rc` to another thread — the compiler rejects it.
+표의 모든 ❌는 **컴파일 타임 불변식**입니다. 실수로 `Rc`를 다른 스레드로 보낼 수 없습니다 — 컴파일러가 거부합니다.
 
-## !Send Peripheral Handles
+<a id="send-peripheral-handles"></a>
+## !Send 주변 장치 핸들
 
-In embedded systems, a peripheral register block lives at a fixed memory address and should only be accessed from a single execution context. Raw pointers are inherently `!Send` and `!Sync`, so wrapping one automatically opts the containing type out of both traits:
+임베디드 시스템에서 주변 레지스터 블록은 고정 메모리 주소에 있으며 단일 실행 맥락에서만 접근해야 합니다. 원시 포인터는 본질적으로 `!Send`이고 `!Sync`이므로, 하나를 감싸면 담는 타입이 두 트레잇 모두에서 자동으로 빠집니다:
 
 ```rust
 /// A handle to a memory-mapped UART peripheral.
@@ -114,23 +119,23 @@ impl Uart {
     }
 
     pub fn write_byte(&self, byte: u8) {
-        // In real firmware: unsafe { write_volatile(self.regs.add(DATA_OFFSET), byte as u32) }
+        // 실제 펌웨어: unsafe { write_volatile(self.regs.add(DATA_OFFSET), byte as u32) }
         println!("UART TX: {:#04X}", byte);
     }
 }
 
 fn main() {
     let uart = Uart::new(0x4000_1000);
-    uart.write_byte(b'A');  // ✅ Use on the creating thread
+    uart.write_byte(b'A');  // ✅ 생성한 스레드에서 사용
 
-    // ❌ Would not compile: Uart is !Send
+    // ❌ 컴파일 안 됨: Uart는 !Send
     // std::thread::spawn(move || {
     //     uart.write_byte(b'B');
     // });
 }
 ```
 
-The commented-out `thread::spawn` would produce:
+주석 처리된 `thread::spawn`은 다음을 낳습니다:
 
 ```text
 error[E0277]: `*const u32` cannot be sent between threads safely
@@ -140,13 +145,13 @@ error[E0277]: `*const u32` cannot be sent between threads safely
    |                        implemented for `*const u32`
 ```
 
-**No raw pointer? Use `PhantomData`.** Sometimes a type has no raw pointer but should still be confined to one thread — for example, a file descriptor index or a handle obtained from a C library:
+**원시 포인터가 없나요? `PhantomData`를 쓰세요.** 타입에 원시 포인터가 없어도 한 스레드에만 묶여야 할 때가 있습니다 — 예: 파일 디스크립터 인덱스나 C 라이브러리에서 받은 핸들:
 
 ```rust
 use std::marker::PhantomData;
 
-/// An opaque handle from a C library. PhantomData<*const ()> makes it
-/// !Send + !Sync even though the inner fd is just a plain integer.
+/// C 라이브러리의 불투명 핸들. PhantomData<*const ()>로
+/// 내부 fd가 그냥 정수여도 !Send + !Sync가 됨.
 pub struct LibHandle {
     fd: i32,
     _not_send: PhantomData<*const ()>,
@@ -165,34 +170,35 @@ fn main() {
     let handle = LibHandle::open("/dev/sensor0");
     println!("fd = {}", handle.fd());
 
-    // ❌ Would not compile: LibHandle is !Send
+    // ❌ 컴파일 안 됨: LibHandle은 !Send
     // std::thread::spawn(move || { let _ = handle.fd(); });
 }
 ```
 
-This is the compile-time equivalent of C's "please read the documentation that says this handle isn't thread-safe." In Rust, the compiler enforces it.
+이것이 C의 "이 핸들은 스레드 안전하지 않다는 문서를 읽으세요"의 컴파일 타임 대응입니다. Rust에서는 컴파일러가 강제합니다.
 
-## Mutex Transforms !Sync into Sync
+<a id="mutex-transforms-notsync-into-sync"></a>
+## Mutex가 !Sync를 Sync로
 
-`Cell<T>` and `RefCell<T>` provide interior mutability without any synchronization — so they're `!Sync`. But sometimes you genuinely need to share mutable state across threads. `Mutex<T>` adds the missing synchronization, and the compiler recognizes this:
+`Cell<T>`와 `RefCell<T>`는 동기화 없이 내부 가변성을 제공하므로 `!Sync`입니다. 그러나 가끔은 스레드 간 가변 상태를 정말로 공유해야 합니다. `Mutex<T>`가 빠진 동기화를 더하고, 컴파일러는 이를 인식합니다:
 
-> **If `T: Send`, then `Mutex<T>: Send + Sync`.**
+> **`T: Send`이면 `Mutex<T>: Send + Sync`이다.**
 
-The lock serializes all access, so the `!Sync` inner type becomes safe to share. The compiler proves this structurally — no runtime check for "did the programmer remember to lock":
+락이 모든 접근을 직렬화하므로 내부의 `!Sync` 타입도 공유해도 안전해집니다. 컴파일러가 구조적으로 증명합니다 — "프로그래머가 잠그는 것을 기억했는지" 런타임 검사는 없습니다:
 
 ```rust
 use std::sync::{Arc, Mutex};
 use std::cell::Cell;
 
-/// A sensor cache using Cell for interior mutability.
-/// Cell<u32> is !Sync — can't be shared across threads directly.
+/// Cell로 내부 가변성을 쓰는 센서 캐시.
+/// Cell<u32>는 !Sync — 스레드 간에 직접 공유 불가.
 struct SensorCache {
     last_reading: Cell<u32>,
     reading_count: Cell<u32>,
 }
 
 fn main() {
-    // Mutex makes SensorCache safe to share — compiler proves it
+    // Mutex가 SensorCache 공유를 안전하게 — 컴파일러가 증명
     let cache = Arc::new(Mutex::new(SensorCache {
         last_reading: Cell::new(0),
         reading_count: Cell::new(0),
@@ -201,7 +207,7 @@ fn main() {
     let handles: Vec<_> = (0..4).map(|i| {
         let c = Arc::clone(&cache);
         std::thread::spawn(move || {
-            let guard = c.lock().unwrap();  // Must lock before access
+            let guard = c.lock().unwrap();  // 접근 전에 잠금
             guard.last_reading.set(i * 10);
             guard.reading_count.set(guard.reading_count.get() + 1);
         })
@@ -215,13 +221,14 @@ fn main() {
 }
 ```
 
-Compare to the C version: `pthread_mutex_lock` is a runtime call that the programmer can forget. Here, the type system makes it impossible to access `SensorCache` without going through the `Mutex`. The proof is structural — the only runtime cost is the lock itself.
+C 버전과 비교: `pthread_mutex_lock`은 프로그래머가 잊을 수 있는 런타임 호출입니다. 여기서는 타입 시스템이 `Mutex` 없이 `SensorCache`에 접근하는 것을 불가능하게 합니다. 증명은 구조적입니다 — 런타임 비용은 락 자체뿐입니다.
 
-> **`Mutex` doesn't just synchronize — it proves synchronization.** `Mutex::lock()` returns a `MutexGuard` that `Deref`s to `&T`. There is no way to obtain a reference to the inner data without going through the lock. The API makes "forgot to lock" structurally unrepresentable.
+> **`Mutex`는 동기화만 하는 것이 아니라 동기화를 증명합니다.** `Mutex::lock()`은 `MutexGuard`를 반환하고 `Deref`로 `&T`가 됩니다. 락을 거치지 않고 내부 데이터에 대한 참조를 얻을 방법이 없습니다. API가 "잠금을 잊음"을 구조적으로 표현할 수 없게 만듭니다.
 
-## Function Bounds as Theorems
+<a id="function-bounds-as-theorems"></a>
+## 함수 바운드는 정리다
 
-`std::thread::spawn` has this signature:
+`std::thread::spawn`의 시그니처는 다음과 같습니다:
 
 ```rust,ignore
 pub fn spawn<F, T>(f: F) -> JoinHandle<T>
@@ -230,17 +237,17 @@ where
     T: Send + 'static,
 ```
 
-The `Send + 'static` bound isn't just an implementation detail — it's a **theorem**:
+`Send + 'static` 바운드는 구현 세부가 아니라 **정리**입니다:
 
-> "Any closure and return value passed to `spawn` is proven at compile time to be safe to run on another thread, with no dangling references."
+> "`spawn`에 넘긴 클로저와 반환값은 컴파일 타임에 다른 스레드에서 안전하게 실행되고 댕글링 참조가 없음이 증명된다."
 
-You can apply the same pattern to your own APIs:
+같은 패턴을 자신의 API에도 적용할 수 있습니다:
 
 ```rust
 use std::sync::mpsc;
 
-/// Run a task on a background thread and return its result.
-/// The bounds prove: the closure and its result are thread-safe.
+/// 백그라운드 스레드에서 작업을 실행하고 결과를 반환.
+/// 바운드가 증명: 클로저와 결과가 스레드 안전.
 fn run_on_background<F, T>(task: F) -> T
 where
     F: FnOnce() -> T + Send + 'static,
@@ -254,22 +261,22 @@ where
 }
 
 fn main() {
-    // ✅ u32 is Send, closure captures nothing non-Send
+    // ✅ u32는 Send, 클로저가 non-Send를 캡처하지 않음
     let result = run_on_background(|| 6 * 7);
     println!("Result: {result}");
 
-    // ✅ String is Send
+    // ✅ String은 Send
     let greeting = run_on_background(|| String::from("hello from background"));
     println!("{greeting}");
 
-    // ❌ Would not compile: Rc is !Send
+    // ❌ 컴파일 안 됨: Rc는 !Send
     // use std::rc::Rc;
     // let data = Rc::new(42);
     // run_on_background(move || *data);
 }
 ```
 
-Uncommenting the `Rc` example produces a precise diagnostic:
+`Rc` 예제의 주석을 풀면 정확한 진단이 나옵니다:
 
 ```text
 error[E0277]: `Rc<i32>` cannot be sent between threads safely
@@ -284,64 +291,67 @@ note: required by a bound in `run_on_background`
     |                        ^^^^ required by this bound
 ```
 
-The compiler traces the violation back to the exact bound — and tells the programmer *why*. Compare to C's `pthread_create`:
+컴파일러는 위반을 정확한 바운드로 추적하고 프로그래머에게 *이유*를 알려줍니다. C의 `pthread_create`와 비교하세요:
 
 ```c
 int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                    void *(*start_routine)(void *), void *arg);
 ```
 
-The `void *arg` accepts anything — thread-safe or not. The C compiler can't distinguish a non-atomic refcount from a plain integer. Rust's trait bounds make the distinction at the type level.
+`void *arg`는 무엇이든 받습니다 — 스레드 안전 여부와 관계없이. C 컴파일러는 비원자 참조 카운트와 일반 정수를 구분하지 못합니다. Rust의 트레잇 바운드가 타입 수준에서 구분합니다.
 
-## When to Use Send/Sync Proofs
+<a id="when-to-use-send-sync-proofs"></a>
+## Send/Sync 증명을 언제 쓸까
 
-| Scenario | Approach |
+| 시나리오 | 접근 |
 |----------|----------|
-| Peripheral handle wrapping a raw pointer | Automatic `!Send + !Sync` — nothing to do |
-| Handle from C library (integer fd/handle) | Add `PhantomData<*const ()>` for `!Send + !Sync` |
-| Shared config behind a lock | `Arc<Mutex<T>>` — compiler proves access is safe |
-| Cross-thread message passing | `mpsc::channel` — `Send` bound enforced automatically |
-| Task spawner or thread pool API | Require `F: Send + 'static` in signature |
-| Single-threaded resource (e.g., GPU context) | `PhantomData<*const ()>` to prevent sharing |
-| Type should be `Send` but contains a raw pointer | `unsafe impl Send` with documented safety justification |
+| 원시 포인터를 감싼 주변 장치 핸들 | 자동 `!Send + !Sync` — 할 일 없음 |
+| C 라이브러리 핸들(정수 fd/핸들) | `!Send + !Sync`를 위해 `PhantomData<*const ()>` 추가 |
+| 락 뒤의 공유 설정 | `Arc<Mutex<T>>` — 컴파일러가 접근 안전 증명 |
+| 스레드 간 메시지 전달 | `mpsc::channel` — `Send` 바운드 자동 강제 |
+| 작업 스포너 또는 스레드 풀 API | 시그니처에 `F: Send + 'static` 요구 |
+| 단일 스레드 리소스(예: GPU 컨텍스트) | 공유 방지를 위해 `PhantomData<*const ()>` |
+| `Send`여야 하는데 원시 포인터를 포함 | 문서화된 안전 근거와 함께 `unsafe impl Send` |
 
-### Cost Summary
+<a id="cost-summary-ch16"></a>
+### 비용 요약
 
-| What | Runtime cost |
+| 항목 | 런타임 비용 |
 |------|:------:|
-| `Send` / `Sync` auto-derivation | Compile time only — 0 bytes |
-| `PhantomData<*const ()>` field | Zero-sized — optimised away |
-| `!Send` / `!Sync` enforcement | Compile time only — no runtime check |
-| `F: Send + 'static` function bounds | Monomorphised — static dispatch, no boxing |
-| `Mutex<T>` lock | Runtime lock (unavoidable for shared mutation) |
-| `Arc<T>` reference counting | Atomic increment/decrement (unavoidable for shared ownership) |
+| `Send` / `Sync` 자동 파생 | 컴파일 타임만 — 0바이트 |
+| `PhantomData<*const ()>` 필드 | 0 크기 — 최적화로 제거 |
+| `!Send` / `!Sync` 강제 | 컴파일 타임만 — 런타임 검사 없음 |
+| `F: Send + 'static` 함수 바운드 | 단일화 — 정적 디스패치, 박싱 없음 |
+| `Mutex<T>` 락 | 런타임 락(공유 가변에 불가피) |
+| `Arc<T>` 참조 카운트 | 원자적 증가/감소(공유 소유에 불가피) |
 
-The first four rows are **zero-cost** — they exist only in the type system and vanish after compilation. `Mutex` and `Arc` carry unavoidable runtime costs, but those costs are the *minimum* any correct concurrent program must pay — Rust just makes sure you pay them.
+처음 네 행은 **제로 코스트** — 타입 시스템에만 존재하고 컴파일 후 사라집니다. `Mutex`와 `Arc`는 불가피한 런타임 비용이 있지만, 올바른 동시 프로그램이 **최소한** 지불해야 하는 비용입니다 — Rust는 그 비용을 반드시 치르도록 합니다.
 
-## Exercise: DMA Transfer Guard
+<a id="exercise-dma-transfer-guard"></a>
+## 연습: DMA 전송 가드
 
-Design a `DmaTransfer<T>` that holds a buffer while a DMA transfer is in flight. Requirements:
+DMA 전송이 진행 중일 때 버퍼을 들고 있는 `DmaTransfer<T>`를 설계하세요. 요구사항:
 
-1. `DmaTransfer` must be `!Send` — the DMA controller uses physical addresses tied to this core's memory bus
-2. `DmaTransfer` must be `!Sync` — concurrent reads while DMA is writing would see torn data
-3. Provide a `wait()` method that **consumes** the guard and returns the buffer — ownership proves the transfer is complete
-4. The buffer type `T` must implement a `DmaSafe` marker trait
+1. `DmaTransfer`는 `!Send`이어야 함 — DMA 컨트롤러가 이 코어의 메모리 버스에 묶인 물리 주소를 사용
+2. `DmaTransfer`는 `!Sync`이어야 함 — DMA가 쓰는 동안 동시 읽기는 찢어진 데이터를 봄
+3. 가드를 **소비**하고 버퍼를 반환하는 `wait()` 메서드 제공 — 소유권이 전송 완료를 증명
+4. 버퍼 타입 `T`는 `DmaSafe` 마커 트레잇을 구현해야 함
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust
 use std::marker::PhantomData;
 
-/// Marker trait for types that can be used as DMA buffers.
-/// In real firmware: type must be repr(C) with no padding.
+/// DMA 버퍼로 쓸 수 있는 타입을 나타내는 마커 트레잇.
+/// 실제 펌웨어: repr(C)이고 패딩 없어야 함.
 trait DmaSafe {}
 
 impl DmaSafe for [u8; 64] {}
 impl DmaSafe for [u8; 256] {}
 
-/// A guard representing an in-flight DMA transfer.
-/// !Send + !Sync: can't be sent to another thread or shared.
+/// 진행 중인 DMA 전송을 나타내는 가드.
+/// !Send + !Sync: 다른 스레드로 보내거나 공유할 수 없음.
 pub struct DmaTransfer<T: DmaSafe> {
     buffer: T,
     channel: u8,
@@ -349,9 +359,9 @@ pub struct DmaTransfer<T: DmaSafe> {
 }
 
 impl<T: DmaSafe> DmaTransfer<T> {
-    /// Start a DMA transfer. The buffer is consumed — no one else can touch it.
+    /// DMA 전송 시작. 버퍼는 소비됨 — 다른 곳에서 건드릴 수 없음.
     pub fn start(buffer: T, channel: u8) -> Self {
-        // In real firmware: configure DMA channel, set source/dest, start transfer
+        // 실제 펌웨어: DMA 채널 설정, 소스/목적지, 전송 시작
         println!("DMA channel {} started", channel);
         Self {
             buffer,
@@ -360,10 +370,10 @@ impl<T: DmaSafe> DmaTransfer<T> {
         }
     }
 
-    /// Wait for the transfer to complete and return the buffer.
-    /// Consumes self — the guard no longer exists after this.
+    /// 전송 완료까지 대기 후 버퍼 반환.
+    /// self를 소비 — 이후 가드는 존재하지 않음.
     pub fn wait(self) -> T {
-        // In real firmware: poll DMA status register until complete
+        // 실제 펌웨어: 완료될 때까지 DMA 상태 레지스터 폴링
         println!("DMA channel {} complete", self.channel);
         self.buffer
     }
@@ -372,16 +382,16 @@ impl<T: DmaSafe> DmaTransfer<T> {
 fn main() {
     let buf = [0u8; 64];
 
-    // Start transfer — buf is moved into the guard
+    // 전송 시작 — buf가 가드로 이동
     let transfer = DmaTransfer::start(buf, 2);
 
-    // ❌ buf is no longer accessible — ownership prevents use-during-DMA
+    // ❌ buf에 더 이상 접근 불가 — 소유권이 DMA 중 사용 방지
     // println!("{:?}", buf);
 
-    // ❌ Would not compile: DmaTransfer is !Send
+    // ❌ 컴파일 안 됨: DmaTransfer는 !Send
     // std::thread::spawn(move || { transfer.wait(); });
 
-    // ✅ Wait on the original thread, get the buffer back
+    // ✅ 원래 스레드에서 대기 후 버퍼 회수
     let buf = transfer.wait();
     println!("Buffer recovered: {} bytes", buf.len());
 }
@@ -391,25 +401,25 @@ fn main() {
 
 ```mermaid
 flowchart TB
-    subgraph compiler["Compile Time — Auto-Derived Proofs"]
+    subgraph compiler["컴파일 타임 — 자동 파생 증명"]
         direction TB
-        SEND["Send<br/>✅ safe to move across threads"]
-        SYNC["Sync<br/>✅ safe to share references"]
-        NOTSEND["!Send<br/>❌ confined to one thread"]
-        NOTSYNC["!Sync<br/>❌ no concurrent sharing"]
+        SEND["Send<br/>✅ 스레드 간 이동 안전"]
+        SYNC["Sync<br/>✅ 참조 공유 안전"]
+        NOTSEND["!Send<br/>❌ 한 스레드에 묶임"]
+        NOTSYNC["!Sync<br/>❌ 동시 공유 불가"]
     end
 
-    subgraph types["Type Taxonomy"]
+    subgraph types["타입 분류"]
         direction TB
-        PLAIN["Primitives, String, Vec<br/>Send + Sync"]
+        PLAIN["원시 타입, String, Vec<br/>Send + Sync"]
         CELL["Cell, RefCell<br/>Send + !Sync"]
-        RC["Rc, raw pointers<br/>!Send + !Sync"]
-        MUTEX["Mutex&lt;T&gt;<br/>restores Sync"]
-        ARC["Arc&lt;T&gt;<br/>shared ownership + Send"]
+        RC["Rc, 원시 포인터<br/>!Send + !Sync"]
+        MUTEX["Mutex&lt;T&gt;<br/>Sync 복원"]
+        ARC["Arc&lt;T&gt;<br/>공유 소유 + Send"]
     end
 
-    subgraph runtime["Runtime"]
-        SAFE["Thread-safe access<br/>No data races<br/>No forgotten locks"]
+    subgraph runtime["런타임"]
+        SAFE["스레드 안전 접근<br/>데이터 레이스 없음<br/>잠금 잊지 않음"]
     end
 
     SEND --> PLAIN
@@ -431,16 +441,17 @@ flowchart TB
     style SAFE fill:#c8e6c9,color:#000
 ```
 
-## Key Takeaways
+<a id="key-takeaways-ch16"></a>
+## 핵심 정리
 
-1. **`Send` and `Sync` are compile-time proofs about concurrency safety** — the compiler derives them structurally by inspecting every field. No annotation, no runtime cost, no opt-in needed.
+1. **`Send`와 `Sync`는 동시성 안전에 대한 컴파일 타임 증명** — 컴파일러가 모든 필드를 살펴 구조적으로 파생합니다. 어노테이션 없음, 런타임 비용 없음, 옵트인 불필요.
 
-2. **Raw pointers automatically opt out** — any type containing `*const T` or `*mut T` becomes `!Send + !Sync`. This makes peripheral handles naturally thread-confined.
+2. **원시 포인터는 자동으로 빠짐** — `*const T`나 `*mut T`를 포함하면 `!Send + !Sync`가 됩니다. 주변 장치 핸들이 자연스럽게 스레드에 묶입니다.
 
-3. **`PhantomData<*const ()>` is the explicit opt-out** — when a type has no raw pointer but should still be thread-confined (C library handles, GPU contexts), a phantom field does the job.
+3. **`PhantomData<*const ()>`가 명시적 opt-out** — 원시 포인터는 없지만 스레드에 묶여야 할 때(C 라이브러리 핸들, GPU 컨텍스트) 팬텀 필드가 역할을 합니다.
 
-4. **`Mutex<T>` restores `Sync` with proof** — the compiler structurally proves that all access goes through the lock. Unlike C's `pthread_mutex_t`, you cannot forget to lock.
+4. **`Mutex<T>`가 증명과 함께 `Sync`를 복원** — 컴파일러가 모든 접근이 락을 통해 간다는 것을 구조적으로 증명합니다. C의 `pthread_mutex_t`와 달리 잠그는 것을 잊을 수 없습니다.
 
-5. **Function bounds are theorems** — `F: Send + 'static` in a spawner's signature is a compile-time proof obligation: every call site must prove its closure is thread-safe. Compare to C's `void *arg` which accepts anything.
+5. **함수 바운드는 정리** — 스포너 시그니처의 `F: Send + 'static`은 컴파일 타임 증명 의무입니다: 모든 호출 지점이 클로저가 스레드 안전함을 증명해야 합니다. 무엇이든 받는 C의 `void *arg`와 비교하세요.
 
-6. **The pattern complements all other correctness techniques** — typestate proves protocol sequencing, phantom types prove permissions, `const fn` proves value invariants, and `Send`/`Sync` prove concurrency safety. Together they cover the full correctness surface.
+6. **이 패턴은 다른 정확성 기법과 보완** — typestate는 프로토콜 순서, 팬텀 타입은 권한, `const fn`은 값 불변식, `Send`/`Sync`는 동시성 안전을 증명합니다. 함께 쓰면 정확성 전체를 덮습니다.

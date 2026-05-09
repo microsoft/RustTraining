@@ -1,66 +1,63 @@
-# Capability Mixins — Compile-Time Hardware Contracts 🟡
+<a id="capability-mixins-compile-time-hardware-contracts"></a>
+# Capability Mixin — 컴파일 타임 하드웨어 계약 🟡
 
-> **What you'll learn:** How ingredient traits (bus capabilities) combined with mixin traits and blanket impls eliminate diagnostic code duplication while guaranteeing every hardware dependency is satisfied at compile time.
+> **이 장에서 배울 내용:** 버스 역량(ingredient trait)과 mixin 트레잇, blanket impl을 결합해 진단 코드 중복을 없애면서, 모든 하드웨어 의존성이 **컴파일 타임에** 충족됨을 보장하는 방법입니다.
 >
-> **Cross-references:** [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types), [ch10](ch10-putting-it-all-together-a-complete-diagn.md) (integration)
+> **상호 참조:** [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md)(capability token), [ch09](ch09-phantom-types-for-resource-tracking.md)(phantom type), [ch10](ch10-putting-it-all-together-a-complete-diagn.md)(통합)
 
-## The Problem: Diagnostic Code Duplication
+<a id="the-problem-diagnostic-code-duplication"></a>
+## 문제: 진단 코드 중복
 
-Server platforms share diagnostic patterns across subsystems. Fan diagnostics,
-temperature monitoring, and power sequencing all follow similar workflows but
-operate on different hardware buses. Without abstraction, you get copy-paste:
+서버 플랫폼은 서브시스템마다 진단 패턴을 공유합니다. 팬 진단, 온도 모니터링, 전원 시퀀싱은 비슷한 워크플로를 따르지만 서로 다른 하드웨어 버스에서 동작합니다. 추상화가 없으면 복붙이 생깁니다.
 
 ```c
-// C — duplicated logic across subsystems
+// C — 서브시스템마다 중복된 로직
 int run_fan_diag(spi_bus_t *spi, i2c_bus_t *i2c) {
-    // ... 50 lines of SPI sensor read ...
-    // ... 30 lines of I2C register check ...
-    // ... 20 lines of threshold comparison (same as CPU diag) ...
+    // ... SPI 센서 읽기 50줄 ...
+    // ... I2C 레지스터 확인 30줄 ...
+    // ... 임계값 비교 20줄(CPU 진단과 동일) ...
 }
 
 int run_cpu_temp_diag(i2c_bus_t *i2c, gpio_t *gpio) {
-    // ... 30 lines of I2C register check (same as fan diag) ...
-    // ... 15 lines of GPIO alert check ...
-    // ... 20 lines of threshold comparison (same as fan diag) ...
+    // ... I2C 레지스터 확인 30줄(팬 진단과 동일) ...
+    // ... GPIO 알림 확인 15줄 ...
+    // ... 임계값 비교 20줄(팬 진단과 동일) ...
 }
 ```
 
-The threshold comparison logic is identical, but you can't extract it because the
-bus types differ. With capability mixins, each hardware bus is an **ingredient
-trait**, and diagnostic behaviors are automatically provided when the right
-ingredients are present.
+임계값 비교 로직은 동일하지만, 버스 타입이 달라 추출하기 어렵습니다. capability mixin을 쓰면 각 하드웨어 버스가 **ingredient 트레잇**이 되고, 올바른 재료가 있으면 진단 동작이 **자동으로** 제공됩니다.
 
-## Ingredient Traits (Hardware Capabilities)
+<a id="ingredient-traits-hardware-capabilities"></a>
+## Ingredient 트레잇(하드웨어 역량)
 
-Each bus or peripheral is an associated type on a trait. A diagnostic controller
-declares which buses it has:
+각 버스나 주변 장치는 트레잇의 연관 타입입니다. 진단 컨트롤러는 어떤 버스를 갖는지 선언합니다.
 
 ```rust,ignore
-/// SPI bus capability.
+/// SPI 버스 역량.
 pub trait HasSpi {
     type Spi: SpiBus;
     fn spi(&self) -> &Self::Spi;
 }
 
-/// I2C bus capability.
+/// I2C 버스 역량.
 pub trait HasI2c {
     type I2c: I2cBus;
     fn i2c(&self) -> &Self::I2c;
 }
 
-/// GPIO pin access capability.
+/// GPIO 핀 접근 역량.
 pub trait HasGpio {
     type Gpio: GpioController;
     fn gpio(&self) -> &Self::Gpio;
 }
 
-/// IPMI access capability.
+/// IPMI 접근 역량.
 pub trait HasIpmi {
     type Ipmi: IpmiClient;
     fn ipmi(&self) -> &Self::Ipmi;
 }
 
-// Bus trait definitions:
+// 버스 트레잇 정의:
 pub trait SpiBus {
     fn transfer(&self, data: &[u8]) -> Vec<u8>;
 }
@@ -80,10 +77,10 @@ pub trait IpmiClient {
 }
 ```
 
-## Mixin Traits (Diagnostic Behaviors)
+<a id="mixin-traits-diagnostic-behaviors"></a>
+## Mixin 트레잇(진단 동작)
 
-A mixin provides behavior **automatically** to any type that has the required
-capabilities:
+Mixin은 필요한 역량을 갖춘 **모든 타입**에 동작을 **자동으로** 제공합니다.
 
 ```rust,ignore
 # pub trait SpiBus { fn transfer(&self, data: &[u8]) -> Vec<u8>; }
@@ -98,22 +95,22 @@ capabilities:
 # pub trait HasGpio { type Gpio: GpioController; fn gpio(&self) -> &Self::Gpio; }
 # pub trait HasIpmi { type Ipmi: IpmiClient; fn ipmi(&self) -> &Self::Ipmi; }
 
-/// Fan diagnostic mixin — auto-implemented for anything with SPI + I2C.
+/// 팬 진단 mixin — SPI + I2C가 있으면 자동 구현.
 pub trait FanDiagMixin: HasSpi + HasI2c {
     fn read_fan_speed(&self, fan_id: u8) -> u32 {
-        // Read tachometer via SPI
+        // SPI로 타코미터 읽기
         let cmd = [0x80 | fan_id, 0x00];
         let response = self.spi().transfer(&cmd);
         u32::from_be_bytes([0, 0, response[0], response[1]])
     }
 
     fn set_fan_pwm(&self, fan_id: u8, duty_percent: u8) {
-        // Set PWM via I2C controller
+        // I2C 컨트롤러로 PWM 설정
         self.i2c().write_register(0x2E, fan_id, duty_percent);
     }
 
     fn run_fan_diagnostic(&self) -> bool {
-        // Full diagnostic: read all fans, check thresholds
+        // 전체 진단: 모든 팬 읽기, 임계값 확인
         for fan_id in 0..6 {
             let speed = self.read_fan_speed(fan_id);
             if speed < 1000 || speed > 20000 {
@@ -125,14 +122,14 @@ pub trait FanDiagMixin: HasSpi + HasI2c {
     }
 }
 
-// Blanket implementation — ANY type with SPI + I2C gets FanDiagMixin for free
+// Blanket 구현 — SPI + I2C를 가진 **어떤 타입**이든 FanDiagMixin을 무료로 얻음
 impl<T: HasSpi + HasI2c> FanDiagMixin for T {}
 
-/// Temperature monitoring mixin — requires I2C + GPIO.
+/// 온도 모니터링 mixin — I2C + GPIO 필요.
 pub trait TempMonitorMixin: HasI2c + HasGpio {
     fn read_temperature(&self, sensor_addr: u8) -> f64 {
         let raw = self.i2c().read_register(sensor_addr, 0x00);
-        raw as f64 * 0.5  // 0.5°C per LSB
+        raw as f64 * 0.5  // LSB당 0.5°C
     }
 
     fn check_thermal_alert(&self, alert_pin: u32) -> bool {
@@ -157,11 +154,11 @@ pub trait TempMonitorMixin: HasI2c + HasGpio {
 
 impl<T: HasI2c + HasGpio> TempMonitorMixin for T {}
 
-/// Power sequencing mixin — requires I2C + IPMI.
+/// 전원 시퀀싱 mixin — I2C + IPMI 필요.
 pub trait PowerSeqMixin: HasI2c + HasIpmi {
     fn read_voltage_rail(&self, rail: u8) -> f64 {
         let raw = self.i2c().read_register(0x40, rail);
-        raw as f64 * 0.01  // 10mV per LSB
+        raw as f64 * 0.01  // LSB당 10mV
     }
 
     fn check_power_good(&self) -> bool {
@@ -173,10 +170,10 @@ pub trait PowerSeqMixin: HasI2c + HasIpmi {
 impl<T: HasI2c + HasIpmi> PowerSeqMixin for T {}
 ```
 
-## Concrete Controller — Mix and Match
+<a id="concrete-controller-mix-and-match"></a>
+## 구체적 컨트롤러 — 조합
 
-A concrete diagnostic controller declares its capabilities, and **automatically
-inherits** all matching mixins:
+구체적인 진단 컨트롤러는 역량을 선언하면 **자동으로** 맞는 mixin을 **상속**합니다.
 
 ```rust,ignore
 # pub trait SpiBus { fn transfer(&self, data: &[u8]) -> Vec<u8>; }
@@ -200,7 +197,7 @@ inherits** all matching mixins:
 # pub trait PowerSeqMixin: HasI2c + HasIpmi {}
 # impl<T: HasI2c + HasIpmi> PowerSeqMixin for T {}
 
-// Concrete bus implementations (stubs for illustration)
+// 구체 버스 구현(예시용 스텁)
 pub struct LinuxSpi { bus: u8 }
 impl SpiBus for LinuxSpi {
     fn transfer(&self, data: &[u8]) -> Vec<u8> { vec![0; data.len()] }
@@ -223,7 +220,7 @@ impl IpmiClient for IpmiToolClient {
     fn send_raw(&self, _netfn: u8, _cmd: u8, _data: &[u8]) -> Vec<u8> { vec![0x00] }
 }
 
-/// BaseBoardController has ALL buses → gets ALL mixins.
+/// BaseBoardController는 모든 버스 보유 → 모든 mixin 획득.
 pub struct BaseBoardController {
     spi: LinuxSpi,
     i2c: LinuxI2c,
@@ -251,52 +248,51 @@ impl HasIpmi for BaseBoardController {
     fn ipmi(&self) -> &IpmiToolClient { &self.ipmi }
 }
 
-// BaseBoardController now automatically has:
-// - FanDiagMixin    (because it HasSpi + HasI2c)
-// - TempMonitorMixin (because it HasI2c + HasGpio)
-// - PowerSeqMixin   (because it HasI2c + HasIpmi)
-// No manual implementation needed — blanket impls do it all.
+// BaseBoardController는 이제 자동으로:
+// - FanDiagMixin    (HasSpi + HasI2c 때문에)
+// - TempMonitorMixin (HasI2c + HasGpio 때문에)
+// - PowerSeqMixin   (HasI2c + HasIpmi 때문에)
+// 수동 구현 불필요 — blanket impl이 모두 처리.
 ```
 
-## Correct-by-Construction Aspect
+<a id="correct-by-construction-aspect"></a>
+## 올바른 구성(correct-by-construction) 측면
 
-The mixin pattern is correct-by-construction because:
+Mixin 패턴이 correct-by-construction인 이유:
 
-1. **You can't call `read_fan_speed()` without SPI** — the method only exists on
-   types that implement `HasSpi + HasI2c`
-2. **You can't forget a bus** — if you remove `HasSpi` from `BaseBoardController`,
-   `FanDiagMixin` methods disappear at compile time
-3. **Mock testing is automatic** — replace `LinuxSpi` with `MockSpi` and
-   all mixin logic works with the mock
-4. **New platforms just declare capabilities** — a GPU daughter card with only I2C
-   gets `TempMonitorMixin` (if it also has GPIO) but not `FanDiagMixin` (no SPI)
+1. **`read_fan_speed()`를 SPI 없이 호출할 수 없음** — 메서드는 `HasSpi + HasI2c`를 구현한 타입에만 존재
+2. **버스를 빠뜨릴 수 없음** — `BaseBoardController`에서 `HasSpi`를 제거하면 `FanDiagMixin` 메서드가 컴파일 타임에 사라짐
+3. **모의(mock) 테스트가 자동** — `LinuxSpi`를 `MockSpi`로 바꿔도 mixin 로직은 그대로 동작
+4. **새 플랫폼은 역량만 선언** — I2C만 있는 GPU 딸카드는(GPIO도 있으면) `TempMonitorMixin`은 얻지만 `FanDiagMixin`은 얻지 못함(SPI 없음)
 
-### When to Use Capability Mixins
+<a id="when-to-use-capability-mixins"></a>
+### 언제 capability mixin을 쓸까
 
-| Scenario | Use mixins? |
-|----------|:------:|
-| Cross-cutting diagnostic behaviors | ✅ Yes — prevent copy-paste |
-| Multi-bus hardware controllers | ✅ Yes — declare capabilities, get behaviors |
-| Platform-specific test harnesses | ✅ Yes — mock capabilities for testing |
-| Single-bus simple peripherals | ⚠️ Overhead may not be worth it |
-| Pure business logic (no hardware) | ❌ Simpler patterns suffice |
+| 시나리오 | mixin 사용? |
+|----------|:-----------:|
+| 횡단 관심사 진단 동작 | 예 — 복붙 방지 |
+| 멀티 버스 하드웨어 컨트롤러 | 예 — 역량 선언, 동작 획득 |
+| 플랫폼별 테스트 하네스 | 예 — 역량 모의 |
+| 단일 버스 단순 주변 장치 | 경고 — 오버헤드가 값어치 없을 수 있음 |
+| 순수 비즈니스 로직(하드웨어 없음) | 아니요 — 더 단순한 패턴으로 충분 |
 
-## Mixin Trait Architecture
+<a id="mixin-trait-architecture"></a>
+## Mixin 트레잇 아키텍처
 
 ```mermaid
 flowchart TD
-    subgraph "Ingredient Traits"
+    subgraph "Ingredient 트레잇"
         SPI["HasSpi"]
         I2C["HasI2c"]
         GPIO["HasGpio"]
     end
-    subgraph "Mixin Traits (blanket impls)"
+    subgraph "Mixin 트레잇(blanket impl)"
         FAN["FanDiagMixin"]
         TEMP["TempMonitorMixin"]
     end
-    SPI & I2C -->|"requires both"| FAN
-    I2C & GPIO -->|"requires both"| TEMP
-    subgraph "Concrete Types"
+    SPI & I2C -->|"둘 다 필요"| FAN
+    I2C & GPIO -->|"둘 다 필요"| TEMP
+    subgraph "구체 타입"
         BBC["BaseBoardController"]
     end
     BBC -->|"impl HasSpi + HasI2c + HasGpio"| FAN & TEMP
@@ -308,16 +304,18 @@ flowchart TD
     style BBC fill:#fff3e0,color:#000
 ```
 
-## Exercise: Network Diagnostic Mixins
+<a id="exercise-network-diagnostic-mixins"></a>
+## 연습: 네트워크 진단 Mixin
 
-Design a mixin system for network diagnostics:
-- Ingredient traits: `HasEthernet`, `HasIpmi`
-- Mixin: `LinkHealthMixin` (requires `HasEthernet`) with `check_link_status(&self)`
-- Mixin: `RemoteDiagMixin` (requires `HasEthernet + HasIpmi`) with `remote_health_check(&self)`
-- Concrete type: `NicController` that implements both ingredients.
+네트워크 진단용 mixin 시스템을 설계하세요.
+
+- Ingredient 트레잇: `HasEthernet`, `HasIpmi`
+- Mixin: `HasEthernet`이 필요한 `LinkHealthMixin` — `check_link_status(&self)`
+- Mixin: `HasEthernet + HasIpmi`가 필요한 `RemoteDiagMixin` — `remote_health_check(&self)`
+- 구체 타입: 두 ingredient를 모두 구현하는 `NicController`
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust,ignore
 pub trait HasEthernet {
@@ -353,18 +351,19 @@ impl HasEthernet for NicController {
 impl HasIpmi for NicController {
     fn ipmi_ping(&self) -> bool { true }
 }
-// NicController automatically gets both mixin methods
+// NicController는 두 mixin 메서드를 자동으로 얻음
 ```
 
 </details>
 
-## Key Takeaways
+<a id="key-takeaways"></a>
+## 핵심 정리
 
-1. **Ingredient traits declare hardware capabilities** — `HasSpi`, `HasI2c`, `HasGpio` are associated-type traits.
-2. **Mixin traits provide behaviour via blanket impls** — `impl<T: HasSpi + HasI2c> FanDiagMixin for T {}`.
-3. **Adding a new platform = listing its capabilities** — the compiler provides all matching mixin methods.
-4. **Removing a bus = compile errors everywhere it's used** — you can't forget to update downstream code.
-5. **Mock testing is free** — swap `LinuxSpi` for `MockSpi`; all mixin logic works unchanged.
+1. **Ingredient 트레잇이 하드웨어 역량을 선언합니다** — `HasSpi`, `HasI2c`, `HasGpio`는 연관 타입 트레잇입니다.
+2. **Mixin 트레잇이 blanket impl로 동작을 제공합니다** — `impl<T: HasSpi + HasI2c> FanDiagMixin for T {}`.
+3. **새 플랫폼 = 역량 나열** — 컴파일러가 맞는 mixin 메서드를 모두 제공합니다.
+4. **버스 제거 = 사용처 전부 컴파일 오류** — 하류 코드 업데이트를 잊을 수 없습니다.
+5. **모의 테스트가 공짜** — `LinuxSpi`를 `MockSpi`로 바꿔도 mixin 로직은 동일합니다.
 
 ---
 

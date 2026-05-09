@@ -1,15 +1,15 @@
-## Incremental Adoption Strategy
+<a id="incremental-adoption-strategy"></a>
+## 점진적 도입 전략
 
-> **What you'll learn:** A phased approach to introducing Rust in a C#/.NET organization —
-> from learning exercises (weeks 1–4) to performance-critical replacements (weeks 5–8)
-> to new microservices (weeks 9–12), with concrete team adoption timelines.
+> **이 장에서 배우는 것:** C#/.NET 조직에 Rust를 도입할 때의 단계별 접근 방식. 학습과 실험(1~4주)에서 시작해 성능 병목 컴포넌트 교체(5~8주), 신규 마이크로서비스 개발(9~12주)로 이어지는 흐름과, 팀 단위 도입 일정 예시를 함께 살펴봅니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-### Phase 1: Learning and Experimentation (Weeks 1-4)
+<a id="phase-1-learning-and-experimentation-weeks-1-4"></a>
+### 1단계: 학습과 실험 (1~4주차)
 ```rust
-// Start with command-line tools and utilities
-// Example: Log file analyzer
+// 명령줄 도구와 유틸리티부터 시작한다
+// 예: 로그 파일 분석기
 use std::fs;
 use std::collections::HashMap;
 use clap::Parser;
@@ -48,10 +48,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Phase 2: Replace Performance-Critical Components (Weeks 5-8)
+<a id="phase-2-replace-performance-critical-components-weeks-5-8"></a>
+### 2단계: 성능이 중요한 컴포넌트 교체 (5~8주차)
 ```rust
-// Replace CPU-intensive data processing
-// Example: Image processing microservice
+// CPU 집약적인 데이터 처리를 Rust로 교체한다
+// 예: 이미지 처리 마이크로서비스
 use image::{DynamicImage, ImageBuffer, Rgb};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -120,10 +121,11 @@ struct ProcessingError(String);
 impl warp::reject::Reject for ProcessingError {}
 ```
 
-### Phase 3: New Microservices (Weeks 9-12)
+<a id="phase-3-new-microservices-weeks-9-12"></a>
+### 3단계: 신규 마이크로서비스 개발 (9~12주차)
 ```rust
-// Build new services from scratch in Rust
-// Example: Authentication service
+// 새 서비스를 처음부터 Rust로 작성한다
+// 예: 인증 서비스
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -227,22 +229,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ***
 
-## Team Adoption Timeline
+<a id="team-adoption-timeline"></a>
+## 팀 도입 타임라인
 
-### Month 1: Foundation
-**Week 1-2: Syntax and Ownership**
-- Basic syntax differences from C#
-- Understanding ownership, borrowing, and lifetimes
-- Small exercises: CLI tools, file processing
+<a id="month-1-foundation"></a>
+### 1개월 차: 기초 다지기
+**1~2주차: 문법과 소유권**
+- C#과의 기본 문법 차이 이해
+- 소유권, 대여, 라이프타임 이해
+- 작은 실습: CLI 도구, 파일 처리
 
-**Week 3-4: Error Handling and Types**
-- `Result<T, E>` vs exceptions
-- `Option<T>` vs nullable types
-- Pattern matching and exhaustive checking
+**3~4주차: 에러 처리와 타입**
+- 예외 대신 `Result<T, E>` 사용
+- nullable 타입 대신 `Option<T>` 사용
+- 패턴 매칭과 exhaustive checking 이해
 
-**Recommended exercises:**
+**추천 실습:**
 ```rust
-// Week 1-2: File processor
+// 1~2주차: 파일 처리기
 fn process_log_file(path: &str) -> Result<Vec<String>, std::io::Error> {
     let content = std::fs::read_to_string(path)?;
     let errors: Vec<String> = content
@@ -253,7 +257,7 @@ fn process_log_file(path: &str) -> Result<Vec<String>, std::io::Error> {
     Ok(errors)
 }
 
-// Week 3-4: JSON processor with error handling
+// 3~4주차: 에러 처리가 포함된 JSON 처리기
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -269,20 +273,21 @@ fn parse_log_entries(json_str: &str) -> Result<Vec<LogEntry>, Box<dyn std::error
 }
 ```
 
-### Month 2: Practical Applications
-**Week 5-6: Traits and Generics**
-- Trait system vs interfaces
-- Generic constraints and bounds
-- Common patterns and idioms
+<a id="month-2-practical-applications"></a>
+### 2개월 차: 실전 적용
+**5~6주차: 트레잇과 제네릭**
+- 인터페이스 대신 트레잇 시스템 이해
+- 제네릭 제약과 바운드 익히기
+- 자주 쓰는 패턴과 관용구 습득
 
-**Week 7-8: Async Programming and Concurrency**
-- `async`/`await` similarities and differences
-- Channels for communication
-- Thread safety guarantees
+**7~8주차: 비동기 프로그래밍과 동시성**
+- `async`/`await`의 공통점과 차이점 이해
+- 통신을 위한 채널 사용
+- 스레드 안전성 보장 방식 이해
 
-**Recommended projects:**
+**추천 프로젝트:**
 ```rust
-// Week 5-6: Generic data processor
+// 5~6주차: 제네릭 데이터 처리기
 trait DataProcessor<T> {
     type Output;
     type Error;
@@ -301,7 +306,7 @@ impl DataProcessor<&str> for JsonProcessor {
     }
 }
 
-// Week 7-8: Async web client
+// 7~8주차: 비동기 웹 클라이언트
 async fn fetch_and_process_data(urls: Vec<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     
@@ -326,18 +331,17 @@ async fn fetch_and_process_data(urls: Vec<&str>) -> Result<(), Box<dyn std::erro
 }
 ```
 
-### Month 3+: Production Integration
-**Week 9-12: Real Project Work**
-- Choose a non-critical component to rewrite
-- Implement comprehensive error handling
-- Add logging, metrics, and testing
-- Performance profiling and optimization
+<a id="month-3-production-integration"></a>
+### 3개월 차 이후: 프로덕션 통합
+**9~12주차: 실제 프로젝트 작업**
+- 중요도가 낮은 컴포넌트 하나를 골라 재작성
+- 포괄적인 에러 처리 구현
+- 로깅, 메트릭, 테스트 추가
+- 성능 프로파일링 및 최적화
 
-**Ongoing: Team Review and Mentoring**
-- Code reviews focusing on Rust idioms
-- Pair programming sessions
-- Knowledge sharing sessions
+**지속 과제: 팀 리뷰와 멘토링**
+- Rust 관용구에 초점을 둔 코드 리뷰
+- 페어 프로그래밍 세션
+- 지식 공유 세션
 
 ***
-
-

@@ -1,127 +1,130 @@
-# Cross-Compilation — One Source, Many Targets 🟡
+<a id="cross-compilation-one-source-many-target"></a>
+# 크로스 컴파일 — 하나의 소스, 여러 타깃 🟡
 
-> **What you'll learn:**
-> - How Rust target triples work and how to add them with `rustup`
-> - Building static musl binaries for container/cloud deployment
-> - Cross-compiling to ARM (aarch64) with native toolchains, `cross`, and `cargo-zigbuild`
-> - Setting up GitHub Actions matrix builds for multi-architecture CI
+> **이 장에서 배울 내용:**
+> - Rust 타깃 트리플이 어떻게 동작하고 `rustup`으로 어떻게 추가하는지
+> - 컨테이너·클라우드 배포를 위한 musl 정적 바이너리 빌드
+> - 네이티브 툴체인, `cross`, `cargo-zigbuild`로 ARM(aarch64) 크로스 컴파일
+> - 멀티 아키텍처 CI를 위한 GitHub Actions 매트릭스 빌드 설정
 >
-> **Cross-references:** [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) — build.rs runs on HOST during cross-compilation · [Release Profiles](ch07-release-profiles-and-binary-size.md) — LTO and strip settings for cross-compiled release binaries · [Windows](ch10-windows-and-conditional-compilation.md) — Windows cross-compilation and `no_std` targets
+> **교차 참고:** [빌드 스크립트](ch01-build-scripts-buildrs-in-depth.md) — 크로스 컴파일 시에도 build.rs는 HOST에서 실행됩니다 · [릴리스 프로파일](ch07-release-profiles-and-binary-size.md) — 크로스 컴파일된 릴리스 바이너리의 LTO와 strip 설정 · [Windows](ch10-windows-and-conditional-compilation.md) — Windows 크로스 컴파일과 `no_std` 타깃
 
-Cross-compilation means building an executable on one machine (the **host**) that
-runs on a different machine (the **target**). The host might be your x86_64 laptop;
-the target might be an ARM server, a musl-based container, or even a Windows machine.
-Rust makes this remarkably feasible because `rustc` is already a cross-compiler —
-it just needs the right target libraries and a compatible linker.
+크로스 컴파일은 한 머신(**호스트**)에서 실행 파일을 빌드해 다른 머신(**타깃**)에서
+돌리는 것을 말합니다. 호스트는 x86_64 노트북이고 타깃은 ARM 서버, musl 기반 컨테이너,
+심지어 Windows 머신일 수도 있습니다. Rust는 `rustc`가 이미 크로스 컴파일러이기 때문에
+이를 비교적 잘 지원합니다 — 적절한 타깃 라이브러리와 호환 링커만 있으면 됩니다.
 
-### The Target Triple Anatomy
+<a id="the-target-triple-anatomy"></a>
+### 타깃 트리플 구조
 
-Every Rust compilation target is identified by a **target triple** (which often has
-four parts despite the name):
+모든 Rust 컴파일 타깃은 **타깃 트리플**(이름과 달리 네 부분인 경우가 많음)로 식별됩니다:
 
 ```text
 <arch>-<vendor>-<os>-<env>
 
-Examples:
-  x86_64  - unknown - linux  - gnu      ← standard Linux (glibc)
-  x86_64  - unknown - linux  - musl     ← static Linux (musl libc)
-  aarch64 - unknown - linux  - gnu      ← ARM 64-bit Linux
-  x86_64  - pc      - windows- msvc     ← Windows with MSVC
-  aarch64 - apple   - darwin             ← macOS on Apple Silicon
-  x86_64  - unknown - none              ← bare metal (no OS)
+예:
+  x86_64  - unknown - linux  - gnu      ← 표준 Linux (glibc)
+  x86_64  - unknown - linux  - musl     ← 정적 Linux (musl libc)
+  aarch64 - unknown - linux  - gnu      ← ARM 64비트 Linux
+  x86_64  - pc      - windows- msvc     ← MSVC용 Windows
+  aarch64 - apple   - darwin             ← Apple Silicon macOS
+  x86_64  - unknown - none              ← 베어 메탈 (OS 없음)
 ```
 
-List all available targets:
+사용 가능한 타깃 전체 나열:
 
 ```bash
-# Show all targets rustc can compile to (~250 targets)
+# rustc가 컴파일할 수 있는 모든 타깃 (~250개)
 rustc --print target-list | wc -l
 
-# Show installed targets on your system
+# 시스템에 설치된 타깃 표시
 rustup target list --installed
 
-# Show current default target
+# 현재 기본 타깃 표시
 rustc -vV | grep host
 ```
 
-### Installing Toolchains with rustup
+<a id="installing-toolchains-with-rustup"></a>
+### rustup으로 툴체인 설치
 
 ```bash
-# Add target libraries (Rust std for that target)
+# 타깃 라이브러리 추가 (해당 타깃용 Rust std)
 rustup target add x86_64-unknown-linux-musl
 rustup target add aarch64-unknown-linux-gnu
 
-# Now you can cross-compile:
+# 이제 크로스 컴파일 가능:
 cargo build --target x86_64-unknown-linux-musl
-cargo build --target aarch64-unknown-linux-gnu  # needs a linker — see below
+cargo build --target aarch64-unknown-linux-gnu  # 링커 필요 — 아래 참고
 ```
 
-**What `rustup target add` gives you**: the pre-compiled `std`, `core`, and `alloc`
-libraries for that target. It does *not* give you a C linker or C library. For targets
-that need a C toolchain (most `gnu` targets), you need to install one separately.
+**`rustup target add`가 주는 것**: 해당 타깃용으로 미리 컴파일된 `std`, `core`, `alloc`
+라이브러리입니다. C 링커나 C 라이브러리는 주지 **않습니다**. C 툴체인이 필요한
+타깃(대부분의 `gnu` 타깃)은 별도로 설치해야 합니다.
 
 ```bash
-# Ubuntu/Debian — install the cross-linker for aarch64
+# Ubuntu/Debian — aarch64용 크로스 링커
 sudo apt install gcc-aarch64-linux-gnu
 
-# Ubuntu/Debian — install musl toolchain for static builds
+# Ubuntu/Debian — 정적 빌드용 musl 툴체인
 sudo apt install musl-tools
 
 # Fedora
 sudo dnf install gcc-aarch64-linux-gnu
 ```
 
-### `.cargo/config.toml` — Per-Target Configuration
+<a id="cargoconfigtoml-per-target-configuration"></a>
+### `.cargo/config.toml` — 타깃별 설정
 
-Instead of passing `--target` on every command, configure defaults in
-`.cargo/config.toml` at your project root or home directory:
+매번 `--target`을 넘기지 않고 프로젝트 루트 또는 홈의
+`.cargo/config.toml`에 기본값을 둘 수 있습니다:
 
 ```toml
 # .cargo/config.toml
 
-# Default target for this project (optional — omit to keep native default)
+# 이 프로젝트의 기본 타깃 (선택 — 생략하면 네이티브 기본 유지)
 # [build]
 # target = "x86_64-unknown-linux-musl"
 
-# Linker for aarch64 cross-compilation
+# aarch64 크로스 컴파일용 링커
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
 rustflags = ["-C", "target-feature=+crc"]
 
-# Linker for musl static builds (usually just the system gcc works)
+# musl 정적 빌드용 링커 (보통 시스템 gcc가 맞음)
 [target.x86_64-unknown-linux-musl]
 linker = "musl-gcc"
 rustflags = ["-C", "target-feature=+crc,+aes"]
 
-# ARM 32-bit (Raspberry Pi, embedded)
+# ARM 32비트 (Raspberry Pi, 임베디드)
 [target.armv7-unknown-linux-gnueabihf]
 linker = "arm-linux-gnueabihf-gcc"
 
-# Environment variables for all targets
+# 모든 타깃에 대한 환경 변수
 [env]
-# Example: set a custom sysroot
+# 예: 커스텀 sysroot
 # SYSROOT = "/opt/cross/sysroot"
 ```
 
-**Config file search order** (first match wins):
+**설정 파일 검색 순서** (먼저 매칭된 것이 우선):
 1. `<project>/.cargo/config.toml`
-2. `<project>/../.cargo/config.toml` (parent directories, walking up)
-3. `$CARGO_HOME/config.toml` (usually `~/.cargo/config.toml`)
+2. `<project>/../.cargo/config.toml` (상위 디렉터리로 올라가며)
+3. `$CARGO_HOME/config.toml` (보통 `~/.cargo/config.toml`)
 
-### Static Binaries with musl
+<a id="static-binaries-with-musl"></a>
+### musl로 정적 바이너리
 
-For deploying to minimal containers (Alpine, scratch Docker images) or systems
-where you can't control the glibc version, build with musl:
+Alpine, scratch Docker 이미지 같은 최소 컨테이너에 배포하거나 glibc 버전을
+통제할 수 없을 때 musl로 빌드합니다:
 
 ```bash
-# Install musl target
+# musl 타깃 설치
 rustup target add x86_64-unknown-linux-musl
-sudo apt install musl-tools  # provides musl-gcc
+sudo apt install musl-tools  # musl-gcc 제공
 
-# Build a fully static binary
+# 완전 정적 바이너리 빌드
 cargo build --release --target x86_64-unknown-linux-musl
 
-# Verify it's static
+# 정적 링크인지 확인
 file target/x86_64-unknown-linux-musl/release/diag_tool
 # → ELF 64-bit LSB executable, x86-64, statically linked
 
@@ -129,55 +132,56 @@ ldd target/x86_64-unknown-linux-musl/release/diag_tool
 # → not a dynamic executable
 ```
 
-**Static vs dynamic trade-offs:**
+**정적 vs 동적 트레이드오프:**
 
-| Aspect | glibc (dynamic) | musl (static) |
+| 측면 | glibc (동적) | musl (정적) |
 |--------|-----------------|---------------|
-| Binary size | Smaller (shared libs) | Larger (~5-15 MB increase) |
-| Portability | Needs matching glibc version | Runs anywhere on Linux |
-| DNS resolution | Full `nsswitch` support | Basic resolver (no mDNS) |
-| Deployment | Needs sysroot or container | Single binary, no deps |
-| Performance | Slightly faster malloc | Slightly slower malloc |
-| `dlopen()` support | Yes | No |
+| 바이너리 크기 | 더 작음 (공유 lib) | 더 큼 (~5–15 MB 증가) |
+| 이식성 | 맞는 glibc 버전 필요 | Linux 어디서나 실행 |
+| DNS 해석 | 전체 `nsswitch` 지원 | 기본 리졸버 (mDNS 없음) |
+| 배포 | sysroot 또는 컨테이너 필요 | 단일 바이너리, 의존성 없음 |
+| 성능 | malloc이 약간 더 빠름 | malloc이 약간 더 느림 |
+| `dlopen()` 지원 | 예 | 아니오 |
 
-> **For the project**: A static musl build is ideal for deployment to diverse
-> server hardware where you can't guarantee the host OS version. The single-binary
-> deployment model eliminates "works on my machine" issues.
+> **프로젝트 관점**: 호스트 OS 버전을 보장할 수 없는 다양한 서버 하드웨어에
+> 배포할 때 정적 musl 빌드가 이상적입니다. 단일 바이너리 배포 모델이
+> "내 머신에서만 된다"를 없앱니다.
 
-### Cross-Compiling to ARM (aarch64)
+<a id="cross-compiling-to-arm-aarch64"></a>
+### ARM(aarch64)로 크로스 컴파일
 
-ARM servers (AWS Graviton, Ampere Altra, Grace) are increasingly common
-in data centers. Cross-compiling for aarch64 from an x86_64 host:
+데이터센터에서 ARM 서버(AWS Graviton, Ampere Altra, Grace)가 점점 흔해지고 있습니다.
+x86_64 호스트에서 aarch64용 크로스 컴파일:
 
 ```bash
-# Step 1: Install target + cross-linker
+# 1단계: 타깃 + 크로스 링커 설치
 rustup target add aarch64-unknown-linux-gnu
 sudo apt install gcc-aarch64-linux-gnu
 
-# Step 2: Configure linker in .cargo/config.toml (see above)
+# 2단계: .cargo/config.toml에 링커 설정 (위 참고)
 
-# Step 3: Build
+# 3단계: 빌드
 cargo build --release --target aarch64-unknown-linux-gnu
 
-# Step 4: Verify the binary
+# 4단계: 바이너리 확인
 file target/aarch64-unknown-linux-gnu/release/diag_tool
 # → ELF 64-bit LSB executable, ARM aarch64
 ```
 
-**Running tests for the target architecture** requires either:
-- An actual ARM machine
-- QEMU user-mode emulation
+**해당 아키텍처용 테스트 실행**에는 다음 중 하나가 필요합니다:
+- 실제 ARM 머신
+- QEMU 사용자 모드 에뮬레이션
 
 ```bash
-# Install QEMU user-mode (runs ARM binaries on x86_64)
+# QEMU 사용자 모드 (x86_64에서 ARM 바이너리 실행)
 sudo apt install qemu-user qemu-user-static binfmt-support
 
-# Now cargo test can run cross-compiled tests through QEMU
+# 이제 cargo test가 크로스 컴파일된 테스트를 QEMU로 실행 가능
 cargo test --target aarch64-unknown-linux-gnu
-# (Slow — each test binary is emulated. Use for CI validation, not daily dev.)
+# (느림 — 테스트 바이너리마다 에뮬. 일상 개발보다 CI 검증용.)
 ```
 
-Configure QEMU as the test runner in `.cargo/config.toml`:
+`.cargo/config.toml`에서 QEMU를 테스트 러너로 설정:
 
 ```toml
 [target.aarch64-unknown-linux-gnu]
@@ -185,104 +189,105 @@ linker = "aarch64-linux-gnu-gcc"
 runner = "qemu-aarch64-static -L /usr/aarch64-linux-gnu"
 ```
 
-### The `cross` Tool — Docker-Based Cross-Compilation
+<a id="the-cross-tool-docker-based-cross-compilation"></a>
+### `cross` 도구 — Docker 기반 크로스 컴파일
 
-The [`cross`](https://github.com/cross-rs/cross) tool provides a zero-setup
-cross-compilation experience using pre-configured Docker images:
+[`cross`](https://github.com/cross-rs/cross)는 미리 구성된 Docker 이미지로
+설정 없이 크로스 컴파일할 수 있게 해줍니다:
 
 ```bash
-# Install cross (from crates.io — stable releases)
+# cross 설치 (crates.io — 안정 릴리스)
 cargo install cross
-# Or from git for latest features (less stable):
+# 또는 최신 기능용 git (덜 안정):
 # cargo install cross --git https://github.com/cross-rs/cross
 
-# Cross-compile — no toolchain setup needed!
+# 크로스 컴파일 — 툴체인 설정 불필요!
 cross build --release --target aarch64-unknown-linux-gnu
 cross build --release --target x86_64-unknown-linux-musl
 cross build --release --target armv7-unknown-linux-gnueabihf
 
-# Cross-test — QEMU included in the Docker image
+# 크로스 테스트 — Docker 이미지에 QEMU 포함
 cross test --target aarch64-unknown-linux-gnu
 ```
 
-**How it works**: `cross` replaces `cargo` and runs the build inside a Docker
-container that has the correct cross-compilation toolchain pre-installed. Your
-source is mounted into the container, and the output goes to your normal `target/`
-directory.
+**동작 방식**: `cross`는 `cargo`를 대체해 빌드를 올바른 크로스 컴파일 툴체인이
+미리 설치된 Docker 컨테이너 안에서 실행합니다. 소스는 컨테이너에 마운트되고
+출력은 일반 `target/` 디렉터리로 갑니다.
 
-**Customizing the Docker image** with `Cross.toml`:
+**`Cross.toml`로 Docker 이미지 커스터마이징:**
 
 ```toml
 # Cross.toml
 [target.aarch64-unknown-linux-gnu]
-# Use a custom Docker image with extra system libraries
+# 추가 시스템 라이브러리가 있는 커스텀 Docker 이미지
 image = "my-registry/cross-aarch64:latest"
 
-# Pre-install system packages
+# 시스템 패키지 사전 설치
 pre-build = [
     "dpkg --add-architecture arm64",
     "apt-get update && apt-get install -y libpci-dev:arm64"
 ]
 
 [target.aarch64-unknown-linux-gnu.env]
-# Pass environment variables into the container
+# 컨테이너로 환경 변수 전달
 passthrough = ["CI", "GITHUB_TOKEN"]
 ```
 
-`cross` requires Docker (or Podman) but eliminates the need to manually install
-cross-compilers, sysroots, and QEMU. It's the recommended approach for CI.
+`cross`는 Docker(또는 Podman)가 필요하지만 크로스 컴파일러, sysroot, QEMU를
+수동 설치할 필요를 없앱니다. CI에는 권장 접근입니다.
 
-### Using Zig as a Cross-Compilation Linker
+<a id="using-zig-as-a-cross-compilation-linker"></a>
+### 크로스 컴파일 링커로 Zig 사용
 
-[Zig](https://ziglang.org/) bundles a C compiler and cross-compilation sysroot
-for ~40 targets in a single ~40 MB download. This makes it a remarkably convenient
-cross-linker for Rust:
+[Zig](https://ziglang.org/)는 C 컴파일러와 크로스 컴파일 sysroot를
+단일 ~40 MB 다운로드에 ~40개 타깃까지 묶습니다. Rust의 크로스 링커로
+매우 편리합니다:
 
 ```bash
-# Install Zig (single binary, no package manager needed)
-# Download from https://ziglang.org/download/
-# Or via package manager:
+# Zig 설치 (단일 바이너리, 패키지 매니저 불필요)
+# https://ziglang.org/download/ 에서 다운로드
+# 또는 패키지 매니저:
 sudo snap install zig --classic --beta  # Ubuntu
 brew install zig                          # macOS
 
-# Install cargo-zigbuild
+# cargo-zigbuild 설치
 cargo install cargo-zigbuild
 ```
 
-**Why Zig?** The key advantage is **glibc version targeting**. Zig lets you specify
-the exact glibc version to link against, ensuring your binary runs on older Linux
-distributions:
+**Zig를 쓰는 이유?** 핵심 이점은 **glibc 버전 타깃팅**입니다. Zig는 링크할
+glibc 버전을 정확히 지정해 오래된 Linux 배포판에서도 바이너리가 돌아가게 합니다:
 
 ```bash
-# Build for glibc 2.17 (CentOS 7 / RHEL 7 compatibility)
+# glibc 2.17 (CentOS 7 / RHEL 7 호환)
 cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.17
 
-# Build for aarch64 with glibc 2.28 (Ubuntu 18.04+)
+# glibc 2.28 (Ubuntu 18.04+) aarch64
 cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.28
 
-# Build for musl (fully static)
+# musl (완전 정적)
 cargo zigbuild --release --target x86_64-unknown-linux-musl
 ```
 
-The `.2.17` suffix is a Zig extension — it tells Zig's linker to use glibc 2.17
-symbol versions, so the resulting binary runs on CentOS 7 and later. No Docker,
-no sysroot management, no cross-compiler installation.
+`.2.17` 접미사는 Zig 확장 — Zig 링커에 glibc 2.17 심볼 버전을 쓰라고 알려
+결과 바이너리가 CentOS 7 이상에서 실행됩니다. Docker, sysroot 관리,
+크로스 컴파일러 설치가 필요 없습니다.
 
-**Comparison: cross vs cargo-zigbuild vs manual:**
+**비교: cross vs cargo-zigbuild vs 수동:**
 
-| Feature | Manual | cross | cargo-zigbuild |
+| 기능 | 수동 | cross | cargo-zigbuild |
 |---------|--------|-------|----------------|
-| Setup effort | High (install toolchain per target) | Low (needs Docker) | Low (single binary) |
-| Docker required | No | Yes | No |
-| glibc version targeting | No (uses host glibc) | No (uses container glibc) | Yes (exact version) |
-| Test execution | Needs QEMU | Included | Needs QEMU |
-| macOS → Linux | Difficult | Easy | Easy |
-| Linux → macOS | Very difficult | Not supported | Limited |
-| Binary size overhead | None | None | None |
+| 설정 노력 | 높음 (타깃마다 툴체인) | 낮음 (Docker 필요) | 낮음 (단일 바이너리) |
+| Docker 필요 | 아니오 | 예 | 아니오 |
+| glibc 버전 타깃팅 | 아니오 (호스트 glibc 사용) | 아니오 (컨테이너 glibc) | 예 (정확한 버전) |
+| 테스트 실행 | QEMU 필요 | 포함 | QEMU 필요 |
+| macOS → Linux | 어려움 | 쉬움 | 쉬움 |
+| Linux → macOS | 매우 어려움 | 미지원 | 제한적 |
+| 바이너리 크기 오버헤드 | 없음 | 없음 | 없음 |
 
-### CI Pipeline: GitHub Actions Matrix
+<a id="ci-pipeline-github-actions-matrix"></a>
+### CI 파이프라인: GitHub Actions 매트릭스
 
-A production-grade CI workflow that builds for multiple targets:
+여러 타깃을 위한 프로덕션급 CI 워크플로:
 
 ```yaml
 # .github/workflows/cross-build.yml
@@ -349,85 +354,87 @@ jobs:
           path: target/${{ matrix.target }}/release/diag_tool*
 ```
 
-### Application: Multi-Architecture Server Builds
+<a id="application-multi-architecture-server-builds"></a>
+### 적용: 멀티 아키텍처 서버 빌드
 
-The binary currently has no cross-compilation setup. For a hardware
-diagnostics tool deployed across diverse server fleets, the recommended addition:
+바이너리에는 현재 크로스 컴파일 설정이 없습니다. 다양한 서버 함대에 배포하는
+하드웨어 진단 도구라면 권장 추가 사항:
 
 ```text
 my_workspace/
 ├── .cargo/
-│   └── config.toml          ← linker configs per target
-├── Cross.toml                ← cross tool configuration
+│   └── config.toml          ← 타깃별 링커 설정
+├── Cross.toml                ← cross 도구 설정
 └── .github/workflows/
-    └── cross-build.yml       ← CI matrix for 3 targets
+    └── cross-build.yml       ← 3개 타깃 CI 매트릭스
 ```
 
-**Recommended `.cargo/config.toml`:**
+**권장 `.cargo/config.toml`:**
 
 ```toml
-# .cargo/config.toml for the project
+# 프로젝트용 .cargo/config.toml
 
-# Release profile optimizations (already in Cargo.toml, shown for reference)
+# 릴리스 프로파일 최적화 (이미 Cargo.toml에 있음, 참고용)
 # [profile.release]
 # lto = true
 # codegen-units = 1
 # panic = "abort"
 # strip = true
 
-# aarch64 for ARM servers (Graviton, Ampere, Grace)
+# ARM 서버용 aarch64 (Graviton, Ampere, Grace)
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"
 
-# musl for portable static binaries
+# 이식 가능한 정적 바이너리용 musl
 [target.x86_64-unknown-linux-musl]
 linker = "musl-gcc"
 ```
 
-**Recommended build targets:**
+**권장 빌드 타깃:**
 
-| Target | Use Case | Deploy To |
+| 타깃 | 사용 사례 | 배포 대상 |
 |--------|----------|-----------|
-| `x86_64-unknown-linux-gnu` | Default native build | Standard x86 servers |
-| `x86_64-unknown-linux-musl` | Static binary, any distro | Containers, minimal hosts |
-| `aarch64-unknown-linux-gnu` | ARM servers | Graviton, Ampere, Grace |
+| `x86_64-unknown-linux-gnu` | 기본 네이티브 빌드 | 표준 x86 서버 |
+| `x86_64-unknown-linux-musl` | 정적 바이너리, 모든 배포판 | 컨테이너, 최소 호스트 |
+| `aarch64-unknown-linux-gnu` | ARM 서버 | Graviton, Ampere, Grace |
 
-> **Key insight**: The `[profile.release]` in the workspace's root `Cargo.toml`
-> already has `lto = true`, `codegen-units = 1`, `panic = "abort"`, and
-> `strip = true` — an ideal release profile for cross-compiled deployment binaries
-> (see [Release Profiles](ch07-release-profiles-and-binary-size.md) for the full impact table).
-> Combined with musl, this produces a single ~10 MB static binary with no runtime
-> dependencies.
+> **핵심**: 워크스페이스 루트 `Cargo.toml`의 `[profile.release]`에 이미
+> `lto = true`, `codegen-units = 1`, `panic = "abort"`, `strip = true`가
+> 있어 크로스 컴파일 배포 바이너리에 이상적인 릴리스 프로파일입니다
+> (전체 영향 표는 [릴리스 프로파일](ch07-release-profiles-and-binary-size.md) 참고).
+> musl과 함께면 런타임 의존성 없는 ~10 MB 정적 단일 바이너리가 나옵니다.
 
-### Troubleshooting Cross-Compilation
+<a id="troubleshooting-cross-compilation"></a>
+### 크로스 컴파일 문제 해결
 
-| Symptom | Cause | Fix |
+| 증상 | 원인 | 조치 |
 |---------|-------|-----|
-| `linker 'aarch64-linux-gnu-gcc' not found` | Missing cross-linker toolchain | `sudo apt install gcc-aarch64-linux-gnu` |
-| `cannot find -lssl` (musl target) | System OpenSSL is glibc-linked | Use `vendored` feature: `openssl = { version = "0.10", features = ["vendored"] }` |
-| `build.rs` runs wrong binary | build.rs runs on HOST, not target | Check `CARGO_CFG_TARGET_OS` in build.rs, not `cfg!(target_os)` |
-| Tests pass locally, fail in `cross` | Docker image missing test fixtures | Mount test data via `Cross.toml`: `[build.env] volumes = ["./TestArea:/TestArea"]` |
-| `undefined reference to __cxa_thread_atexit_impl` | Old glibc on target | Use `cargo-zigbuild` with explicit glibc version: `--target x86_64-unknown-linux-gnu.2.17` |
-| Binary segfaults on ARM | Compiled for wrong ARM variant | Verify target triple matches hardware: `aarch64-unknown-linux-gnu` for 64-bit ARM |
-| `GLIBC_2.XX not found` at runtime | Build machine has newer glibc | Use musl for static builds, or `cargo-zigbuild` for glibc version pinning |
+| `linker 'aarch64-linux-gnu-gcc' not found` | 크로스 링커 툴체인 없음 | `sudo apt install gcc-aarch64-linux-gnu` |
+| `cannot find -lssl` (musl 타깃) | 시스템 OpenSSL이 glibc 링크 | `vendored` 피처: `openssl = { version = "0.10", features = ["vendored"] }` |
+| `build.rs`가 잘못된 바이너리 실행 | build.rs는 HOST에서 실행, 타깃 아님 | build.rs에서는 `CARGO_CFG_TARGET_OS` 확인, `cfg!(target_os)` 아님 |
+| 로컬에서는 테스트 통과, `cross`에서 실패 | Docker 이미지에 테스트 픽스처 없음 | `Cross.toml`로 테스트 데이터 마운트: `[build.env] volumes = ["./TestArea:/TestArea"]` |
+| `undefined reference to __cxa_thread_atexit_impl` | 타깃 glibc가 오래됨 | `cargo-zigbuild`로 glibc 버전 명시: `--target x86_64-unknown-linux-gnu.2.17` |
+| ARM에서 바이너리 세그폴트 | 잘못된 ARM 변형으로 컴파일 | 타깃 트리플이 하드웨어와 일치하는지 확인: 64비트 ARM은 `aarch64-unknown-linux-gnu` |
+| 런타임에 `GLIBC_2.XX not found` | 빌드 머신 glibc가 더 새로움 | 정적 빌드는 musl, 또는 `cargo-zigbuild`로 glibc 버전 고정 |
 
-### Cross-Compilation Decision Tree
+<a id="cross-compilation-decision-tree"></a>
+### 크로스 컴파일 의사결정 트리
 
 ```mermaid
 flowchart TD
-    START["Need to cross-compile?"] --> STATIC{"Static binary?"}
+    START["크로스 컴파일이 필요한가?"] --> STATIC{"정적 바이너리?"}
     
-    STATIC -->|Yes| MUSL["musl target\n--target x86_64-unknown-linux-musl"]
-    STATIC -->|No| GLIBC{"Need old glibc?"}
+    STATIC -->|예| MUSL["musl 타깃\n--target x86_64-unknown-linux-musl"]
+    STATIC -->|아니오| GLIBC{"오래된 glibc 필요?"}
     
-    GLIBC -->|Yes| ZIG["cargo-zigbuild\n--target x86_64-unknown-linux-gnu.2.17"]
-    GLIBC -->|No| ARCH{"Target arch?"}
+    GLIBC -->|예| ZIG["cargo-zigbuild\n--target x86_64-unknown-linux-gnu.2.17"]
+    GLIBC -->|아니오| ARCH{"타깃 아키텍처?"}
     
-    ARCH -->|"Same arch"| NATIVE["Native toolchain\nrustup target add + linker"]
-    ARCH -->|"ARM/other"| DOCKER{"Docker available?"}
+    ARCH -->|"같은 아키"| NATIVE["네이티브 툴체인\nrustup target add + 링커"]
+    ARCH -->|"ARM/기타"| DOCKER{"Docker 사용 가능?"}
     
-    DOCKER -->|Yes| CROSS["cross build\nDocker-based, zero setup"]
-    DOCKER -->|No| MANUAL["Manual sysroot\napt install gcc-aarch64-linux-gnu"]
+    DOCKER -->|예| CROSS["cross build\nDocker 기반, 설정 없음"]
+    DOCKER -->|아니오| MANUAL["수동 sysroot\napt install gcc-aarch64-linux-gnu"]
     
     style MUSL fill:#91e5a3,color:#000
     style ZIG fill:#91e5a3,color:#000
@@ -436,35 +443,41 @@ flowchart TD
     style MANUAL fill:#ffd43b,color:#000
 ```
 
-### 🏋️ Exercises
+<a id="exercises"></a>
+### 🏋️ 연습문제
 
-#### 🟢 Exercise 1: Static musl Binary
+<a id="exercise-1-static-musl-binary"></a>
+#### 🟢 연습문제 1: 정적 musl 바이너리
 
-Build any Rust binary for `x86_64-unknown-linux-musl`. Verify it's statically linked using `file` and `ldd`.
+아무 Rust 바이너리나 `x86_64-unknown-linux-musl`로 빌드하세요. `file`과 `ldd`로
+정적으로 링크됐는지 확인하세요.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```bash
 rustup target add x86_64-unknown-linux-musl
 cargo new hello-static && cd hello-static
 cargo build --release --target x86_64-unknown-linux-musl
 
-# Verify
+# 확인
 file target/x86_64-unknown-linux-musl/release/hello-static
-# Output: ... statically linked ...
+# 출력: ... statically linked ...
 
 ldd target/x86_64-unknown-linux-musl/release/hello-static
-# Output: not a dynamic executable
+# 출력: not a dynamic executable
 ```
 </details>
 
-#### 🟡 Exercise 2: GitHub Actions Cross-Build Matrix
+<a id="exercise-2-github-actions-cross-build-matrix"></a>
+#### 🟡 연습문제 2: GitHub Actions 크로스 빌드 매트릭스
 
-Write a GitHub Actions workflow that builds a Rust project for three targets: `x86_64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, and `aarch64-unknown-linux-gnu`. Use a matrix strategy.
+`x86_64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-gnu`
+세 타깃에 대해 Rust 프로젝트를 빌드하는 GitHub Actions 워크플로를 작성하세요.
+매트릭스 전략을 사용하세요.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```yaml
 name: Cross-build
@@ -494,13 +507,14 @@ jobs:
 ```
 </details>
 
-### Key Takeaways
+<a id="key-takeaways"></a>
+### 핵심 정리
 
-- Rust's `rustc` is already a cross-compiler — you just need the right target and linker
-- **musl** produces fully static binaries with zero runtime dependencies — ideal for containers
-- **`cargo-zigbuild`** solves the "which glibc version" problem for enterprise Linux targets
-- **`cross`** is the easiest path for ARM and other exotic targets — Docker handles the sysroot
-- Always test with `file` and `ldd` to verify the binary matches your deployment target
+- Rust의 `rustc`는 이미 크로스 컴파일러입니다 — 올바른 타깃과 링커만 있으면 됩니다
+- **musl**은 런타임 의존성 없는 완전 정적 바이너리를 만듭니다 — 컨테이너에 적합
+- **`cargo-zigbuild`**는 엔터프라이즈 Linux 타깃의 "어느 glibc 버전인가" 문제를 해결합니다
+- **`cross`**는 ARM 등 이색 타깃에 가장 쉬운 경로입니다 — Docker가 sysroot를 처리합니다
+- 배포 타깃과 맞는지 `file`과 `ldd`로 항상 검증하세요
 
 ---
 

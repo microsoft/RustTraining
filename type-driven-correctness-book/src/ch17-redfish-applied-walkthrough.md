@@ -1,31 +1,33 @@
-# Applied Walkthrough — Type-Safe Redfish Client 🟡
+<a id="redfish-applied-walkthrough"></a>
+# 적용형 워크스루 — 타입 안전한 Redfish 클라이언트 🟡
 
-> **What you'll learn:** How to compose type-state sessions, capability tokens, phantom-typed resource navigation, dimensional analysis, validated boundaries, builder type-state, and single-use types into a complete, zero-overhead Redfish client — where every protocol violation is a compile error.
+> **배울 내용:** 타입 상태 세션, capability token, 팬텀 타입 리소스 탐색, 차원 분석, 검증된 경계, 빌더 타입 상태, 단일 사용 타입을 조합해 오버헤드 없는 완전한 Redfish 클라이언트를 만드는 방법 — 모든 프로토콜 위반은 컴파일 에러입니다.
 >
-> **Cross-references:** [ch02](ch02-typed-command-interfaces-request-determi.md) (typed commands), [ch03](ch03-single-use-types-cryptographic-guarantee.md) (single-use types), [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch05](ch05-protocol-state-machines-type-state-for-r.md) (type-state), [ch06](ch06-dimensional-analysis-making-the-compiler.md) (dimensional types), [ch07](ch07-validated-boundaries-parse-dont-validate.md) (validated boundaries), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types), [ch10](ch10-putting-it-all-together-a-complete-diagn.md) (IPMI integration), [ch11](ch11-fourteen-tricks-from-the-trenches.md) (trick 4 — builder type-state)
+> **교차 참조:** [ch02](ch02-typed-command-interfaces-request-determi.md) (typed commands), [ch03](ch03-single-use-types-cryptographic-guarantee.md) (single-use types), [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (capability tokens), [ch05](ch05-protocol-state-machines-type-state-for-r.md) (type-state), [ch06](ch06-dimensional-analysis-making-the-compiler.md) (dimensional types), [ch07](ch07-validated-boundaries-parse-dont-validate.md) (validated boundaries), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types), [ch10](ch10-putting-it-all-together-a-complete-diagn.md) (IPMI integration), [ch11](ch11-fourteen-tricks-from-the-trenches.md) (trick 4 — builder type-state)
 
-## Why Redfish Deserves Its Own Chapter
+<a id="why-redfish-deserves-its-own-chapter"></a>
+## Redfish에 왜 독립 장이 필요한가
 
-Chapter 10 composes the core patterns around IPMI — a byte-level protocol. But
-most BMC platforms now expose a **Redfish** REST API alongside (or instead of)
-IPMI, and Redfish introduces its own category of correctness hazards:
+10장은 IPMI — 바이트 수준 프로토콜 — 를 중심으로 핵심 패턴을 조합합니다. 하지만
+대부분의 BMC 플랫폼은 이제 IPMI와 함께(또는 대신) **Redfish** REST API를 노출하고,
+Redfish는 그만의 정확성 위험 범주를 만듭니다:
 
-| Hazard | Example | Consequence |
+| 위험 | 예 | 결과 |
 |--------|---------|-------------|
-| Malformed URI | `GET /redfish/v1/Chassis/1/Processors` (wrong parent) | 404 or wrong data silently returned |
-| Action on wrong power state | `Reset(ForceOff)` on an already-off system | BMC returns error, or worse, races with another operation |
-| Missing privilege | Operator-level code calls `Manager.ResetToDefaults` | 403 in production, security audit finding |
-| Incomplete PATCH | Omit a required BIOS attribute from a PATCH body | Silent no-op or partial config corruption |
-| Unverified firmware apply | `SimpleUpdate` invoked before image integrity check | Bricked BMC |
-| Schema version mismatch | Access `LastResetTime` on a v1.5 BMC (added in v1.13) | `null` field → runtime panic |
-| Unit confusion in telemetry | Compare inlet temperature (°C) to power draw (W) | Nonsensical threshold decisions |
+| 잘못된 URI | `GET /redfish/v1/Chassis/1/Processors` (부모 잘못됨) | 404 또는 잘못된 데이터가 조용히 반환 |
+| 잘못된 전원 상태에서 동작 | 이미 꺼진 시스템에 `Reset(ForceOff)` | BMC가 에러 반환 또는 더 나쁘게 다른 연산과 경합 |
+| 권한 부족 | 운영자 수준 코드가 `Manager.ResetToDefaults` 호출 | 프로덕션 403, 보안 감사 이슈 |
+| 불완전한 PATCH | PATCH 본문에서 필수 BIOS 속성 누락 | 조용한 무동작 또는 부분 설정 손상 |
+| 검증 없는 펌웨어 적용 | 이미지 무결성 검사 전 `SimpleUpdate` 호출 | BMC 벽돌 |
+| 스키마 버전 불일치 | v1.5 BMC에서 `LastResetTime` 접근(v1.13에 추가) | `null` 필드 → 런타임 패닉 |
+| 텔레메트리 단위 혼동 | 입구 온도(°C)와 전력(W) 비교 | 무의미한 임계 결정 |
 
-In C, Python, or untyped Rust, every one of these is prevented by discipline and
-testing alone. This chapter makes them **compile errors**.
+C, Python, 타입 없는 Rust에서는 이 모두가 규율과 테스트로만 막습니다. 이 장에서는 **컴파일 에러**로 만듭니다.
 
-## The Untyped Redfish Client
+<a id="the-untyped-redfish-client"></a>
+## 타입 없는 Redfish 클라이언트
 
-A typical Redfish client looks like this:
+전형적인 Redfish 클라이언트는 이렇게 생깁니다:
 
 ```rust,ignore
 use std::collections::HashMap;
@@ -55,19 +57,19 @@ impl RedfishClient {
 fn check_thermal(client: &RedfishClient) -> Result<(), String> {
     let resp = client.get("/redfish/v1/Chassis/1/Thermal")?;
 
-    // 🐛 Is this field always present? What if the BMC returns null?
+    // 🐛 이 필드가 항상 있나? BMC가 null을 반환하면?
     let cpu_temp = resp["Temperatures"][0]["ReadingCelsius"]
         .as_f64().unwrap();
 
     let fan_rpm = resp["Fans"][0]["Reading"]
         .as_f64().unwrap();
 
-    // 🐛 Comparing °C to RPM — both are f64
+    // 🐛 °C와 RPM 비교 — 둘 다 f64
     if cpu_temp > fan_rpm {
         println!("thermal issue");
     }
 
-    // 🐛 Is this the right path? No compile-time check.
+    // 🐛 경로가 맞나? 컴파일 타임 검사 없음.
     client.post_action(
         "/redfish/v1/Systems/1/Actions/ComputerSystem.Reset",
         &serde_json::json!({"ResetType": "ForceOff"})
@@ -77,15 +79,16 @@ fn check_thermal(client: &RedfishClient) -> Result<(), String> {
 }
 ```
 
-This "works" — until it doesn't. Every `unwrap()` is a potential panic, every
-string path is an unchecked assumption, and unit confusion is invisible.
+이 코드는 "동작"합니다 — 언젠가는 깨질 때까지. 모든 `unwrap()`은 잠재적 패닉이고,
+문자열 경로는 모두 검증되지 않은 가정이며, 단위 혼동은 눈에 보이지 않습니다.
 
 ---
 
-## Section 1 — Session Lifecycle (Type-State, ch05)
+<a id="section-1-session-lifecycle"></a>
+## 1절 — 세션 수명 주기 (Type-State, ch05)
 
-A Redfish session has a strict lifecycle: connect → authenticate → use → close.
-Encode each state as a distinct type.
+Redfish 세션은 엄격한 수명이 있습니다: 연결 → 인증 → 사용 → 종료.
+각 상태를 서로 다른 타입으로 인코딩합니다.
 
 ```mermaid
 stateDiagram-v2
@@ -96,14 +99,14 @@ stateDiagram-v2
     Authenticated --> Closed : logout()
     Closed --> [*]
 
-    note right of Authenticated : API calls only exist here
-    note right of Connected : get() → compile error
+    note right of Authenticated : API 호출은 여기서만
+    note right of Connected : get() → 컴파일 에러
 ```
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// ──── Session States ────
+// ──── 세션 상태 ────
 
 pub struct Disconnected;
 pub struct Connected;
@@ -124,8 +127,8 @@ impl RedfishSession<Disconnected> {
         }
     }
 
-    /// Transition: Disconnected → Connected.
-    /// Verifies the service root is reachable.
+    /// 전이: Disconnected → Connected.
+    /// 서비스 루트에 도달 가능한지 검증.
     pub fn connect(self) -> Result<RedfishSession<Connected>, RedfishError> {
         // GET /redfish/v1 — verify service root
         println!("Connecting to {}/redfish/v1", self.base_url);
@@ -138,8 +141,8 @@ impl RedfishSession<Disconnected> {
 }
 
 impl RedfishSession<Connected> {
-    /// Transition: Connected → Authenticated.
-    /// Creates a session via POST /redfish/v1/SessionService/Sessions.
+    /// 전이: Connected → Authenticated.
+    /// POST /redfish/v1/SessionService/Sessions로 세션 생성.
     pub fn login(
         self,
         user: &str,
@@ -160,7 +163,7 @@ impl RedfishSession<Connected> {
 }
 
 impl RedfishSession<Authenticated> {
-    /// Only available on Authenticated sessions.
+    /// Authenticated 세션에서만 사용 가능.
     fn http_get(&self, path: &str) -> Result<serde_json::Value, RedfishError> {
         let _url = format!("{}{}", self.base_url, path);
         // ... HTTP GET with auth_token header ...
@@ -187,15 +190,15 @@ impl RedfishSession<Authenticated> {
         Ok(serde_json::json!({})) // stub
     }
 
-    /// Transition: Authenticated → Closed (session consumed).
+    /// 전이: Authenticated → Closed (세션 소비).
     pub fn logout(self) {
         // DELETE /redfish/v1/SessionService/Sessions/{id}
         println!("Session closed");
-        // self is consumed — can't use the session after logout
+        // self 소비 — 로그아웃 후 세션 사용 불가
     }
 }
 
-// Attempting to call http_get on a non-Authenticated session:
+// Authenticated가 아닌 세션에서 http_get 호출 시도:
 //
 //   let session = RedfishSession::new("bmc01").connect()?;
 //   session.http_get("/redfish/v1/Systems");
@@ -222,35 +225,35 @@ impl std::fmt::Display for RedfishError {
 }
 ```
 
-**Bug class eliminated:** sending requests on a disconnected or unauthenticated
-session. The method simply doesn't exist — no runtime check to forget.
+**제거된 버그 클래스:** 연결 끊김 또는 미인증 세션으로 요청을 보내는 경우. 메서드 자체가 존재하지 않습니다 — 잊을 런타임 검사도 없습니다.
 
 ---
 
-## Section 2 — Privilege Tokens (Capability Tokens, ch04)
+<a id="section-2-privilege-tokens"></a>
+## 2절 — 권한 토큰 (Capability Tokens, ch04)
 
-Redfish defines four privilege levels: `Login`, `ConfigureComponents`,
-`ConfigureManager`, `ConfigureSelf`. Rather than checking permissions at
-runtime, encode them as zero-sized proof tokens.
+Redfish는 네 가지 권한 수준을 정의합니다: `Login`, `ConfigureComponents`,
+`ConfigureManager`, `ConfigureSelf`. 런타임에 권한을 검사하기보다
+제로 크기 증명 토큰으로 인코딩합니다.
 
 ```rust,ignore
-// ──── Privilege Tokens (zero-sized) ────
+// ──── 권한 토큰 (제로 크기) ────
 
-/// Proof the caller has Login privilege.
-/// Returned by successful login — the only way to obtain one.
+/// 호출자가 Login 권한을 가짐을 증명.
+/// 성공한 로그인에서만 반환 — 얻을 수 있는 유일한 방법.
 pub struct LoginToken { _private: () }
 
-/// Proof the caller has ConfigureComponents privilege.
-/// Only obtainable by admin-level authentication.
+/// 호출자가 ConfigureComponents 권한을 가짐을 증명.
+/// 관리자 수준 인증으로만 획득 가능.
 pub struct ConfigureComponentsToken { _private: () }
 
-/// Proof the caller has ConfigureManager privilege (firmware updates, etc.).
+/// 호출자가 ConfigureManager 권한을 가짐을 증명(펌웨어 업데이트 등).
 pub struct ConfigureManagerToken { _private: () }
 
-// Extend login to return privilege tokens based on role:
+// 역할에 따라 로그인이 권한 토큰을 반환하도록 확장:
 
 impl RedfishSession<Connected> {
-    /// Admin login — returns all privilege tokens.
+    /// 관리자 로그인 — 모든 권한 토큰 반환.
     pub fn login_admin(
         self,
         user: &str,
@@ -270,7 +273,7 @@ impl RedfishSession<Connected> {
         ))
     }
 
-    /// Operator login — returns Login + ConfigureComponents only.
+    /// 운영자 로그인 — Login + ConfigureComponents만 반환.
     pub fn login_operator(
         self,
         user: &str,
@@ -288,7 +291,7 @@ impl RedfishSession<Connected> {
         ))
     }
 
-    /// Read-only login — returns Login token only.
+    /// 읽기 전용 로그인 — Login 토큰만 반환.
     pub fn login_readonly(
         self,
         user: &str,
@@ -299,7 +302,7 @@ impl RedfishSession<Connected> {
 }
 ```
 
-Now privilege requirements are part of the function signature:
+이제 권한 요구가 함수 시그니처의 일부입니다:
 
 ```rust,ignore
 # use std::marker::PhantomData;
@@ -310,7 +313,7 @@ Now privilege requirements are part of the function signature:
 # pub struct ConfigureManagerToken { _private: () }
 # #[derive(Debug)] pub enum RedfishError { HttpError { status: u16, message: String } }
 
-/// Anyone with Login can read thermal data.
+/// Login이 있으면 누구나 온열 데이터 읽기 가능.
 fn get_thermal(
     session: &RedfishSession<Authenticated>,
     _proof: &LoginToken,
@@ -319,7 +322,7 @@ fn get_thermal(
     Ok(serde_json::json!({})) // stub
 }
 
-/// Changing boot order requires ConfigureComponents.
+/// 부팅 순서 변경에는 ConfigureComponents 필요.
 fn set_boot_order(
     session: &RedfishSession<Authenticated>,
     _proof: &ConfigureComponentsToken,
@@ -330,7 +333,7 @@ fn set_boot_order(
     Ok(())
 }
 
-/// Factory reset requires ConfigureManager.
+/// 공장 초기화에는 ConfigureManager 필요.
 fn reset_to_defaults(
     session: &RedfishSession<Authenticated>,
     _proof: &ConfigureManagerToken,
@@ -339,23 +342,24 @@ fn reset_to_defaults(
     Ok(())
 }
 
-// Operator code calling reset_to_defaults:
+// 운영자 코드가 reset_to_defaults를 호출할 때:
 //
 //   let (session, login, configure) = session.login_operator("op", "pass")?;
 //   reset_to_defaults(&session, &???);
 //   ❌ ERROR: no ConfigureManagerToken available — operator can't do this
 ```
 
-**Bug class eliminated:** privilege escalation. An operator-level login physically
-cannot produce a `ConfigureManagerToken` — the compiler won't let the code reference
-one. Zero runtime cost: for the compiled binary, these tokens don't exist.
+**제거된 버그 클래스:** 권한 상승. 운영자 수준 로그인은 물리적으로
+`ConfigureManagerToken`을 만들 수 없습니다 — 컴파일러가 코드가 그 토큰을 참조하지 못하게 합니다.
+런타임 비용 0: 컴파일된 바이너리에는 이 토큰이 존재하지 않습니다.
 
 ---
 
-## Section 3 — Typed Resource Navigation (Phantom Types, ch09)
+<a id="section-3-typed-resource-navigation"></a>
+## 3절 — 타입이 있는 리소스 탐색 (Phantom Types, ch09)
 
-Redfish resources form a tree. Encoding the hierarchy as types prevents constructing
-illegal URIs:
+Redfish 리소스는 트리를 이룹니다. 계층을 타입으로 인코딩하면
+잘못된 URI를 만들 수 없습니다:
 
 ```mermaid
 graph TD
@@ -376,7 +380,7 @@ graph TD
 ```rust,ignore
 use std::marker::PhantomData;
 
-// ──── Resource Type Markers ────
+// ──── 리소스 타입 마커 ────
 
 pub struct ServiceRoot;
 pub struct SystemsCollection;
@@ -390,7 +394,7 @@ pub struct ManagersCollection;
 pub struct ManagerInstance;
 pub struct UpdateServiceResource;
 
-// ──── Typed Resource Path ────
+// ──── 타입이 있는 리소스 경로 ────
 
 pub struct RedfishPath<R> {
     uri: String,
@@ -492,44 +496,44 @@ impl<R> RedfishPath<R> {
     }
 }
 
-// ── Usage ──
+// ── 사용 ──
 
 fn build_paths() {
     let root = RedfishPath::root();
 
-    // ✅ Valid navigation
+    // ✅ 유효한 탐색
     let thermal = root.chassis().instance("1").thermal();
     assert_eq!(thermal.uri(), "/redfish/v1/Chassis/1/Thermal");
 
     let bios = root.systems().system("1").bios();
     assert_eq!(bios.uri(), "/redfish/v1/Systems/1/Bios");
 
-    // ❌ Compile error: ServiceRoot has no .thermal() method
+    // ❌ 컴파일 에러: ServiceRoot에 .thermal() 없음
     // root.thermal();
 
-    // ❌ Compile error: SystemsCollection has no .bios() method
+    // ❌ 컴파일 에러: SystemsCollection에 .bios() 없음
     // root.systems().bios();
 
-    // ❌ Compile error: ChassisInstance has no .bios() method
+    // ❌ 컴파일 에러: ChassisInstance에 .bios() 없음
     // root.chassis().instance("1").bios();
 }
 ```
 
-**Bug class eliminated:** malformed URIs, navigating to a child resource that
-doesn't exist under the given parent. The hierarchy is enforced structurally —
-you can only reach `Thermal` through `Chassis → Instance → Thermal`.
+**제거된 버그 클래스:** 잘못된 URI, 주어진 부모 아래에 없는 자식 리소스로의 탐색. 계층이 구조적으로 강제됩니다 —
+`Thermal`에는 `Chassis → Instance → Thermal`로만 도달할 수 있습니다.
 
 ---
 
-## Section 4 — Typed Telemetry Reads (Typed Commands + Dimensional Analysis, ch02 + ch06)
+<a id="section-4-typed-telemetry-reads"></a>
+## 4절 — 타입이 있는 텔레메트리 읽기 (Typed Commands + Dimensional Analysis, ch02 + ch06)
 
-Combine typed resource paths with dimensional return types so the compiler knows
-what unit every reading carries:
+타입이 있는 리소스 경로와 차원이 붙은 반환 타입을 결합해 컴파일러가
+각 측정값의 단위를 알게 합니다:
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// ──── Dimensional Types (ch06) ────
+// ──── 차원 타입 (ch06) ────
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Celsius(pub f64);
@@ -543,15 +547,15 @@ pub struct Watts(pub f64);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Volts(pub f64);
 
-// ──── Typed Redfish GET (ch02 pattern applied to REST) ────
+// ──── 타입이 있는 Redfish GET (ch02 패턴을 REST에 적용) ────
 
-/// A Redfish resource type determines its parsed response.
+/// Redfish 리소스 타입이 파싱된 응답을 결정.
 pub trait RedfishResource {
     type Response;
     fn parse(json: &serde_json::Value) -> Result<Self::Response, RedfishError>;
 }
 
-// ──── Validated Thermal Response (ch07) ────
+// ──── 검증된 Thermal 응답 (ch07) ────
 
 #[derive(Debug)]
 pub struct ValidThermalResponse {
@@ -562,7 +566,7 @@ pub struct ValidThermalResponse {
 #[derive(Debug)]
 pub struct TemperatureReading {
     pub name: String,
-    pub reading: Celsius,           // ← dimensional type, not f64
+    pub reading: Celsius,           // ← 차원 타입, f64 아님
     pub upper_critical: Celsius,
     pub status: HealthStatus,
 }
@@ -570,7 +574,7 @@ pub struct TemperatureReading {
 #[derive(Debug)]
 pub struct FanReading {
     pub name: String,
-    pub reading: Rpm,               // ← dimensional type, not u32
+    pub reading: Rpm,               // ← 차원 타입, u32 아님
     pub status: HealthStatus,
 }
 
@@ -581,7 +585,7 @@ impl RedfishResource for ThermalResource {
     type Response = ValidThermalResponse;
 
     fn parse(json: &serde_json::Value) -> Result<ValidThermalResponse, RedfishError> {
-        // Parse and validate in one pass — boundary validation (ch07)
+        // 한 번에 파싱·검증 — 경계 검증 (ch07)
         let temps = json["Temperatures"]
             .as_array()
             .ok_or_else(|| RedfishError::ValidationError(
@@ -606,7 +610,7 @@ impl RedfishResource for ThermalResource {
                     upper_critical: Celsius(
                         t["UpperThresholdCritical"]
                             .as_f64()
-                            .unwrap_or(105.0), // safe default for missing threshold
+                            .unwrap_or(105.0), // 임계값 없을 때 안전한 기본값
                     ),
                     status: parse_health(
                         t["Status"]["Health"]
@@ -659,7 +663,7 @@ fn parse_health(s: &str) -> HealthStatus {
     }
 }
 
-// ──── Typed GET on Authenticated Session ────
+// ──── Authenticated 세션에서 타입이 있는 GET ────
 
 impl RedfishSession<Authenticated> {
     pub fn get_resource<R: RedfishResource>(
@@ -671,7 +675,7 @@ impl RedfishSession<Authenticated> {
     }
 }
 
-// ── Usage ──
+// ── 사용 ──
 
 fn read_thermal(
     session: &RedfishSession<Authenticated>,
@@ -679,19 +683,19 @@ fn read_thermal(
 ) -> Result<(), RedfishError> {
     let path = RedfishPath::root().chassis().instance("1").thermal();
 
-    // Response type is inferred: ValidThermalResponse
+    // 응답 타입 추론: ValidThermalResponse
     let thermal = session.get_resource(&path)?;
 
     for t in &thermal.temperatures {
-        // t.reading is Celsius — can only compare with Celsius
+        // t.reading은 Celsius — Celsius와만 비교 가능
         if t.reading > t.upper_critical {
             println!("CRITICAL: {} at {:?}", t.name, t.reading);
         }
 
-        // ❌ Compile error: cannot compare Celsius with Rpm
+        // ❌ 컴파일 에러: Celsius와 Rpm 비교 불가
         // if t.reading > thermal.fans[0].reading { }
 
-        // ❌ Compile error: cannot compare Celsius with Watts
+        // ❌ 컴파일 에러: Celsius와 Watts 비교 불가
         // if t.reading > Watts(350.0) { }
     }
 
@@ -699,29 +703,29 @@ fn read_thermal(
 }
 ```
 
-**Bug classes eliminated:**
-- **Unit confusion:** `Celsius` ≠ `Rpm` ≠ `Watts` — the compiler rejects comparisons.
-- **Missing field panics:** `parse()` validates at the boundary; `ValidThermalResponse`
-  guarantees all fields are present.
-- **Wrong response type:** `get_resource(&thermal_path)` returns `ValidThermalResponse`,
-  not raw JSON. The resource type determines the response type at compile time.
+**제거된 버그 클래스:**
+- **단위 혼동:** `Celsius` ≠ `Rpm` ≠ `Watts` — 컴파일러가 비교를 거부합니다.
+- **필드 누락 패닉:** `parse()`가 경계에서 검증하고; `ValidThermalResponse`가
+  모든 필드 존재를 보장합니다.
+- **잘못된 응답 타입:** `get_resource(&thermal_path)`는 원시 JSON이 아니라 `ValidThermalResponse`를 반환합니다. 리소스 타입이 컴파일 타임에 응답 타입을 결정합니다.
 
 ---
 
-## Section 5 — PATCH with Builder Type-State (ch11, Trick 4)
+<a id="section-5-patch-with-builder-type-state"></a>
+## 5절 — 빌더 타입 상태로 PATCH (ch11, Trick 4)
 
-Redfish PATCH payloads must contain specific fields. A builder that gates
-`.apply()` on required fields being set prevents incomplete or empty patches:
+Redfish PATCH 페이로드에는 특정 필드가 있어야 합니다. 필수 필드가 설정된 경우에만
+`.apply()`를 허용하는 빌더는 불완전하거나 빈 PATCH를 막습니다:
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// ──── Type-level booleans for required fields ────
+// ──── 필수 필드용 타입 수준 불리언 ────
 
 pub struct FieldUnset;
 pub struct FieldSet;
 
-// ──── BIOS Settings PATCH Builder ────
+// ──── BIOS 설정 PATCH 빌더 ────
 
 pub struct BiosPatchBuilder<BootOrder, TpmState> {
     boot_order: Option<Vec<String>>,
@@ -740,7 +744,7 @@ impl BiosPatchBuilder<FieldUnset, FieldUnset> {
 }
 
 impl<T> BiosPatchBuilder<FieldUnset, T> {
-    /// Set boot order — transitions the BootOrder marker to FieldSet.
+    /// 부팅 순서 설정 — BootOrder 마커를 FieldSet으로 전이.
     pub fn boot_order(self, order: Vec<String>) -> BiosPatchBuilder<FieldSet, T> {
         BiosPatchBuilder {
             boot_order: Some(order),
@@ -751,7 +755,7 @@ impl<T> BiosPatchBuilder<FieldUnset, T> {
 }
 
 impl<B> BiosPatchBuilder<B, FieldUnset> {
-    /// Set TPM state — transitions the TpmState marker to FieldSet.
+    /// TPM 상태 설정 — TpmState 마커를 FieldSet으로 전이.
     pub fn tpm_enabled(self, enabled: bool) -> BiosPatchBuilder<B, FieldSet> {
         BiosPatchBuilder {
             boot_order: self.boot_order,
@@ -762,7 +766,7 @@ impl<B> BiosPatchBuilder<B, FieldUnset> {
 }
 
 impl BiosPatchBuilder<FieldSet, FieldSet> {
-    /// .apply() only exists when ALL required fields are set.
+    /// 필수 필드가 모두 설정되었을 때만 .apply() 존재.
     pub fn apply(
         self,
         session: &RedfishSession<Authenticated>,
@@ -785,7 +789,7 @@ impl BiosPatchBuilder<FieldSet, FieldSet> {
     }
 }
 
-// ── Usage ──
+// ── 사용 ──
 
 fn configure_bios(
     session: &RedfishSession<Authenticated>,
@@ -793,18 +797,18 @@ fn configure_bios(
 ) -> Result<(), RedfishError> {
     let system = RedfishPath::root().systems().system("1");
 
-    // ✅ Both required fields set — .apply() is available
+    // ✅ 필수 필드 둘 다 설정 — .apply() 사용 가능
     BiosPatchBuilder::new()
         .boot_order(vec!["Pxe".into(), "Hdd".into()])
         .tpm_enabled(true)
         .apply(session, configure, &system)?;
 
-    // ❌ Compile error: .apply() not found on BiosPatchBuilder<FieldSet, FieldUnset>
+    // ❌ 컴파일 에러: BiosPatchBuilder<FieldSet, FieldUnset>에 .apply() 없음
     // BiosPatchBuilder::new()
     //     .boot_order(vec!["Pxe".into()])
     //     .apply(session, configure, &system)?;
 
-    // ❌ Compile error: .apply() not found on BiosPatchBuilder<FieldUnset, FieldUnset>
+    // ❌ 컴파일 에러: BiosPatchBuilder<FieldUnset, FieldUnset>에 .apply() 없음
     // BiosPatchBuilder::new()
     //     .apply(session, configure, &system)?;
 
@@ -812,17 +816,18 @@ fn configure_bios(
 }
 ```
 
-**Bug classes eliminated:**
-- **Empty PATCH:** Can't call `.apply()` without setting every required field.
-- **Missing privilege:** `.apply()` requires `&ConfigureComponentsToken`.
-- **Wrong resource:** Takes a `&RedfishPath<ComputerSystem>`, not a raw string.
+**제거된 버그 클래스:**
+- **빈 PATCH:** 필수 필드를 모두 설정하지 않으면 `.apply()` 호출 불가.
+- **권한 누락:** `.apply()`는 `&ConfigureComponentsToken` 필요.
+- **잘못된 리소스:** 원시 문자열이 아니라 `&RedfishPath<ComputerSystem>`을 받음.
 
 ---
 
-## Section 6 — Firmware Update Lifecycle (Single-Use + Type-State, ch03 + ch05)
+<a id="section-6-firmware-update-lifecycle"></a>
+## 6절 — 펌웨어 업데이트 수명 (Single-Use + Type-State, ch03 + ch05)
 
-The Redfish `UpdateService` has a strict sequence: push image → verify →
-apply → reboot. Each phase must happen exactly once, in order.
+Redfish `UpdateService`는 엄격한 순서를 가집니다: 이미지 푸시 → 검증 →
+적용 → 재부팅. 각 단계는 순서대로 정확히 한 번씩 일어나야 합니다.
 
 ```mermaid
 stateDiagram-v2
@@ -836,14 +841,14 @@ stateDiagram-v2
     NeedsReboot --> [*] : reboot()
     Failed --> [*]
 
-    note right of Verified : apply() consumes this state —
-    note right of Verified : can't apply twice
+    note right of Verified : apply()가 이 상태를 소비 —
+    note right of Verified : 두 번 적용 불가
 ```
 
 ```rust,ignore
 use std::marker::PhantomData;
 
-// ──── Firmware Update States ────
+// ──── 펌웨어 업데이트 상태 ────
 
 pub struct FwIdle;
 pub struct FwUploaded;
@@ -864,7 +869,7 @@ impl FirmwareUpdate<FwIdle> {
         image: &[u8],
     ) -> Result<FirmwareUpdate<FwUploaded>, RedfishError> {
         // POST /redfish/v1/UpdateService/Actions/UpdateService.SimpleUpdate
-        // or multipart push to /redfish/v1/UpdateService/upload
+        // 또는 /redfish/v1/UpdateService/upload로 multipart 푸시
         let _ = image;
         println!("Image uploaded ({} bytes)", image.len());
         Ok(FirmwareUpdate {
@@ -876,7 +881,7 @@ impl FirmwareUpdate<FwIdle> {
 }
 
 impl FirmwareUpdate<FwUploaded> {
-    /// Verify image integrity. Returns FwVerified on success.
+    /// 이미지 무결성 검증. 성공 시 FwVerified 반환.
     pub fn verify(self) -> Result<FirmwareUpdate<FwVerified>, RedfishError> {
         // Poll task until verification complete
         println!("Image verified: {}", self.image_hash);
@@ -889,12 +894,12 @@ impl FirmwareUpdate<FwUploaded> {
 }
 
 impl FirmwareUpdate<FwVerified> {
-    /// Apply the update. Consumes self — can't apply twice.
-    /// This is the single-use pattern from ch03.
+    /// 업데이트 적용. self 소비 — 두 번 적용 불가.
+    /// ch03의 단일 사용 패턴.
     pub fn apply(self) -> Result<FirmwareUpdate<FwNeedsReboot>, RedfishError> {
-        // PATCH /redfish/v1/UpdateService — set ApplyTime
+        // PATCH /redfish/v1/UpdateService — ApplyTime 설정
         println!("Firmware applied from {}", self.task_uri);
-        // self is moved — calling apply() again is a compile error
+        // self 이동 — apply() 재호출은 컴파일 에러
         Ok(FirmwareUpdate {
             task_uri: self.task_uri,
             image_hash: self.image_hash,
@@ -904,7 +909,7 @@ impl FirmwareUpdate<FwVerified> {
 }
 
 impl FirmwareUpdate<FwNeedsReboot> {
-    /// Reboot to activate the new firmware.
+    /// 새 펌웨어를 활성화하려면 재부팅.
     pub fn reboot(
         self,
         session: &RedfishSession<Authenticated>,
@@ -917,67 +922,68 @@ impl FirmwareUpdate<FwNeedsReboot> {
     }
 }
 
-// ── Usage ──
+// ── 사용 ──
 
 fn update_bmc_firmware(
     session: &RedfishSession<Authenticated>,
     manager_proof: &ConfigureManagerToken,
     image: &[u8],
 ) -> Result<(), RedfishError> {
-    // Each step returns the next state — the old state is consumed
+    // 각 단계가 다음 상태를 반환 — 이전 상태는 소비됨
     let uploaded = FirmwareUpdate::push_image(session, manager_proof, image)?;
     let verified = uploaded.verify()?;
     let needs_reboot = verified.apply()?;
     needs_reboot.reboot(session, manager_proof)?;
 
-    // ❌ Compile error: use of moved value `verified`
+    // ❌ 컴파일 에러: 이동된 `verified` 사용
     // verified.apply()?;
 
-    // ❌ Compile error: FirmwareUpdate<FwUploaded> has no .apply() method
-    // uploaded.apply()?;      // must verify first!
+    // ❌ 컴파일 에러: FirmwareUpdate<FwUploaded>에 .apply() 없음
+    // uploaded.apply()?;      // 먼저 검증해야 함!
 
-    // ❌ Compile error: push_image requires &ConfigureManagerToken
+    // ❌ 컴파일 에러: push_image는 &ConfigureManagerToken 필요
     // FirmwareUpdate::push_image(session, &login_token, image)?;
 
     Ok(())
 }
 ```
 
-**Bug classes eliminated:**
-- **Applying unverified firmware:** `.apply()` only exists on `FwVerified`.
-- **Double apply:** `apply()` consumes `self` — moved value can't be reused.
-- **Skipping reboot:** `FwNeedsReboot` is a distinct type; you can't accidentally
-  continue normal operations while firmware is staged.
-- **Unauthorized update:** `push_image()` requires `&ConfigureManagerToken`.
+**제거된 버그 클래스:**
+- **검증 없는 펌웨어 적용:** `.apply()`는 `FwVerified`에서만 존재.
+- **이중 적용:** `apply()`가 `self`를 소비 — 이동된 값 재사용 불가.
+- **재부팅 생략:** `FwNeedsReboot`는 별도 타입; 펌웨어가 스테이징된 채로
+  실수로 정상 동작을 계속할 수 없음.
+- **무단 업데이트:** `push_image()`는 `&ConfigureManagerToken` 필요.
 
 ---
 
-## Section 7 — Putting It All Together
+<a id="section-7-putting-it-all-together-ch17"></a>
+## 7절 — 모두 합치기
 
-Here's the full diagnostic workflow composing all six sections:
+여섉 절을 모두 조합한 전체 진단 워크플로입니다:
 
 ```rust,ignore
 fn full_redfish_diagnostic() -> Result<(), RedfishError> {
-    // ── 1. Session lifecycle (Section 1) ──
+    // ── 1. 세션 수명 (1절) ──
     let session = RedfishSession::new("bmc01.lab.local");
     let session = session.connect()?;
 
-    // ── 2. Privilege tokens (Section 2) ──
-    // Admin login — receives all capability tokens
+    // ── 2. 권한 토큰 (2절) ──
+    // 관리자 로그인 — 모든 capability 토큰 수신
     let (session, _login, configure, manager) =
         session.login_admin("admin", "p@ssw0rd")?;
 
-    // ── 3. Typed navigation (Section 3) ──
+    // ── 3. 타입이 있는 탐색 (3절) ──
     let thermal_path = RedfishPath::root()
         .chassis()
         .instance("1")
         .thermal();
 
-    // ── 4. Typed telemetry read (Section 4) ──
+    // ── 4. 타입이 있는 텔레메트리 읽기 (4절) ──
     let thermal: ValidThermalResponse = session.get_resource(&thermal_path)?;
 
     for t in &thermal.temperatures {
-        // Celsius can only compare with Celsius — dimensional safety
+        // Celsius는 Celsius와만 비교 — 차원 안전
         if t.reading > t.upper_critical {
             println!("🔥 {} is critical: {:?}", t.name, t.reading);
         }
@@ -989,7 +995,7 @@ fn full_redfish_diagnostic() -> Result<(), RedfishError> {
         }
     }
 
-    // ── 5. Type-safe PATCH (Section 5) ──
+    // ── 5. 타입 안전 PATCH (5절) ──
     let system_path = RedfishPath::root().systems().system("1");
 
     BiosPatchBuilder::new()
@@ -997,13 +1003,13 @@ fn full_redfish_diagnostic() -> Result<(), RedfishError> {
         .tpm_enabled(true)
         .apply(&session, &configure, &system_path)?;
 
-    // ── 6. Firmware update lifecycle (Section 6) ──
+    // ── 6. 펌웨어 업데이트 수명 (6절) ──
     let firmware_image = include_bytes!("bmc_firmware.bin");
     let uploaded = FirmwareUpdate::push_image(&session, &manager, firmware_image)?;
     let verified = uploaded.verify()?;
     let needs_reboot = verified.apply()?;
 
-    // ── 7. Clean shutdown ──
+    // ── 7. 깔끔한 종료 ──
     needs_reboot.reboot(&session, &manager)?;
     session.logout();
 
@@ -1011,60 +1017,62 @@ fn full_redfish_diagnostic() -> Result<(), RedfishError> {
 }
 ```
 
-### What the Compiler Proves
+<a id="what-the-compiler-proves-ch17"></a>
+### 컴파일러가 증명하는 것
 
-| # | Bug class | How it's prevented | Pattern (Section) |
+| # | 버그 클래스 | 막는 방법 | 패턴 (절) |
 |---|-----------|-------------------|-------------------|
-| 1 | Request on unauthenticated session | `http_get()` only exists on `Session<Authenticated>` | Type-state (§1) |
-| 2 | Privilege escalation | `ConfigureManagerToken` not returned by operator login | Capability tokens (§2) |
-| 3 | Malformed Redfish URI | Navigation methods enforce parent→child hierarchy | Phantom types (§3) |
-| 4 | Unit confusion (°C vs RPM vs W) | `Celsius`, `Rpm`, `Watts` are distinct types | Dimensional analysis (§4) |
-| 5 | Missing JSON field → panic | `ValidThermalResponse` validates at parse boundary | Validated boundaries (§4) |
-| 6 | Wrong response type | `RedfishResource::Response` is fixed per resource | Typed commands (§4) |
-| 7 | Incomplete PATCH payload | `.apply()` only exists when all fields are `FieldSet` | Builder type-state (§5) |
-| 8 | Missing privilege for PATCH | `.apply()` requires `&ConfigureComponentsToken` | Capability tokens (§5) |
-| 9 | Applying unverified firmware | `.apply()` only exists on `FwVerified` | Type-state (§6) |
-| 10 | Double firmware apply | `apply()` consumes `self` — value is moved | Single-use types (§6) |
-| 11 | Firmware update without authority | `push_image()` requires `&ConfigureManagerToken` | Capability tokens (§6) |
-| 12 | Use-after-logout | `logout()` consumes the session | Ownership (§1) |
+| 1 | 미인증 세션으로 요청 | `http_get()`은 `Session<Authenticated>`에만 존재 | Type-state (1절) |
+| 2 | 권한 상승 | 운영자 로그인은 `ConfigureManagerToken`을 반환하지 않음 | Capability tokens (2절) |
+| 3 | 잘못된 Redfish URI | 탐색 메서드가 부모→자식 계층 강제 | Phantom types (3절) |
+| 4 | 단위 혼동(°C vs RPM vs W) | `Celsius`, `Rpm`, `Watts`는 서로 다른 타입 | Dimensional analysis (4절) |
+| 5 | JSON 필드 누락 → 패닉 | `ValidThermalResponse`가 파싱 경계에서 검증 | Validated boundaries (4절) |
+| 6 | 잘못된 응답 타입 | 리소스마다 `RedfishResource::Response`가 고정 | Typed commands (4절) |
+| 7 | 불완전한 PATCH 페이로드 | 필드가 모두 `FieldSet`일 때만 `.apply()` 존재 | Builder type-state (5절) |
+| 8 | PATCH에 권한 누락 | `.apply()`는 `&ConfigureComponentsToken` 필요 | Capability tokens (5절) |
+| 9 | 검증 없는 펌웨어 적용 | `.apply()`는 `FwVerified`에만 존재 | Type-state (6절) |
+| 10 | 펌웨어 이중 적용 | `apply()`가 `self` 소비 — 값 이동 | Single-use types (6절) |
+| 11 | 권한 없는 펌웨어 업데이트 | `push_image()`는 `&ConfigureManagerToken` 필요 | Capability tokens (6절) |
+| 12 | 로그아웃 후 사용 | `logout()`이 세션 소비 | Ownership (1절) |
 
-**Total runtime overhead of ALL twelve guarantees: zero.**
+**열두 가지 보장 모두의 총 런타임 오버헤드: 0.**
 
-The generated binary makes the same HTTP calls as the untyped version — but the
-untyped version can have 12 classes of bugs. This version can't.
+생성된 바이너리는 타입 없는 버전과 같은 HTTP 호출을 하지만 — 타입 없는 버전은
+12가지 버그 클래스가 날 수 있고, 이 버전은 날 수 없습니다.
 
 ---
 
-## Comparison: IPMI Integration (ch10) vs. Redfish Integration
+<a id="comparison-ipmi-vs-redfish"></a>
+## 비교: IPMI 통합(ch10) vs. Redfish 통합
 
-| Dimension | ch10 (IPMI) | This chapter (Redfish) |
+| 차원 | ch10 (IPMI) | 이 장 (Redfish) |
 |-----------|-------------|----------------------|
-| Transport | Raw bytes over KCS/LAN | JSON over HTTPS |
-| Navigation | Flat command codes (NetFn/Cmd) | Hierarchical URI tree |
-| Response binding | `IpmiCmd::Response` | `RedfishResource::Response` |
-| Privilege model | Single `AdminToken` | Role-based multi-token |
-| Payload construction | Byte arrays | Builder type-state for JSON |
-| Update lifecycle | Not covered | Full type-state chain |
-| Patterns exercised | 7 | 8 (adds builder type-state) |
+| 전송 | KCS/LAN 위 원시 바이트 | HTTPS 위 JSON |
+| 탐색 | 평면 명령 코드(NetFn/Cmd) | 계층 URI 트리 |
+| 응답 결합 | `IpmiCmd::Response` | `RedfishResource::Response` |
+| 권한 모델 | 단일 `AdminToken` | 역할 기반 다중 토큰 |
+| 페이로드 구성 | 바이트 배열 | JSON용 빌더 타입 상태 |
+| 업데이트 수명 | 다루지 않음 | 전체 type-state 체인 |
+| 연습한 패턴 수 | 7 | 8 (빌더 타입 상태 추가) |
 
-The two chapters are complementary: ch10 shows the patterns work at the byte level,
-this chapter shows they work identically at the REST/JSON level. The type system
-doesn't care about the transport — it proves correctness either way.
+두 장은 상호 보완입니다: ch10은 바이트 수준에서 패턴이 통함을 보이고,
+이 장은 REST/JSON 수준에서 동일함을 보입니다. 타입 시스템은 전송에 관심 없습니다 —
+어느 쪽이든 정확성을 증명합니다.
 
-## Key Takeaways
+<a id="key-takeaways-ch17"></a>
+## 핵심 정리
 
-1. **Eight patterns compose into one Redfish client** — session type-state, capability
-   tokens, phantom-typed URIs, typed commands, dimensional analysis, validated
-   boundaries, builder type-state, and single-use firmware apply.
-2. **Twelve bug classes become compile errors** — see the table above.
-3. **Zero runtime overhead** — every proof token, phantom type, and type-state
-   marker compiles away. The binary is identical to hand-rolled untyped code.
-4. **REST APIs benefit as much as byte protocols** — the patterns from ch02–ch09
-   apply equally to JSON-over-HTTPS (Redfish) and bytes-over-KCS (IPMI).
-5. **Privilege enforcement is structural, not procedural** — the function signature
-   declares what's required; the compiler enforces it.
-6. **This is a design template** — adapt the resource type markers, capability
-   tokens, and builder for your specific Redfish schema and organizational
-   role hierarchy.
+1. **여덟 패턴이 하나의 Redfish 클라이언트로** — 세션 type-state, capability
+   tokens, 팬텀 타입 URI, typed commands, dimensional analysis, validated
+   boundaries, 빌더 type-state, 단일 사용 펌웨어 적용.
+2. **열두 가지 버그 클래스가 컴파일 에러로** — 위 표 참고.
+3. **런타임 오버헤드 0** — 모든 증명 토큰, 팬텀 타입, type-state
+   마커는 컴파일되면 사라집니다. 바이너리는 손으로 짠 타입 없는 코드와 동일합니다.
+4. **바이트 프로토콜만큼 REST API도 이득** — ch02–ch09 패턴은
+   JSON-over-HTTPS(Redfish)와 bytes-over-KCS(IPMI)에 동일하게 적용됩니다.
+5. **권한 강제는 절차가 아니라 구조** — 함수 시그니처가
+   필요한 것을 선언하고 컴파일러가 강제합니다.
+6. **이것은 설계 템플릿** — 리소스 타입 마커, capability
+   tokens, 빌더를 조직의 Redfish 스키마와 역할 계층에 맞게 조정하세요.
 
 ---

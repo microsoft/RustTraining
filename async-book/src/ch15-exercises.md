@@ -1,17 +1,19 @@
-## Exercises
+<a id="exercises"></a>
+## 연습문제
 
-### Exercise 1: Async Echo Server
+<a id="exercise-1-async-echo-server"></a>
+### 연습문제 1: Async 에코 서버
 
-Build a TCP echo server that handles multiple clients concurrently.
+여러 클라이언트를 동시에 처리하는 TCP 에코 서버를 만들어 보세요.
 
-**Requirements**:
-- Listen on `127.0.0.1:8080`
-- Accept connections and echo back each line
-- Handle client disconnections gracefully
-- Print a log when clients connect/disconnect
+**요구 사항**:
+- `127.0.0.1:8080`에서 리슨하기
+- 연결을 받아 각 줄을 그대로 다시 돌려주기
+- 클라이언트 연결 종료를 우아하게 처리하기
+- 클라이언트 연결/해제 시 로그 출력하기
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -60,20 +62,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-### Exercise 2: Concurrent URL Fetcher with Rate Limiting
+<a id="exercise-2-concurrent-url-fetcher-with-rate-limiting"></a>
+### 연습문제 2: 속도 제한이 있는 동시 URL 가져오기
 
-Fetch a list of URLs concurrently, with at most 5 concurrent requests.
+URL 목록을 동시에 가져오되, 동시에 최대 5개의 요청만 처리하도록 만들어 보세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 use futures::stream::{self, StreamExt};
 use tokio::time::{sleep, Duration};
 
 async fn fetch_urls(urls: Vec<String>) -> Vec<Result<String, String>> {
-    // buffer_unordered(5) ensures at most 5 futures are polled
-    // concurrently — no separate Semaphore needed here.
+    // buffer_unordered(5)는 동시에 최대 5개의 future만 poll되도록 보장한다.
+    // 이 경우 별도의 Semaphore는 필요 없다.
     let results: Vec<_> = stream::iter(urls)
         .map(|url| {
             async move {
@@ -88,31 +91,32 @@ async fn fetch_urls(urls: Vec<String>) -> Vec<Result<String, String>> {
                 }
             }
         })
-        .buffer_unordered(5) // ← This alone limits concurrency to 5
+        .buffer_unordered(5) // 이것만으로 동시성 5개 제한이 걸린다
         .collect()
         .await;
 
     results
 }
 
-// NOTE: Use Semaphore when you need to limit concurrency across
-// independently spawned tasks (tokio::spawn). Use buffer_unordered
-// when processing a stream. Don't combine both for the same limit.
+// 참고: 서로 독립적으로 스폰된 태스크(tokio::spawn)들 사이의 동시성을
+// 제한해야 할 때는 Semaphore를 사용하라. stream을 처리할 때는
+// buffer_unordered를 사용하라. 같은 제한에 둘을 함께 쓰지 마라.
 ```
 
 </details>
 
 ---
 
-### Exercise 3: Graceful Shutdown with Worker Pool
+<a id="exercise-3-graceful-shutdown-with-worker-pool"></a>
+### 연습문제 3: 워커 풀과 우아한 종료
 
-Build a task processor with:
-- A channel-based work queue
-- N worker tasks consuming from the queue
-- Graceful shutdown on Ctrl+C: stop accepting, finish in-flight work
+다음을 갖춘 작업 처리기를 만들어 보세요.
+- 채널 기반 작업 큐
+- 큐를 소비하는 N개의 워커 태스크
+- Ctrl+C 시 우아한 종료: 새 작업 수락 중단, 진행 중 작업 마무리
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 use tokio::sync::{mpsc, watch};
@@ -128,7 +132,7 @@ async fn main() {
     let (work_tx, work_rx) = mpsc::channel::<WorkItem>(100);
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-    // Spawn 4 workers
+    // 워커 4개 스폰
     let mut worker_handles = Vec::new();
     let work_rx = std::sync::Arc::new(tokio::sync::Mutex::new(work_rx));
 
@@ -150,7 +154,7 @@ async fn main() {
                 match item {
                     Some(work) => {
                         println!("Worker {id}: processing item {}", work.id);
-                        sleep(Duration::from_millis(200)).await; // Simulate work
+                        sleep(Duration::from_millis(200)).await; // 작업 시뮬레이션
                         println!("Worker {id}: done with item {}", work.id);
                     }
                     None => {
@@ -163,7 +167,7 @@ async fn main() {
         worker_handles.push(handle);
     }
 
-    // Producer: submit some work
+    // producer: 작업 몇 개를 투입
     let producer = tokio::spawn(async move {
         for i in 0..20 {
             let _ = work_tx.send(WorkItem {
@@ -174,13 +178,13 @@ async fn main() {
         }
     });
 
-    // Wait for Ctrl+C
+    // Ctrl+C 대기
     tokio::signal::ctrl_c().await.unwrap();
     println!("\nShutdown signal received!");
     shutdown_tx.send(true).unwrap();
-    producer.abort(); // Cancel the producer task
+    producer.abort(); // producer 태스크 취소
 
-    // Wait for workers to finish
+    // 워커들이 끝날 때까지 대기
     for handle in worker_handles {
         let _ = handle.await;
     }
@@ -192,14 +196,15 @@ async fn main() {
 
 ---
 
-### Exercise 4: Build a Simple Async Mutex from Scratch
+<a id="exercise-4-build-a-simple-async-mutex-from-scratch"></a>
+### 연습문제 4: 간단한 Async Mutex를 처음부터 구현하기
 
-Implement an async-aware mutex using channels (without using `tokio::sync::Mutex`).
+채널을 사용해(`tokio::sync::Mutex` 없이) async를 인지하는 mutex를 구현해 보세요.
 
-*Hint*: Use a `tokio::sync::mpsc` channel with capacity 1 as a semaphore.
+**힌트:** 용량 1짜리 `tokio::sync::mpsc` 채널을 세마포어처럼 써 보는 발상에서 출발해 보세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 use std::cell::UnsafeCell;
@@ -211,13 +216,13 @@ pub struct SimpleAsyncMutex<T> {
     semaphore: Arc<Semaphore>,
 }
 
-// SAFETY: Access to T is serialized by the semaphore (max 1 permit).
+// SAFETY: T에 대한 접근은 세마포어(최대 permit 1개)로 직렬화된다.
 unsafe impl<T: Send> Send for SimpleAsyncMutex<T> {}
 unsafe impl<T: Send> Sync for SimpleAsyncMutex<T> {}
 
 pub struct SimpleGuard<T> {
     data: Arc<UnsafeCell<T>>,
-    _permit: OwnedSemaphorePermit, // Dropped on guard drop → releases lock
+    _permit: OwnedSemaphorePermit, // guard가 drop되면 lock이 해제된다
 }
 
 impl<T> SimpleAsyncMutex<T> {
@@ -240,53 +245,50 @@ impl<T> SimpleAsyncMutex<T> {
 impl<T> std::ops::Deref for SimpleGuard<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        // SAFETY: We hold the only semaphore permit, so no other
-        // SimpleGuard exists → exclusive access is guaranteed.
+        // SAFETY: 유일한 semaphore permit을 들고 있으므로
+        // 다른 SimpleGuard는 존재할 수 없고, 배타적 접근이 보장된다.
         unsafe { &*self.data.get() }
     }
 }
 
 impl<T> std::ops::DerefMut for SimpleGuard<T> {
     fn deref_mut(&mut self) -> &mut T {
-        // SAFETY: Same reasoning — single permit guarantees exclusivity.
+        // SAFETY: 같은 이유로 단일 permit이 배타성을 보장한다.
         unsafe { &mut *self.data.get() }
     }
 }
 
-// When SimpleGuard is dropped, _permit is dropped,
-// which releases the semaphore permit — another lock() can proceed.
+// SimpleGuard가 drop되면 _permit도 drop되고,
+// 그러면 semaphore permit이 반환되어 다음 lock()이 진행될 수 있다.
 
-// Usage:
+// 사용 예:
 // let mutex = SimpleAsyncMutex::new(vec![1, 2, 3]);
 // {
 //     let mut guard = mutex.lock().await;
 //     guard.push(4);
-// } // permit released here
+// } // 여기서 permit 해제
 ```
 
-**Key takeaway**: Async mutexes are typically built on top of semaphores. The semaphore provides the async wait mechanism — when locked, `acquire()` suspends the task until the permit is released. This is exactly how `tokio::sync::Mutex` works internally.
+**핵심 포인트:** async mutex는 대개 세마포어 위에 구축됩니다. 세마포어가 async 대기 메커니즘을 제공합니다. 잠겨 있는 동안 `acquire()`는 permit이 반환될 때까지 태스크를 일시 중단합니다. `tokio::sync::Mutex`도 내부적으로 같은 아이디어를 사용합니다.
 
-> **Why `UnsafeCell` and not `std::sync::Mutex`?** A previous version of this
-> exercise used `Arc<Mutex<T>>` with `Deref`/`DerefMut` calling `.lock().unwrap()`.
-> That doesn't compile — the returned `&T` borrows from a temporary `MutexGuard`
-> that's dropped immediately. `UnsafeCell` avoids the intermediate guard, and the
-> semaphore-based serialization makes the `unsafe` sound.
+> **왜 `UnsafeCell`이고 `std::sync::Mutex`가 아닐까?** 이 연습문제의 이전 버전은 `Arc<Mutex<T>>`에 `Deref`/`DerefMut`에서 `.lock().unwrap()`을 호출하는 방식이었습니다. 하지만 그 코드는 컴파일되지 않습니다. 반환되는 `&T`가 즉시 drop되는 임시 `MutexGuard`를 빌리기 때문입니다. `UnsafeCell`은 그 중간 guard를 없애 주고, 세마포어 기반 직렬화 덕분에 이 `unsafe`는 타당해집니다.
 
 </details>
 
 ---
 
-### Exercise 5: Stream Pipeline
+<a id="exercise-5-stream-pipeline"></a>
+### 연습문제 5: 스트림 파이프라인
 
-Build a data processing pipeline using streams:
-1. Generate numbers 1..=100
-2. Filter to even numbers
-3. Map each to its square
-4. Process 10 at a time concurrently (simulate with sleep)
-5. Collect results
+stream을 사용해 데이터 처리 파이프라인을 만들어 보세요.
+1. `1..=100` 숫자 생성
+2. 짝수만 필터링
+3. 각 값을 제곱
+4. 한 번에 10개씩 동시에 처리(`sleep`으로 시뮬레이션)
+5. 결과 수집
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 use futures::stream::{self, StreamExt};
@@ -295,18 +297,18 @@ use tokio::time::{sleep, Duration};
 #[tokio::main]
 async fn main() {
     let results: Vec<u64> = stream::iter(1u64..=100)
-        // Step 2: Filter evens
+        // 2단계: 짝수 필터링
         .filter(|x| futures::future::ready(x % 2 == 0))
-        // Step 3: Square each
+        // 3단계: 각 값 제곱
         .map(|x| x * x)
-        // Step 4: Process concurrently (simulate async work)
+        // 4단계: 동시에 처리(async 작업 시뮬레이션)
         .map(|x| async move {
             sleep(Duration::from_millis(50)).await;
             println!("Processed: {x}");
             x
         })
-        .buffer_unordered(10) // 10 concurrent
-        // Step 5: Collect
+        .buffer_unordered(10) // 동시성 10개
+        // 5단계: 결과 수집
         .collect()
         .await;
 
@@ -319,14 +321,15 @@ async fn main() {
 
 ---
 
-### Exercise 6: Implement Select with Timeout
+<a id="exercise-6-implement-select-with-timeout"></a>
+### 연습문제 6: 타임아웃이 있는 Select 구현하기
 
-Without using `tokio::select!` or `tokio::time::timeout`, implement a function that races a future against a deadline and returns `Either::Left(result)` or `Either::Right(())` on timeout.
+`tokio::select!`나 `tokio::time::timeout`을 쓰지 말고, 하나의 future와 마감 시각을 경쟁시켜 타임아웃 시 `Either::Right(())`, 그렇지 않으면 `Either::Left(result)`를 반환하는 함수를 구현해 보세요.
 
-*Hint*: Build on the `Select` combinator from Chapter 6 and the `TimerFuture` from the same chapter.
+**힌트:** 6장의 `Select` combinator와 같은 장의 `TimerFuture`를 바탕으로 만들어 보세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust,ignore
 use std::future::Future;
@@ -341,7 +344,7 @@ pub enum Either<A, B> {
 
 pub struct Timeout<F> {
     future: F,
-    timer: TimerFuture, // From Chapter 6
+    timer: TimerFuture, // 6장에서 만든 타입
 }
 
 impl<F: Future + Unpin> Timeout<F> {
@@ -357,12 +360,12 @@ impl<F: Future + Unpin> Future for Timeout<F> {
     type Output = Either<F::Output, ()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Check if the main future is done
+        // 메인 future가 끝났는지 확인
         if let Poll::Ready(val) = Pin::new(&mut self.future).poll(cx) {
             return Poll::Ready(Either::Left(val));
         }
 
-        // Check if the timer expired
+        // 타이머가 만료됐는지 확인
         if let Poll::Ready(()) = Pin::new(&mut self.timer).poll(cx) {
             return Poll::Ready(Either::Right(()));
         }
@@ -371,16 +374,15 @@ impl<F: Future + Unpin> Future for Timeout<F> {
     }
 }
 
-// Usage:
+// 사용 예:
 // match Timeout::new(fetch_data(), Duration::from_secs(5)).await {
 //     Either::Left(data) => println!("Got data: {data}"),
 //     Either::Right(()) => println!("Timed out!"),
 // }
 ```
 
-**Key takeaway**: `select`/`timeout` is just polling two futures and seeing which completes first. The entire async ecosystem is built from this simple primitive: poll, Pending/Ready, Waker.
+**핵심 포인트:** `select`/`timeout`은 결국 두 future를 poll해서 어느 쪽이 먼저 끝나는지 보는 일입니다. async 생태계 전체는 이 단순한 원시 구성 요소, 즉 poll, `Pending`/`Ready`, `Waker` 위에 세워집니다.
 
 </details>
 
 ***
-

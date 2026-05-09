@@ -1,43 +1,45 @@
-## True Immutability vs Record Illusions
+<a id="true-immutability-vs-record-illusions"></a>
+## 진짜 불변성과 레코드 환상
 
-> **What you'll learn:** Why C# `record` types aren't truly immutable (mutable fields, reflection bypass),
-> how Rust enforces real immutability at compile time, and when to use interior mutability patterns.
+> **이 절에서 배울 내용:** 왜 C#의 `record` 타입이 실제로는 완전한 불변이 아닌지(가변 필드, reflection 우회), Rust가 어떻게 컴파일 타임에 진짜 불변성을 강제하는지, 그리고 언제 내부 가변성 패턴을 써야 하는지를 배웁니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-### C# Records - Immutability Theater
+<a id="c-records-immutability-theater"></a>
+### C# record - 불변성 연극
 ```csharp
-// C# records look immutable but have escape hatches
+// C# record는 불변처럼 보이지만 탈출구가 있다
 public record Person(string Name, int Age, List<string> Hobbies);
 
 var person = new Person("John", 30, new List<string> { "reading" });
 
-// These all "look" like they create new instances:
-var older = person with { Age = 31 };  // New record
-var renamed = person with { Name = "Jonathan" };  // New record
+// 겉보기에는 모두 새 인스턴스를 만드는 것처럼 보인다:
+var older = person with { Age = 31 };  // 새 record
+var renamed = person with { Name = "Jonathan" };  // 새 record
 
-// But the reference types are still mutable!
-person.Hobbies.Add("gaming");  // Mutates the original!
-Console.WriteLine(older.Hobbies.Count);  // 2 - older person affected!
-Console.WriteLine(renamed.Hobbies.Count); // 2 - renamed person also affected!
+// 하지만 참조 타입 필드는 여전히 가변이다!
+person.Hobbies.Add("gaming");  // 원본을 바꿔 버린다!
+Console.WriteLine(older.Hobbies.Count);   // 2 - older도 영향받음!
+Console.WriteLine(renamed.Hobbies.Count); // 2 - renamed도 영향받음!
 
-// Init-only properties can still be set via reflection
+// init-only 프로퍼티도 reflection으로는 바꿀 수 있다
 typeof(Person).GetProperty("Age")?.SetValue(person, 25);
 
-// Collection expressions help but don't solve the fundamental issue
+// collection expression이 도움은 되지만 근본 문제를 해결하지는 못한다
 public record BetterPerson(string Name, int Age, IReadOnlyList<string> Hobbies);
 
 var betterPerson = new BetterPerson("Jane", 25, new List<string> { "painting" });
-// Still mutable via casting: 
+// 캐스팅을 통해 여전히 변경 가능:
 ((List<string>)betterPerson.Hobbies).Add("hacking the system");
 
-// Even "immutable" collections aren't truly immutable
+// 심지어 "불변" 컬렉션도 완전한 해결책은 아니다
 using System.Collections.Immutable;
 public record SafePerson(string Name, int Age, ImmutableList<string> Hobbies);
-// This is better, but requires discipline and has performance overhead
+// 더 낫기는 하지만, 규율이 필요하고 성능 비용도 든다
 ```
 
-### Rust - True Immutability by Default
+<a id="rust-true-immutability-by-default"></a>
+### Rust - 기본이 진짜 불변성
 ```rust
 #[derive(Debug, Clone)]
 struct Person {
@@ -52,34 +54,34 @@ let person = Person {
     hobbies: vec!["reading".to_string()],
 };
 
-// This simply won't compile:
-// person.age = 31;  // ERROR: cannot assign to immutable field
-// person.hobbies.push("gaming".to_string());  // ERROR: cannot borrow as mutable
+// 아래 코드는 그냥 컴파일되지 않는다:
+// person.age = 31;  // ERROR: immutable field에 대입 불가
+// person.hobbies.push("gaming".to_string());  // ERROR: mutable borrow 불가
 
-// To modify, you must explicitly opt-in with 'mut':
+// 수정하려면 반드시 'mut'로 명시적 opt-in이 필요하다:
 let mut older_person = person.clone();
-older_person.age = 31;  // Now it's clear this is mutation
+older_person.age = 31;  // 이제 mutation이라는 사실이 분명하다
 
-// Or use functional update patterns:
+// 또는 함수형 업데이트 패턴을 사용할 수 있다:
 let renamed = Person {
     name: "Jonathan".to_string(),
-    ..person  // Copies other fields (move semantics apply)
+    ..person  // 나머지 필드를 복사/이동 (move semantics 적용)
 };
 
-// The original is guaranteed unchanged (until moved):
-println!("{:?}", person.hobbies);  // Always ["reading"] - immutable
+// 원본이 이동되기 전까지는 바뀌지 않음이 보장된다:
+println!("{:?}", person.hobbies);  // 항상 ["reading"] - 불변
 
-// Structural sharing with efficient immutable data structures
+// 효율적인 불변 자료구조와 구조적 공유
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 struct EfficientPerson {
     name: String,
     age: u32,
-    hobbies: Rc<Vec<String>>,  // Shared, immutable reference
+    hobbies: Rc<Vec<String>>,  // 공유되지만 불변인 참조
 }
 
-// Creating new versions shares data efficiently
+// 새 버전을 만들어도 데이터를 효율적으로 공유할 수 있다
 let person1 = EfficientPerson {
     name: "Alice".to_string(),
     age: 30,
@@ -89,20 +91,20 @@ let person1 = EfficientPerson {
 let person2 = EfficientPerson {
     name: "Bob".to_string(),
     age: 25,
-    hobbies: Rc::clone(&person1.hobbies),  // Shared reference, no deep copy
+    hobbies: Rc::clone(&person1.hobbies),  // 공유 참조, 깊은 복사 없음
 };
 ```
 
 ```mermaid
 graph TD
-    subgraph "C# Records - Shallow Immutability"
+    subgraph "C# record - 얕은 불변성"
         CS_RECORD["record Person(...)"]
-        CS_WITH["with expressions"]
-        CS_SHALLOW["⚠️ Only top-level immutable"]
-        CS_REF_MUT["❌ Reference types still mutable"]
-        CS_REFLECTION["❌ Reflection can bypass"]
-        CS_RUNTIME["❌ Runtime surprises"]
-        CS_DISCIPLINE["😓 Requires team discipline"]
+        CS_WITH["with 표현식"]
+        CS_SHALLOW["⚠️ 최상위 수준만 불변"]
+        CS_REF_MUT["❌ 참조 타입 내용은 여전히 가변"]
+        CS_REFLECTION["❌ reflection으로 우회 가능"]
+        CS_RUNTIME["❌ 런타임 놀라움"]
+        CS_DISCIPLINE["😓 팀 차원의 규율이 필요"]
         
         CS_RECORD --> CS_WITH
         CS_WITH --> CS_SHALLOW
@@ -112,14 +114,14 @@ graph TD
         CS_RUNTIME --> CS_DISCIPLINE
     end
     
-    subgraph "Rust - True Immutability"
+    subgraph "Rust - 진짜 불변성"
         RUST_STRUCT["struct Person { ... }"]
-        RUST_DEFAULT["✅ Immutable by default"]
-        RUST_COMPILE["✅ Compile-time enforcement"]
-        RUST_MUT["🔒 Explicit 'mut' required"]
-        RUST_MOVE["🔄 Move semantics"]
-        RUST_ZERO["⚡ Zero runtime overhead"]
-        RUST_SAFE["🛡️ Memory safe"]
+        RUST_DEFAULT["✅ 기본이 불변"]
+        RUST_COMPILE["✅ 컴파일 타임 강제"]
+        RUST_MUT["🔒 명시적 'mut' 필요"]
+        RUST_MOVE["🔄 move semantics"]
+        RUST_ZERO["⚡ 런타임 오버헤드 없음"]
+        RUST_SAFE["🛡️ 메모리 안전"]
         
         RUST_STRUCT --> RUST_DEFAULT
         RUST_DEFAULT --> RUST_COMPILE
@@ -139,12 +141,13 @@ graph TD
 
 ---
 
-## Exercises
+<a id="exercises"></a>
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Prove the Immutability</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 불변성을 증명하라</strong> (클릭해서 펼치기)</summary>
 
-A C# colleague claims their `record` is immutable. Translate this C# code to Rust and explain why Rust's version is truly immutable:
+한 C# 동료가 자신의 `record`가 불변이라고 주장합니다. 아래 C# 코드를 Rust로 옮기고, 왜 Rust 버전이 진짜 불변인지 설명해 보세요.
 
 ```csharp
 public record Config(string Host, int Port, List<string> AllowedOrigins);
@@ -154,12 +157,12 @@ var config = new Config("localhost", 8080, new List<string> { "example.com" });
 config.AllowedOrigins.Add("evil.com"); // Compiles! List is mutable.
 ```
 
-1. Create an equivalent Rust struct that is **truly** immutable
-2. Show that attempting to mutate `allowed_origins` is a **compile error**
-3. Write a function that creates a modified copy (new host) without mutation
+1. **정말** 불변인 Rust 구조체를 만든다.
+2. `allowed_origins`를 변경하려는 시도가 **컴파일 에러**임을 보여준다.
+3. mutation 없이 수정된 복사본(새 host)을 만드는 함수를 작성한다.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 #[derive(Debug, Clone)]
@@ -186,19 +189,17 @@ fn main() {
     };
 
     // config.allowed_origins.push("evil.com".into());
-    // ❌ ERROR: cannot borrow `config.allowed_origins` as mutable
+    // ❌ ERROR: `config.allowed_origins`를 mutable하게 빌릴 수 없다
 
     let production = config.with_host("prod.example.com");
-    println!("Dev: {:?}", config);       // original unchanged
-    println!("Prod: {:?}", production);  // new copy with different host
+    println!("Dev: {:?}", config);       // 원본은 그대로 유지
+    println!("Prod: {:?}", production);  // host만 바뀐 새 복사본
 }
 ```
 
-**Key insight**: In Rust, `let config = ...` (no `mut`) makes the *entire value tree* immutable — including nested `Vec`. C# records only make the *reference* immutable, not the contents.
+**핵심 통찰:** Rust에서 `let config = ...` (`mut` 없음)은 중첩된 `Vec`까지 포함한 *값 전체 트리*를 불변으로 만듭니다. C#의 record는 *참조 자체*만 불변일 뿐, 그 안의 내용은 그렇지 않습니다.
 
 </details>
 </details>
 
 ***
-
-

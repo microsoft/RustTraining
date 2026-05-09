@@ -1,97 +1,100 @@
-## Essential Rust Keywords for C# Developers
+<a id="essential-rust-keywords-for-c-developers"></a>
+## C# 개발자를 위한 핵심 Rust 키워드
 
-> **What you'll learn:** A quick-reference mapping of Rust keywords to their C# equivalents —
-> visibility modifiers, ownership keywords, control flow, type definitions, and pattern matching syntax.
+> **이 절에서 배울 내용:** Rust 키워드를 C# 대응 개념과 빠르게 매핑합니다. 가시성 지정자, 소유권 관련 키워드, 제어 흐름, 타입 정의, 패턴 매칭 문법을 한 번에 훑습니다.
 >
-> **Difficulty:** 🟢 Beginner
+> **난이도:** 🟢 입문
 
-Understanding Rust's keywords and their purposes helps C# developers navigate the language more effectively.
+Rust 키워드와 그 역할을 이해하면 C# 개발자가 Rust 코드를 훨씬 빠르게 읽고 감을 잡을 수 있습니다.
 
-### Visibility and Access Control Keywords
+<a id="visibility-and-access-control-keywords"></a>
+### 가시성과 접근 제어 키워드
 
-#### C# Access Modifiers
+#### C# 접근 지정자
 ```csharp
 public class Example
 {
-    public int PublicField;           // Accessible everywhere
-    private int privateField;        // Only within this class
-    protected int protectedField;    // This class and subclasses
-    internal int internalField;      // Within this assembly
-    protected internal int protectedInternalField; // Combination
+    public int PublicField;           // 어디서나 접근 가능
+    private int privateField;        // 이 클래스 내부에서만 접근 가능
+    protected int protectedField;    // 이 클래스와 하위 클래스
+    internal int internalField;      // 같은 어셈블리 내부
+    protected internal int protectedInternalField; // 조합
 }
 ```
 
-#### Rust Visibility Keywords
+#### Rust 가시성 키워드
 ```rust
-// pub - Makes items public (like C# public)
+// pub - 항목을 공개한다 (C#의 public과 비슷)
 pub struct PublicStruct {
-    pub public_field: i32,           // Public field
-    private_field: i32,              // Private by default (no keyword)
+    pub public_field: i32,           // 공개 필드
+    private_field: i32,              // 기본은 private (키워드 없음)
 }
 
 pub mod my_module {
-    pub(crate) fn crate_public() {}     // Public within current crate (like internal)
-    pub(super) fn parent_public() {}    // Public to parent module
-    pub(self) fn self_public() {}       // Public within current module (same as private)
+    pub(crate) fn crate_public() {}     // 현재 crate 내부 공개 (internal과 비슷)
+    pub(super) fn parent_public() {}    // 부모 모듈까지 공개
+    pub(self) fn self_public() {}       // 현재 모듈 내부 공개 (사실상 private)
     
-    pub use super::PublicStruct;        // Re-export (like using alias)
+    pub use super::PublicStruct;        // 재노출 (using alias와 비슷)
 }
 
-// No direct equivalent to C# protected - use composition instead
+// C#의 protected와 정확히 일치하는 개념은 없다 - 대신 조합을 사용한다
 ```
 
-### Memory and Ownership Keywords
+<a id="memory-and-ownership-keywords"></a>
+### 메모리와 소유권 키워드
 
-#### C# Memory Keywords
+#### C# 메모리 관련 키워드
 ```csharp
-// ref - Pass by reference
+// ref - 참조 전달
 public void Method(ref int value) { value = 10; }
 
-// out - Output parameter
+// out - 출력 파라미터
 public bool TryParse(string input, out int result) { /* */ }
 
-// in - Readonly reference (C# 7.2+)
+// in - 읽기 전용 참조 (C# 7.2+)
 public void ReadOnly(in LargeStruct data) { /* Cannot modify data */ }
 ```
 
-#### Rust Ownership Keywords
+#### Rust 소유권 키워드
 ```rust
-// & - Immutable reference (like C# in parameter)
+// & - 불변 참조 (C#의 in 파라미터와 비슷)
 fn read_only(data: &Vec<i32>) {
-    println!("Length: {}", data.len()); // Can read, cannot modify
+    println!("Length: {}", data.len()); // 읽을 수는 있지만 수정은 못 한다
 }
 
-// &mut - Mutable reference (like C# ref parameter)
+// &mut - 가변 참조 (C#의 ref 파라미터와 비슷)
 fn modify(data: &mut Vec<i32>) {
-    data.push(42); // Can modify
+    data.push(42); // 수정 가능
 }
 
-// move - Force move capture in closures
+// move - 클로저에서 강제 move capture
 let data = vec![1, 2, 3];
 let closure = move || {
-    println!("{:?}", data); // data is moved into closure
+    println!("{:?}", data); // data가 클로저 안으로 이동
 };
-// data is no longer accessible here
+// 이제 여기서는 data에 접근할 수 없다
 
-// Box - Heap allocation (like C# new for reference types)
-let boxed_data = Box::new(42); // Allocate on heap
+// Box - 힙 할당 (C#에서 참조 타입에 new를 쓰는 것과 비슷)
+let boxed_data = Box::new(42); // 힙에 할당
 ```
 
-### Control Flow Keywords
+<a id="control-flow-keywords"></a>
+### 제어 흐름 키워드
 
-#### C# Control Flow
+#### C# 제어 흐름
 ```csharp
-// return - Exit function with value
+// return - 값을 반환하며 함수 종료
 public int GetValue() { return 42; }
 
-// yield return - Iterator pattern
+// yield return - 이터레이터 패턴
 public IEnumerable<int> GetNumbers()
 {
     yield return 1;
     yield return 2;
 }
 
-// break/continue - Loop control
+// break/continue - 반복 제어
 foreach (var item in items)
 {
     if (item == null) continue;
@@ -99,89 +102,90 @@ foreach (var item in items)
 }
 ```
 
-#### Rust Control Flow Keywords
+#### Rust 제어 흐름 키워드
 ```rust
-// return - Explicit return (usually not needed)
+// return - 명시적 반환 (보통은 마지막 표현식만 써도 된다)
 fn get_value() -> i32 {
-    return 42; // Explicit return
-    // OR just: 42 (implicit return)
+    return 42; // 명시적 반환
+    // 또는 그냥: 42 (암시적 반환)
 }
 
-// break/continue - Loop control with optional values
+// break/continue - 값까지 함께 다룰 수 있는 반복 제어
 fn find_value() -> Option<i32> {
     loop {
         let value = get_next();
         if value < 0 { continue; }
-        if value > 100 { break None; }      // Break with value
-        if value == 42 { break Some(value); } // Break with success
+        if value > 100 { break None; }        // 값을 들고 break
+        if value == 42 { break Some(value); } // 성공 값을 들고 break
     }
 }
 
-// loop - Infinite loop (like while(true))
+// loop - 무한 반복 (while(true)와 비슷)
 loop {
     if condition { break; }
 }
 
-// while - Conditional loop
+// while - 조건 반복
 while condition {
     // code
 }
 
-// for - Iterator loop
+// for - 이터레이터 기반 반복
 for item in collection {
     // code
 }
 ```
 
-### Type Definition Keywords
+<a id="type-definition-keywords"></a>
+### 타입 정의 키워드
 
-#### C# Type Keywords
+#### C# 타입 키워드
 ```csharp
-// class - Reference type
+// class - 참조 타입
 public class MyClass { }
 
-// struct - Value type
+// struct - 값 타입
 public struct MyStruct { }
 
-// interface - Contract definition
+// interface - 계약 정의
 public interface IMyInterface { }
 
-// enum - Enumeration
+// enum - 열거형
 public enum MyEnum { Value1, Value2 }
 
-// delegate - Function pointer
+// delegate - 함수 포인터
 public delegate void MyDelegate(int value);
 ```
 
-#### Rust Type Keywords
+#### Rust 타입 키워드
 ```rust
-// struct - Data structure (like C# class/struct combined)
+// struct - 데이터 구조 (C#의 class/struct를 합친 느낌)
 struct MyStruct {
     field: i32,
 }
 
-// enum - Algebraic data type (much more powerful than C# enum)
+// enum - 대수적 데이터 타입 (C# enum보다 훨씬 강력)
 enum MyEnum {
     Variant1,
-    Variant2(i32),              // Can hold data
-    Variant3 { x: i32, y: i32 }, // Struct-like variant
+    Variant2(i32),               // 데이터를 담을 수 있다
+    Variant3 { x: i32, y: i32 }, // struct 형태 variant
 }
 
-// trait - Interface definition (like C# interface but more powerful)
+// trait - 인터페이스 정의 (C# interface보다 더 강력)
 trait MyTrait {
     fn method(&self);
     
-    // Default implementation (like C# 8+ default interface methods)
+    // 기본 구현 (C# 8+의 default interface method와 비슷)
     fn default_method(&self) {
         println!("Default implementation");
     }
 }
 
-// type - Type alias (like C# using alias)
+// type - 타입 별칭 (C#의 using alias와 비슷)
 type UserId = u32;
 type Result<T> = std::result::Result<T, MyError>;
 
-// impl - Implementation block (no C# equivalent - methods defined separately)
+// impl - 구현 블록 (C#에는 직접 대응되는 키워드가 없음)
 impl MyStruct {
     fn new() -> MyStruct {
         MyStruct { field: 0 }
@@ -195,91 +199,94 @@ impl MyTrait for MyStruct {
 }
 ```
 
-### Function Definition Keywords
+<a id="function-definition-keywords"></a>
+### 함수 정의 키워드
 
-#### C# Function Keywords
+#### C# 함수 관련 키워드
 ```csharp
-// static - Class method
+// static - 클래스 메서드
 public static void StaticMethod() { }
 
-// virtual - Can be overridden
+// virtual - 재정의 가능
 public virtual void VirtualMethod() { }
 
-// override - Override base method
+// override - 기반 메서드 재정의
 public override void VirtualMethod() { }
 
-// abstract - Must be implemented
+// abstract - 반드시 구현해야 함
 public abstract void AbstractMethod();
 
-// async - Asynchronous method
+// async - 비동기 메서드
 public async Task<int> AsyncMethod() { return await SomeTask(); }
 ```
 
-#### Rust Function Keywords
+#### Rust 함수 관련 키워드
 ```rust
-// fn - Function definition (like C# method but standalone)
+// fn - 함수 정의 (C# 메서드와 비슷하지만 독립적으로 존재 가능)
 fn regular_function() {
     println!("Hello");
 }
 
-// const fn - Compile-time function (like C# const but for functions)
+// const fn - 컴파일 타임 함수 (C# const를 함수로 확장한 느낌)
 const fn compile_time_function() -> i32 {
-    42 // Can be evaluated at compile time
+    42 // 컴파일 타임에 평가 가능
 }
 
-// async fn - Asynchronous function (like C# async)
+// async fn - 비동기 함수 (C# async와 비슷)
 async fn async_function() -> i32 {
     some_async_operation().await
 }
 
-// unsafe fn - Function that may violate memory safety
+// unsafe fn - 메모리 안전성을 깨뜨릴 수 있는 함수
 unsafe fn unsafe_function() {
-    // Can perform unsafe operations
+    // unsafe operation 수행 가능
 }
 
-// extern fn - Foreign function interface
+// extern fn - 외부 함수 인터페이스
 extern "C" fn c_compatible_function() {
-    // Can be called from C
+    // C에서 호출 가능
 }
 ```
 
-### Variable Declaration Keywords
+<a id="variable-declaration-keywords"></a>
+### 변수 선언 키워드
 
-#### C# Variable Keywords
+#### C# 변수 키워드
 ```csharp
-// var - Type inference
-var name = "John"; // Inferred as string
+// var - 타입 추론
+var name = "John"; // string으로 추론
 
-// const - Compile-time constant
+// const - 컴파일 타임 상수
 const int MaxSize = 100;
 
-// readonly - Runtime constant
+// readonly - 런타임 상수
 readonly DateTime createdAt = DateTime.Now;
 
-// static - Class-level variable
+// static - 클래스 수준 변수
 static int instanceCount = 0;
 ```
 
-#### Rust Variable Keywords
+#### Rust 변수 키워드
 ```rust
-// let - Variable binding (like C# var)
-let name = "John"; // Immutable by default
+// let - 변수 바인딩 (C#의 var와 비슷)
+let name = "John"; // 기본은 불변
 
-// let mut - Mutable variable binding
-let mut count = 0; // Can be changed
+// let mut - 가변 변수 바인딩
+let mut count = 0; // 변경 가능
 count += 1;
 
-// const - Compile-time constant (like C# const)
+// const - 컴파일 타임 상수 (C# const와 비슷)
 const MAX_SIZE: usize = 100;
 
-// static - Global variable (like C# static)
-static INSTANCE_COUNT: std::sync::atomic::AtomicUsize = 
+// static - 전역 변수 (C# static과 비슷)
+static INSTANCE_COUNT: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 ```
 
-### Pattern Matching Keywords
+<a id="pattern-matching-keywords"></a>
+### 패턴 매칭 키워드
 
-#### C# Pattern Matching (C# 8+)
+#### C# 패턴 매칭 (C# 8+)
 ```csharp
 // switch expression
 string result = value switch
@@ -296,114 +303,115 @@ if (obj is string str)
 }
 ```
 
-#### Rust Pattern Matching Keywords
+#### Rust 패턴 매칭 키워드
 ```rust
-// match - Pattern matching (like C# switch but much more powerful)
+// match - 패턴 매칭 (C# switch보다 훨씬 강력)
 let result = match value {
     1 => "One",
     2 => "Two",
-    3..=10 => "Between 3 and 10", // Range patterns
-    _ => "Other", // Wildcard (like C# _)
+    3..=10 => "Between 3 and 10", // 범위 패턴
+    _ => "Other", // 와일드카드 (C#의 _와 비슷)
 };
 
-// if let - Conditional pattern matching
+// if let - 조건부 패턴 매칭
 if let Some(value) = optional {
     println!("Got value: {}", value);
 }
 
-// while let - Loop with pattern matching
+// while let - 패턴 매칭 기반 반복
 while let Some(item) = iterator.next() {
     println!("Item: {}", item);
 }
 
-// let with patterns - Destructuring
-let (x, y) = point; // Destructure tuple
+// 패턴을 쓰는 let - 구조 분해
+let (x, y) = point; // tuple 구조 분해
 let Some(value) = optional else {
-    return; // Early return if pattern doesn't match
+    return; // 패턴이 맞지 않으면 조기 반환
 };
 ```
 
-### Memory Safety Keywords
+<a id="memory-safety-keywords"></a>
+### 메모리 안전성 키워드
 
-#### C# Memory Keywords
+#### C# 메모리 관련 키워드
 ```csharp
-// unsafe - Disable safety checks
+// unsafe - 안전성 검사를 끈다
 unsafe
 {
     int* ptr = &variable;
     *ptr = 42;
 }
 
-// fixed - Pin managed memory
+// fixed - 관리되는 메모리를 pin 고정
 unsafe
 {
     fixed (byte* ptr = array)
     {
-        // Use ptr
+        // ptr 사용
     }
 }
 ```
 
-#### Rust Safety Keywords
+#### Rust 안전성 키워드
 ```rust
-// unsafe - Disable borrow checker (use sparingly!)
+// unsafe - borrow checker를 우회한다 (신중히 사용!)
 unsafe {
     let ptr = &variable as *const i32;
-    let value = *ptr; // Dereference raw pointer
+    let value = *ptr; // raw pointer 역참조
 }
 
-// Raw pointer types (no C# equivalent - usually not needed)
-let ptr: *const i32 = &42;  // Immutable raw pointer
-let ptr: *mut i32 = &mut 42; // Mutable raw pointer
+// Raw pointer 타입 (C#에 직접 대응되는 개념은 거의 없음)
+let ptr: *const i32 = &42;   // 불변 raw pointer
+let ptr: *mut i32 = &mut 42; // 가변 raw pointer
 ```
 
-### Common Rust Keywords Not in C#
+<a id="common-rust-keywords-not-in-c"></a>
+### C#에 없는, Rust에서 자주 보는 키워드
 
 ```rust
-// where - Generic constraints (more flexible than C# where)
-fn generic_function<T>() 
-where 
+// where - 제네릭 제약 (C# where보다 더 유연)
+fn generic_function<T>()
+where
     T: Clone + Send + Sync,
 {
-    // T must implement Clone, Send, and Sync traits
+    // T는 Clone, Send, Sync를 구현해야 한다
 }
 
-// dyn - Dynamic trait objects (like C# object but type-safe)
+// dyn - 동적 trait object (C# object와 비슷하지만 더 타입 안전)
 let drawable: Box<dyn Draw> = Box::new(Circle::new());
 
-// Self - Refer to the implementing type (like C# this but for types)
+// Self - 구현 중인 타입 자신을 가리킴 (타입 수준의 this 같은 개념)
 impl MyStruct {
     fn new() -> Self { // Self = MyStruct
         Self { field: 0 }
     }
 }
 
-// self - Method receiver
+// self - 메서드 receiver
 impl MyStruct {
-    fn method(&self) { }        // Immutable borrow
-    fn method_mut(&mut self) { } // Mutable borrow  
-    fn consume(self) { }        // Take ownership
+    fn method(&self) { }         // 불변 대여
+    fn method_mut(&mut self) { } // 가변 대여
+    fn consume(self) { }         // 소유권 가져감
 }
 
-// crate - Refer to current crate root
-use crate::models::User; // Absolute path from crate root
+// crate - 현재 crate 루트를 가리킴
+use crate::models::User; // crate 루트부터의 절대 경로
 
-// super - Refer to parent module
-use super::utils; // Import from parent module
+// super - 부모 모듈을 가리킴
+use super::utils; // 부모 모듈에서 가져오기
 ```
 
-### Keywords Summary for C# Developers
+<a id="keywords-summary-for-c-developers"></a>
+### C# 개발자를 위한 키워드 요약
 
-| Purpose | C# | Rust | Key Difference |
+| 용도 | C# | Rust | 핵심 차이 |
 |---------|----|----|----------------|
-| Visibility | `public`, `private`, `internal` | `pub`, default private | More granular with `pub(crate)` |
-| Variables | `var`, `readonly`, `const` | `let`, `let mut`, `const` | Immutable by default |
-| Functions | `method()` | `fn` | Standalone functions |
-| Types | `class`, `struct`, `interface` | `struct`, `enum`, `trait` | Enums are algebraic types |
-| Generics | `<T> where T : IFoo` | `<T> where T: Foo` | More flexible constraints |
-| References | `ref`, `out`, `in` | `&`, `&mut` | Compile-time borrow checking |
-| Patterns | `switch`, `is` | `match`, `if let` | Exhaustive matching required |
+| 가시성 | `public`, `private`, `internal` | `pub`, 기본 private | `pub(crate)`처럼 더 세분화 가능 |
+| 변수 | `var`, `readonly`, `const` | `let`, `let mut`, `const` | 기본이 불변 |
+| 함수 | `method()` | `fn` | 독립 함수가 가능 |
+| 타입 | `class`, `struct`, `interface` | `struct`, `enum`, `trait` | enum이 대수적 타입 |
+| 제네릭 | `<T> where T : IFoo` | `<T> where T: Foo` | 제약 표현이 더 유연 |
+| 참조 | `ref`, `out`, `in` | `&`, `&mut` | 컴파일 타임 borrow checking |
+| 패턴 | `switch`, `is` | `match`, `if let` | 완전 매칭이 요구됨 |
 
 ***
-
-

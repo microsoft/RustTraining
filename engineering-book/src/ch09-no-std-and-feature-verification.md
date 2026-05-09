@@ -1,151 +1,147 @@
-# `no_std` and Feature Verification 🔴
+<a id="no-std-and-feature-verification"></a>
+# `no_std`와 feature 검증 🔴
 
-> **What you'll learn:**
-> - Verifying feature combinations systematically with `cargo-hack`
-> - The three layers of Rust: `core` vs `alloc` vs `std` and when to use each
-> - Building `no_std` crates with custom panic handlers and allocators
-> - Testing `no_std` code on host and with QEMU
+> **이 장에서 배우는 것:**
+> - `cargo-hack`으로 feature 조합을 체계적으로 검증
+> - Rust의 세 층: `core` vs `alloc` vs `std`, 각각 언제 쓸지
+> - 커스텀 panic handler와 할당기로 `no_std` 크레이트 빌드
+> - 호스트와 QEMU로 `no_std` 코드 테스트
 >
-> **Cross-references:** [Windows & Conditional Compilation](ch10-windows-and-conditional-compilation.md) — the platform half of this topic · [Cross-Compilation](ch02-cross-compilation-one-source-many-target.md) — cross-compiling to ARM and embedded targets · [Miri and Sanitizers](ch05-miri-valgrind-and-sanitizers-verifying-u.md) — verifying `unsafe` code in `no_std` environments · [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) — `cfg` flags emitted by `build.rs`
+> **교차 참고:** [Windows와 조건부 컴파일](ch10-windows-and-conditional-compilation.md) — 이 주제의 플랫폼 절반 · [크로스 컴파일](ch02-cross-compilation-one-source-many-target.md) — ARM·임베디드 타깃으로 크로스 컴파일 · [Miri와 Sanitizer](ch05-miri-valgrind-and-sanitizers-verifying-u.md) — `no_std` 환경의 `unsafe` 검증 · [빌드 스크립트](ch01-build-scripts-buildrs-in-depth.md) — `build.rs`가 내보내는 `cfg` 플래그
 
-Rust runs everywhere from 8-bit microcontrollers to cloud servers. This chapter
-covers the foundation: stripping the standard library with `#![no_std]` and
-verifying that your feature combinations actually compile.
+Rust는 8비트 MCU부터 클라우드 서버까지 어디서나 동작합니다. 이 장에서는 `#![no_std]`로 표준 라이브러리를 빼는 기초와, feature 조합이 실제로 컴파일되는지 검증하는 방법을 다룹니다.
 
-### Verifying Feature Combinations with `cargo-hack`
+<a id="verifying-feature-combinations-with-cargo-hack"></a>
+### `cargo-hack`으로 feature 조합 검증
 
-[`cargo-hack`](https://github.com/taiki-e/cargo-hack) tests all feature
-combinations systematically — essential for crates with `#[cfg(...)]` code:
+[`cargo-hack`](https://github.com/taiki-e/cargo-hack)은 모든 feature 조합을 체계적으로 테스트합니다 — `#[cfg(...)]` 코드가 있는 크레이트에 필수입니다:
 
 ```bash
-# Install
+# 설치
 cargo install cargo-hack
 
-# Check that every feature compiles individually
+# 각 feature가 단독으로 컴파일되는지 확인
 cargo hack check --each-feature --workspace
 
-# The nuclear option: test ALL feature combinations (exponential!)
-# Only practical for crates with <8 features.
+# 전부 조합(지수적!) — feature가 8개 미만일 때만 실용적
 cargo hack check --feature-powerset --workspace
 
-# Practical compromise: test each feature alone + all features + no features
+# 실용적 절충: 각 feature 단독 + 전 feature + 기본 feature 없음
 cargo hack check --each-feature --workspace --no-dev-deps
 cargo check --workspace --all-features
 cargo check --workspace --no-default-features
 ```
 
-**Why this matters for the project:**
+**이 프로젝트에서 중요한 이유:**
 
-If you add platform features (`linux`, `windows`, `direct-ipmi`, `direct-accel-api`),
-`cargo-hack` catches combinations that break:
+플랫폼 feature(`linux`, `windows`, `direct-ipmi`, `direct-accel-api`)를 추가하면 `cargo-hack`이 깨지는 조합을 잡아냅니다:
 
 ```toml
-# Example: features that gate platform code
+# 예: 플랫폼 코드를 게이트하는 feature
 [features]
 default = ["linux"]
-linux = []                          # Linux-specific hardware access
-windows = ["dep:windows-sys"]       # Windows-specific APIs
+linux = []                          # Linux 전용 하드웨어 접근
+windows = ["dep:windows-sys"]       # Windows 전용 API
 direct-ipmi = []                    # unsafe IPMI ioctl (ch05)
 direct-accel-api = []                    # unsafe accel-mgmt FFI (ch05)
 ```
 
 ```bash
-# Verify all features compile in isolation AND together
+# 모든 feature가 단독·함께 컴파일되는지 검증
 cargo hack check --each-feature -p diag_tool
-# Catches: "feature 'windows' doesn't compile without 'direct-ipmi'"
-# Catches: "#[cfg(feature = \"linux\")] has a typo — it's 'lnux'"
+# 잡히는 예: "feature 'windows'는 'direct-ipmi' 없이 컴파일 안 됨"
+# 잡히는 예: "#[cfg(feature = \"linux\")] 오타 — 'lnux'임"
 ```
 
-**CI integration:**
+**CI 연동:**
 
 ```yaml
-# Add to CI pipeline (fast — just compilation checks)
+# CI 파이프라인에 추가(빠름 — 컴파일 검사만)
 - name: Feature matrix check
   run: cargo hack check --each-feature --workspace --no-dev-deps
 ```
 
-> **Rule of thumb**: Run `cargo hack check --each-feature` in CI for any crate
-> with 2+ features. Run `--feature-powerset` only for core library crates with
-> <8 features — it's exponential ($2^n$ combinations).
+> **경험칙**: feature가 2개 이상인 크레이트는 CI에서 `cargo hack check --each-feature`를 돌리세요. `--feature-powerset`은 feature가 8개 미만인 핵심 라이브러리에만 — 조합 수가 $2^n$입니다.
 
-### `no_std` — When and Why
+<a id="no-std-when-and-why"></a>
+### `no_std` — 언제, 왜
 
-`#![no_std]` tells the compiler: "don't link the standard library." Your
-crate can only use `core` (and optionally `alloc`). Why would you want this?
+`#![no_std]`는 컴파일러에 "표준 라이브러리에 링크하지 마라"고 말합니다. 크레이트는 `core`만 쓰거나(선택적으로 `alloc`). 왜 이렇게 할까요?
 
-| Scenario | Why `no_std` |
-|----------|-------------|
-| Embedded firmware (ARM Cortex-M, RISC-V) | No OS, no heap, no file system |
-| UEFI diagnostics tool | Pre-boot environment, no OS APIs |
-| Kernel modules | Kernel space can't use userspace `std` |
-| WebAssembly (WASM) | Minimize binary size, no OS dependencies |
-| Bootloaders | Run before any OS exists |
-| Shared library with C interface | Avoid Rust runtime in callers |
+| 시나리오 | `no_std`인 이유 |
+|----------|----------------|
+| 임베디드 펌웨어(ARM Cortex-M, RISC-V) | OS 없음, 힙 없음, 파일 시스템 없음 |
+| UEFI 진단 도구 | 부팅 전 환경, OS API 없음 |
+| 커널 모듈 | 커널 공간에서는 userspace `std` 사용 불가 |
+| WebAssembly(WASM) | 바이너리 최소화, OS 의존 제거 |
+| 부트로더 | OS가 존재하기 전에 실행 |
+| C 인터페이스 공유 라이브러리 | 호출 측에 Rust 런타임 없이 |
 
-**For hardware diagnostics**, `no_std` becomes relevant when building:
-- UEFI-based pre-boot diagnostic tools (before the OS loads)
-- BMC firmware diagnostics (resource-constrained ARM SoCs)
-- Kernel-level PCIe diagnostics (kernel module or eBPF probe)
+**하드웨어 진단**에서는 다음을 만들 때 `no_std`가 관련됩니다:
+- OS 로드 전 UEFI 기반 사전 부팅 진단 도구
+- BMC 펌웨어 진단(자원이 제한된 ARM SoC)
+- 커널 수준 PCIe 진단(커널 모듈 또는 eBPF 프로브)
 
-### `core` vs `alloc` vs `std` — The Three Layers
+<a id="core-vs-alloc-vs-std-the-three-layers"></a>
+### `core` vs `alloc` vs `std` — 세 층
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ std                                                         │
-│  Everything in core + alloc, PLUS:                          │
-│  • File I/O (std::fs, std::io)                              │
-│  • Networking (std::net)                                    │
-│  • Threads (std::thread)                                    │
-│  • Time (std::time)                                         │
-│  • Environment (std::env)                                   │
-│  • Process (std::process)                                   │
-│  • OS-specific (std::os::unix, std::os::windows)            │
+│  core + alloc의 모든 것에 더해:                             │
+│  • 파일 I/O (std::fs, std::io)                              │
+│  • 네트워킹 (std::net)                                      │
+│  • 스레드 (std::thread)                                     │
+│  • 시간 (std::time)                                         │
+│  • 환경 (std::env)                                          │
+│  • 프로세스 (std::process)                                  │
+│  • OS별 (std::os::unix, std::os::windows)                   │
 ├─────────────────────────────────────────────────────────────┤
-│ alloc          (available with #![no_std] + extern crate    │
-│                 alloc, if you have a global allocator)       │
+│ alloc          (#![no_std] + extern crate alloc,           │
+│                 전역 할당기가 있을 때 사용 가능)             │
 │  • String, Vec, Box, Rc, Arc                                │
 │  • BTreeMap, BTreeSet                                       │
-│  • format!() macro                                          │
-│  • Collections and smart pointers that need heap            │
+│  • format!() 매크로                                         │
+│  • 힙이 필요한 컬렉션과 스마트 포인터                        │
 ├─────────────────────────────────────────────────────────────┤
-│ core           (always available, even in #![no_std])        │
-│  • Primitive types (u8, bool, char, etc.)                    │
+│ core           (#![no_std]에서도 항상 사용 가능)           │
+│  • 기본 타입 (u8, bool, char 등)                            │
 │  • Option, Result                                           │
-│  • Iterator, slice, array, str (slices, not String)         │
-│  • Traits: Clone, Copy, Debug, Display, From, Into          │
-│  • Atomics (core::sync::atomic)                             │
-│  • Cell, RefCell (core::cell)  — Pin (core::pin)            │
-│  • core::fmt (formatting without allocation)                │
-│  • core::mem, core::ptr (low-level memory operations)       │
-│  • Math: core::num, basic arithmetic                        │
+│  • Iterator, slice, array, str (슬라이스, String 아님)      │
+│  • 트레잇: Clone, Copy, Debug, Display, From, Into            │
+│  • 원자 (core::sync::atomic)                                │
+│  • Cell, RefCell (core::cell) — Pin (core::pin)             │
+│  • core::fmt (할당 없이 포맷)                               │
+│  • core::mem, core::ptr (저수준 메모리 연산)                 │
+│  • 수학: core::num, 기본 산술                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**What you lose without `std`:**
-- No `HashMap` (requires a hasher — use `BTreeMap` from `alloc`, or `hashbrown`)
-- No `println!()` (requires stdout — use `core::fmt::Write` to a buffer)
-- No `std::error::Error` (stabilized in `core` since Rust 1.81, but many
-  ecosystems haven't migrated)
-- No file I/O, no networking, no threads (unless provided by a platform HAL)
-- No `Mutex` (use `spin::Mutex` or platform-specific locks)
+**`std` 없이 잃는 것:**
+- `HashMap` 없음(해셔 필요 — `alloc`의 `BTreeMap` 또는 `hashbrown`)
+- `println!()` 없음(stdout 필요 — 버퍼에 `core::fmt::Write`)
+- `std::error::Error` 없음(Rust 1.81부터 `core`에 안정화되었으나 생태계는 아직 이행 중)
+- 파일 I/O, 네트워킹, 스레드 없음(플랫폼 HAL이 제공하지 않는 한)
+- `Mutex` 없음(`spin::Mutex` 또는 플랫폼별 락)
 
-### Building a `no_std` Crate
+<a id="building-a-no-std-crate"></a>
+### `no_std` 크레이트 빌드
 
 ```rust
-// src/lib.rs — a no_std library crate
+// src/lib.rs — no_std 라이브러리 크레이트
 #![no_std]
 
-// Optionally use heap allocation
+// 선택적으로 힙 할당 사용
 extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-/// Temperature reading from a thermal sensor.
-/// This struct works in any environment — bare metal to Linux.
+/// 열 센서 온도 읽기.
+/// 베어메탈부터 Linux까지 어떤 환경에서도 동작하는 구조체.
 #[derive(Clone, Copy, Debug)]
 pub struct Temperature {
-    /// Raw sensor value (0.0625°C per LSB for typical I2C sensors)
+    /// 원시 센서 값(일반적인 I2C 센서는 LSB당 0.0625°C)
     raw: u16,
 }
 
@@ -154,9 +150,9 @@ impl Temperature {
         Self { raw }
     }
 
-    /// Convert to degrees Celsius (fixed-point, no FPU required)
+    /// 섭씨로 변환(고정소수점, FPU 불필요)
     pub const fn millidegrees_c(&self) -> i32 {
-        (self.raw as i32) * 625 / 10 // 0.0625°C resolution
+        (self.raw as i32) * 625 / 10 // 0.0625°C 해상도
     }
 
     pub fn degrees_c(&self) -> f32 {
@@ -167,8 +163,7 @@ impl Temperature {
 impl fmt::Display for Temperature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let md = self.millidegrees_c();
-        // Handle sign correctly for values between -0.999°C and -0.001°C
-        // where md / 1000 == 0 but the value is negative.
+        // -0.999°C ~ -0.001°C 사이에서 md / 1000 == 0이지만 음수인 경우 부호 처리
         if md < 0 && md > -1000 {
             write!(f, "-0.{:03}°C", (-md) % 1000)
         } else {
@@ -177,8 +172,8 @@ impl fmt::Display for Temperature {
     }
 }
 
-/// Parse space-separated temperature values.
-/// Uses alloc — requires a global allocator.
+/// 공백으로 구분된 온도 값 파싱.
+/// alloc 사용 — 전역 할당기 필요.
 pub fn parse_temperatures(input: &str) -> Vec<Temperature> {
     input
         .split_whitespace()
@@ -187,8 +182,8 @@ pub fn parse_temperatures(input: &str) -> Vec<Temperature> {
         .collect()
 }
 
-/// Format without allocation — writes directly to a buffer.
-/// Works in `core`-only environments (no alloc, no heap).
+/// 할당 없이 포맷 — 버퍼에 직접 씀.
+/// `core`만 있는 환경(alloc 없음, 힙 없음)에서 동작.
 pub fn format_temp_into(temp: &Temperature, buf: &mut [u8]) -> usize {
     use core::fmt::Write;
     struct SliceWriter<'a> {
@@ -200,8 +195,8 @@ pub fn format_temp_into(temp: &Temperature, buf: &mut [u8]) -> usize {
             let bytes = s.as_bytes();
             let remaining = self.buf.len() - self.pos;
             if bytes.len() > remaining {
-                // Buffer full — signal the error instead of silently truncating.
-                // Callers can check the returned pos for partial writes.
+                // 버퍼 가득 — 조용히 자르지 말고 오류
+                // 호출자는 반환된 pos로 부분 쓰기를 확인할 수 있음
                 return Err(fmt::Error);
             }
             self.buf[self.pos..self.pos + bytes.len()].copy_from_slice(bytes);
@@ -216,7 +211,7 @@ pub fn format_temp_into(temp: &Temperature, buf: &mut [u8]) -> usize {
 ```
 
 ```toml
-# Cargo.toml for a no_std crate
+# no_std 크레이트용 Cargo.toml
 [package]
 name = "thermal-sensor"
 version = "0.1.0"
@@ -224,28 +219,24 @@ edition = "2021"
 
 [features]
 default = ["alloc"]
-alloc = []    # Enable Vec, String, etc.
-std = []      # Enable full std (implies alloc)
+alloc = []    # Vec, String 등 활성화
+std = []      # 전체 std (alloc 포함)
 
 [dependencies]
-# Use no_std-compatible crates
+# no_std 호환 크레이트 사용
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-# ↑ default-features = false drops std dependency!
+# ↑ default-features = false로 std 의존 제거!
 ```
 
-> **Key crate pattern**: Many popular crates (serde, log, rand, embedded-hal)
-> support `no_std` via `default-features = false`. Always check whether a
-> dependency requires `std` before using it in a `no_std` context. Note that
-> some crates (e.g., `regex`) require at least `alloc` and don't work in
-> `core`-only environments.
+> **흔한 크레이트 패턴**: serde, log, rand, embedded-hal 등 인기 크레이트는 `default-features = false`로 `no_std`를 지원합니다. `no_std` 맥락에서 쓰기 전에 의존성이 `std`를 요구하는지 항상 확인하세요. 일부 크레이트(예: `regex`)는 최소 `alloc`이 필요하며 `core`만 환경에서는 동작하지 않습니다.
 
-### Custom Panic Handlers and Allocators
+<a id="custom-panic-handlers-and-allocators"></a>
+### 커스텀 panic handler와 할당기
 
-In `#![no_std]` binaries (not libraries), you must provide a panic handler
-and optionally a global allocator:
+`#![no_std]` 바이너리(라이브러리 아님)에서는 panic handler를 제공해야 하고, 선택적으로 전역 할당기를 제공합니다:
 
 ```rust
-// src/main.rs — a no_std binary (e.g., UEFI diagnostic)
+// src/main.rs — no_std 바이너리(예: UEFI 진단)
 #![no_std]
 #![no_main]
 
@@ -253,63 +244,62 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-// Required: what to do on panic (no stack unwinding available)
+// 필수: 패닉 시 동작(스택 언와인딩 없음)
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    // In embedded: blink an LED, write to UART, hang
-    // In UEFI: write to console, halt
-    // Minimal: just loop forever
+    // 임베디드: LED 깜빡임, UART 쓰기, 무한 대기
+    // UEFI: 콘솔에 쓰고 정지
+    // 최소: 무한 루프
     loop {
         core::hint::spin_loop();
     }
 }
 
-// Required if using alloc: provide a global allocator
+// alloc 사용 시 필수: 전역 할당기
 use alloc::alloc::{GlobalAlloc, Layout};
 
 struct BumpAllocator {
-    // Simple bump allocator for embedded/UEFI
-    // In practice, use a crate like `linked_list_allocator` or `embedded-alloc`
+    // 임베디드/UEFI용 단순 bump 할당기
+    // 실제로는 `linked_list_allocator`나 `embedded-alloc` 같은 크레이트 사용
 }
 
-// WARNING: This is a non-functional placeholder! Calling alloc() will return
-// null, causing immediate UB (the global allocator contract requires non-null
-// returns for non-zero-sized allocations). In real code, use an established
-// allocator crate:
-//   - embedded-alloc (embedded targets)
-//   - linked_list_allocator (UEFI / OS kernels)
-//   - talc (general-purpose no_std)
+// 경고: 동작하지 않는 플레이스홀더! alloc()을 호출하면 null을 반환해
+// 즉시 UB(전역 할당기 계약은 0이 아닌 크기 할당에 대해 null이 아닌 포인터를 요구).
+// 실제 코드에서는 검증된 할당기 크레이트를 사용하세요:
+//   - embedded-alloc (임베디드 타깃)
+//   - linked_list_allocator (UEFI / OS 커널)
+//   - talc (범용 no_std)
 unsafe impl GlobalAlloc for BumpAllocator {
     unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        // PLACEHOLDER — will crash! Replace with real allocation logic.
+        // 플레이스홀더 — 크래시 남! 실제 할당 로직으로 교체하세요.
         core::ptr::null_mut()
     }
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        // No-op for bump allocator
+        // bump 할당기에서는 no-op
     }
 }
 
 #[global_allocator]
 static ALLOCATOR: BumpAllocator = BumpAllocator {};
 
-// Entry point (platform-specific, not fn main)
-// For UEFI: #[entry] or efi_main
-// For embedded: #[cortex_m_rt::entry]
+// 진입점(플랫폼별, fn main 아님)
+// UEFI: #[entry] 또는 efi_main
+// 임베디드: #[cortex_m_rt::entry]
 ```
 
-### Testing `no_std` Code
+<a id="testing-no-std-code"></a>
+### `no_std` 코드 테스트
 
-Tests run on the host machine, which has `std`. The trick: your library is
-`no_std`, but your test harness uses `std`:
+테스트는 `std`가 있는 호스트에서 실행됩니다. 요령은: 라이브러리는 `no_std`지만 테스트 하네스는 `std`를 쓴다는 것입니다:
 
 ```rust
-// Your crate: #![no_std] in src/lib.rs
-// But tests run under std automatically:
+// 크레이트: src/lib.rs에 #![no_std]
+// 테스트는 자동으로 std 아래에서 실행:
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    // std is available here — println!, assert!, Vec all work
+    // 여기서는 std 사용 가능 — println!, assert!, Vec 모두 가능
 
     #[test]
     fn test_temperature_conversion() {
@@ -329,75 +319,76 @@ mod tests {
 }
 ```
 
-**Testing on the actual target** (when `std` isn't available at all):
+**실제 타깃에서 테스트**(`std`가 전혀 없을 때):
 
 ```bash
-# Use defmt-test for on-device testing (embedded ARM)
-# Use uefi-test-runner for UEFI targets
-# Use QEMU for cross-architecture tests without hardware
+# 온디바이스 테스트에는 임베디드 ARM용 defmt-test
+# UEFI 타깃에는 uefi-test-runner
+# 하드웨어 없이 아키텍처 테스트에는 QEMU
 
-# Run no_std library tests on host (always works):
+# 호스트에서 no_std 라이브러리 테스트(항상 동작):
 cargo test --lib
 
-# Verify no_std compilation against a no_std target:
+# no_std 타깃에 대해 컴파일만 검증:
 cargo check --target thumbv7em-none-eabihf  # ARM Cortex-M
 cargo check --target riscv32imac-unknown-none-elf  # RISC-V
 ```
 
-### `no_std` Decision Tree
+<a id="no-std-decision-tree"></a>
+### `no_std` 의사결정 트리
 
 ```mermaid
 flowchart TD
-    START["Does your code need\nthe standard library?"] --> NEED_FS{"File system,\nnetwork, threads?"}
-    NEED_FS -->|"Yes"| USE_STD["Use std\nNormal application"]
-    NEED_FS -->|"No"| NEED_HEAP{"Need heap allocation?\nVec, String, Box"}
-    NEED_HEAP -->|"Yes"| USE_ALLOC["#![no_std]\nextern crate alloc"]
-    NEED_HEAP -->|"No"| USE_CORE["#![no_std]\ncore only"]
+    START["코드에 표준 라이브러리가\n필요한가?"] --> NEED_FS{"파일 시스템,\n네트워크, 스레드?"}
+    NEED_FS -->|"예"| USE_STD["std 사용\n일반 애플리케이션"]
+    NEED_FS -->|"아니오"| NEED_HEAP{"힙 할당이 필요?\nVec, String, Box"}
+    NEED_HEAP -->|"예"| USE_ALLOC["#![no_std]\nextern crate alloc"]
+    NEED_HEAP -->|"아니오"| USE_CORE["#![no_std]\ncore만"]
     
     USE_ALLOC --> VERIFY["cargo-hack\n--each-feature"]
     USE_CORE --> VERIFY
     USE_STD --> VERIFY
-    VERIFY --> TARGET{"Target has OS?"}
-    TARGET -->|"Yes"| HOST_TEST["cargo test --lib\nStandard testing"]
-    TARGET -->|"No"| CROSS_TEST["QEMU / defmt-test\nOn-device testing"]
+    VERIFY --> TARGET{"OS가 있는 타깃?"}
+    TARGET -->|"예"| HOST_TEST["cargo test --lib\n표준 테스트"]
+    TARGET -->|"아니오"| CROSS_TEST["QEMU / defmt-test\n온디바이스 테스트"]
     
     style USE_STD fill:#91e5a3,color:#000
     style USE_ALLOC fill:#ffd43b,color:#000
     style USE_CORE fill:#ff6b6b,color:#000
 ```
 
-### 🏋️ Exercises
+### 🏋️ 연습문제
 
-#### 🟡 Exercise 1: Feature Combination Verification
+#### 🟡 연습 1: feature 조합 검증
 
-Install `cargo-hack` and run `cargo hack check --each-feature --workspace` on a project with multiple features. Does it find any broken combinations?
+`cargo-hack`을 설치하고 feature가 여러 개인 프로젝트에서 `cargo hack check --each-feature --workspace`를 실행하세요. 깨지는 조합이 있나요?
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```bash
 cargo install cargo-hack
 
-# Check each feature individually
+# 각 feature를 단독으로 검사
 cargo hack check --each-feature --workspace --no-dev-deps
 
-# If a feature combination fails:
+# feature 조합이 실패하면:
 # error[E0433]: failed to resolve: use of undeclared crate or module `std`
-# → This means a feature gate is missing a #[cfg] guard
+# → feature 게이트에 #[cfg] 가드가 빠졌다는 뜻
 
-# Check all features + no features + each individually:
+# 전 feature + 기본 없음 + 각각 단독 확인:
 cargo hack check --each-feature --workspace
 cargo check --workspace --all-features
 cargo check --workspace --no-default-features
 ```
 </details>
 
-#### 🔴 Exercise 2: Build a `no_std` Library
+#### 🔴 연습 2: `no_std` 라이브러리 만들기
 
-Create a library crate that compiles with `#![no_std]`. Implement a simple stack-allocated ring buffer. Verify it compiles for `thumbv7em-none-eabihf` (ARM Cortex-M).
+`#![no_std]`로 컴파일되는 라이브러리 크레이트를 만드세요. 스택 할당 링 버퍼를 구현하고 `thumbv7em-none-eabihf`(ARM Cortex-M)용으로 컴파일되는지 확인하세요.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust
 // lib.rs
@@ -450,16 +441,16 @@ mod tests {
 ```bash
 rustup target add thumbv7em-none-eabihf
 cargo check --target thumbv7em-none-eabihf
-# ✅ Compiles for bare-metal ARM
+# ✅ 베어메탈 ARM용으로 컴파일됨
 ```
 </details>
 
-### Key Takeaways
+### 핵심 정리
 
-- `cargo-hack --each-feature` is essential for any crate with conditional compilation — run it in CI
-- `core` → `alloc` → `std` are layered: each adds capabilities but requires more runtime support
-- Custom panic handlers and allocators are required for bare-metal `no_std` binaries
-- Test `no_std` libraries on the host with `cargo test --lib` — no hardware needed
-- Run `--feature-powerset` only for core libraries with <8 features — it's $2^n$ combinations
+- `cargo-hack --each-feature`는 조건부 컴파일이 있는 크레이트에 필수 — CI에서 실행하세요
+- `core` → `alloc` → `std`는 층을 이룹니다: 아래로 갈수록 런타임 지원이 덜 필요합니다
+- 베어메탈 `no_std` 바이너리에는 커스텀 panic handler와 할당기가 필요합니다
+- `no_std` 라이브러리는 `cargo test --lib`로 호스트에서 테스트 — 하드웨어 불필요
+- `--feature-powerset`은 feature가 8개 미만인 핵심 라이브러리에만 — 조합 수는 $2^n$입니다
 
 ---

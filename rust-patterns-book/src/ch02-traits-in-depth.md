@@ -1,14 +1,15 @@
-# 2. Traits In Depth 🟡
+# 2. 트레잇 심화 🟡
 
-> **What you'll learn:**
-> - Associated types vs generic parameters — and when to use each
-> - GATs, blanket impls, marker traits, and trait object safety rules
-> - How vtables and fat pointers work under the hood
-> - Extension traits, enum dispatch, and typed command patterns
+> **이 장에서 배울 내용:**
+> - 연관 타입 vs 제네릭 매개변수 — 각각 언제 쓰는지
+> - GAT, blanket 구현, 마커 트레잇, 트레잇 객체 안전 규칙
+> - vtable과 fat pointer의 내부 동작
+> - 확장 트레잇, 열거형 디스패치, 타입이 지정된 커맨드 패턴
 
-## Associated Types vs Generic Parameters
+<a id="associated-types-vs-generic-parameters"></a>
+## 연관 타입 vs 제네릭 매개변수
 
-Both let a trait work with different types, but they serve different purposes:
+둘 다 트레잇이 여러 타입과 함께 동작하게 하지만, 목적이 다릅니다:
 
 ```rust
 // --- ASSOCIATED TYPE: One implementation per type ---
@@ -47,14 +48,14 @@ impl Convert<String> for i32 {
 }
 ```
 
-**When to use which**:
+**어느 쪽을 쓸지**:
 
-| Use | When |
+| 용도 | 언제 |
 |-----|------|
-| **Associated type** | There's exactly ONE natural output/result per implementing type. `Iterator::Item`, `Deref::Target`, `Add::Output` |
-| **Generic parameter** | A type can meaningfully implement the trait for MANY different types. `From<T>`, `AsRef<T>`, `PartialEq<Rhs>` |
+| **연관 타입** | 구현 타입마다 자연스러운 출력/결과가 정확히 **하나**일 때. `Iterator::Item`, `Deref::Target`, `Add::Output` |
+| **제네릭 매개변수** | 한 타입이 트레잇을 **여러** 대상 타입에 대해 의미 있게 구현할 수 있을 때. `From<T>`, `AsRef<T>`, `PartialEq<Rhs>` |
 
-**Intuition**: If it makes sense to ask "what is the `Item` of this iterator?", use associated type. If it makes sense to ask "can this convert to `f64`? to `String`? to `bool`?", use a generic parameter.
+**직관**: “이 이터레이터의 `Item`은 무엇인가?”가 자연스러우면 연관 타입. “`f64`로 변환할 수 있나? `String`으로? `bool`로?”가 자연스러우면 제네릭 매개변수입니다.
 
 ```rust
 // Real-world example: std::ops::Add
@@ -77,11 +78,12 @@ impl Add<Centimeters> for Meters {
 }
 ```
 
-### Generic Associated Types (GATs)
+<a id="generic-associated-types-gats"></a>
+### 제네릭 연관 타입(GAT)
 
-Since Rust 1.65, associated types can have generic parameters of their own.
-This enables **lending iterators** — iterators that return references tied to
-the iterator rather than to the underlying collection:
+Rust 1.65부터 연관 타입에도 자체 제네릭 매개변수를 둘 수 있습니다.
+이를 통해 **대여(lending) 이터레이터** — 반환 참조가 컬렉션이 아니라
+이터레이터 자체에 묶인 이터레이터 — 를 표현할 수 있습니다:
 
 ```rust
 // Without GATs — impossible to express a lending iterator:
@@ -121,13 +123,13 @@ impl<'data> LendingIterator for WindowIter<'data> {
 }
 ```
 
-> **When you need GATs**: Lending iterators, streaming parsers, or any trait
-> where the associated type's lifetime depends on the `&self` borrow.
-> For most code, plain associated types are sufficient.
+> **GAT이 필요한 경우**: 대여 이터레이터, 스트리밍 파서, 연관 타입의 라이프타임이 `&self` 빌림에 의존하는 트레잇.
+> 대부분의 코드에서는 단순 연관 타입으로 충분합니다.
 
-### Supertraits and Trait Hierarchies
+<a id="supertraits-and-trait-hierarchies"></a>
+### 슈퍼트레잇과 트레잇 계층
 
-Traits can require other traits as prerequisites, forming hierarchies:
+트레잇은 다른 트레잇을 전제 조건으로 요구해 계층을 만들 수 있습니다:
 
 ```mermaid
 graph BT
@@ -160,9 +162,9 @@ graph BT
     style Ord fill:#fef9e7,stroke:#f1c40f,color:#000
 ```
 
-> Arrows point from subtrait to supertrait: implementing `Error` requires `Display` + `Debug`.
+> 화살표는 서브트레잇 → 슈퍼트레잇 방향입니다: `Error`를 구현하려면 `Display` + `Debug`가 필요합니다.
 
-A trait can require that implementors also implement other traits:
+구현자가 다른 트레잇도 함께 구현하도록 요구할 수 있습니다:
 
 ```rust
 use std::fmt;
@@ -201,9 +203,10 @@ impl Entity for User {
 }
 ```
 
-### Blanket Implementations
+<a id="blanket-implementations"></a>
+### Blanket 구현
 
-Implement a trait for ALL types that satisfy some bound:
+어떤 바운드를 만족하는 **모든** 타입에 대해 트레잇을 구현합니다:
 
 ```rust
 // std does this: any type that implements Display automatically gets ToString
@@ -232,13 +235,13 @@ impl<T: std::fmt::Debug> Loggable for T {
 // vec![1, 2, 3].log();   // [LOG] [1, 2, 3]
 ```
 
-> **Caution**: Blanket impls are powerful but irreversible — you can't add a
-> more specific impl for a type that's already covered by a blanket impl
-> (orphan rules + coherence). Design them carefully.
+> **주의**: Blanket 구현은 강력하지만 되돌리기 어렵습니다 — blanket으로 이미 덮인 타입에
+> 더 구체적인 구현을 추가할 수 없습니다(고아 규칙 + 일관성). 신중히 설계하세요.
 
-### Marker Traits
+<a id="marker-traits"></a>
+### 마커 트레잇
 
-Traits with no methods — they mark a type as having some property:
+메서드가 없는 트레잇 — 타입이 어떤 성질을 갖는다고 표시합니다:
 
 ```rust
 // Standard library marker traits:
@@ -265,11 +268,12 @@ fn record_measurement<S: Calibrated>(sensor: &S) {
 // record_measurement(&CalibratedSensor { reading: 0.0 }); // ✅
 ```
 
-This connects directly to the **type-state pattern** in Chapter 3.
+이것은 3장의 **타입 상태 패턴**과 직결됩니다.
 
-### Trait Object Safety Rules
+<a id="trait-object-safety-rules"></a>
+### 트레잇 객체 안전 규칙
 
-Not every trait can be used as `dyn Trait`. A trait is **object-safe** only if:
+모든 트레잇이 `dyn Trait`로 쓸 수 있는 것은 아닙니다. 트레잇이 **객체 안전(object-safe)**하려면 다음을 만족해야 합니다:
 
 1. **No `Self: Sized` bound** on the trait itself
 2. **No generic type parameters** on methods
@@ -305,7 +309,7 @@ trait Factory {
 }
 ```
 
-**Workarounds**:
+**우회 방법**:
 
 ```rust
 // Add `where Self: Sized` to exclude a method from the vtable:
@@ -321,13 +325,14 @@ trait MyTrait {
 // when the concrete type is known.
 ```
 
-> **Rule of thumb**: If you plan to use `dyn Trait`, keep methods simple —
-> no generics, no `Self` in return types, no `Sized` bounds. When in doubt,
-> try `let _: Box<dyn YourTrait>;` and let the compiler tell you.
+> **경험 법칙**: `dyn Trait`를 쓸 계획이면 메서드를 단순하게 —
+> 제네릭 없음, 반환 타입에 `Self` 없음, `Sized` 바운드 없음. 의심하면
+> `let _: Box<dyn YourTrait>;`를 시도해 컴파일러가 알려주게 하세요.
 
-### Trait Objects Under the Hood — vtables and Fat Pointers
+<a id="trait-objects-under-the-hood-vtables-and-fat-pointers"></a>
+### 트레잇 객체의 내부 — vtable과 fat pointer
 
-A `&dyn Trait` (or `Box<dyn Trait>`) is a **fat pointer** — two machine words:
+`&dyn Trait`(또는 `Box<dyn Trait>`)은 **fat pointer** — 머신 워드 두 개입니다:
 
 ```text
 ┌──────────────────────────────────────────────────┐
@@ -349,16 +354,15 @@ A `&dyn Trait` (or `Box<dyn Trait>`) is a **fat pointer** — two machine words:
 └──────────────┴───────────────────────────────────┘
 ```
 
-**How a vtable call works** (e.g., `shape.draw()`):
+**vtable 호출의 동작**(예: `shape.draw()`):
 
-1. Load `vtable_ptr` from the fat pointer (second word)
-2. Index into the vtable to find the `draw` function pointer
-3. Call it, passing `data_ptr` as the `self` argument
+1. fat pointer에서 `vtable_ptr` 로드(두 번째 워드)
+2. vtable을 인덱싱해 `draw` 함수 포인터 찾기
+3. 호출하며 `data_ptr`을 `self` 인자로 전달
 
-This is similar to C++ virtual dispatch in cost (one pointer indirection
-per call), but Rust stores the vtable pointer in the fat pointer rather
-than inside the object — so a plain `Circle` on the stack carries no
-vtable pointer at all.
+비용은 C++ 가상 디스패치와 비슷합니다(호출당 포인터 간접 참조 한 번). 다만 Rust는
+vtable 포인터를 객체 안이 아니라 fat pointer에 넣습니다 — 따라서 스택의 `Circle`만으로는
+vtable 포인터가 전혀 없습니다.
 
 ```rust
 trait Drawable {
@@ -401,24 +405,24 @@ fn main() {
 }
 ```
 
-**Performance cost model**:
+**성능 비용 모델**:
 
-| Aspect | Static dispatch (`impl Trait` / generics) | Dynamic dispatch (`dyn Trait`) |
+| 측면 | 정적 디스패치 (`impl Trait` / 제네릭) | 동적 디스패치 (`dyn Trait`) |
 |--------|------------------------------------------|-------------------------------|
-| Call overhead | Zero — inlined by LLVM | One pointer indirection per call |
-| Inlining | ✅ Compiler can inline | ❌ Opaque function pointer |
-| Binary size | Larger (one copy per type) | Smaller (one shared function) |
-| Pointer size | Thin (1 word) | Fat (2 words) |
-| Heterogeneous collections | ❌ | ✅ `Vec<Box<dyn Trait>>` |
+| 호출 오버헤드 | 제로 — LLVM이 인라인 | 호출당 포인터 간접 참조 한 번 |
+| 인라인 | ✅ 컴파일러가 인라인 가능 | ❌ 불투명한 함수 포인터 |
+| 바이너리 크기 | 큼(타입마다 사본) | 작음(공유 함수) |
+| 포인터 크기 | thin(1워드) | fat(2워드) |
+| 이질 컬렉션 | ❌ | ✅ `Vec<Box<dyn Trait>>` |
 
-> **When vtable cost matters**: In tight loops calling a trait method millions
-> of times, the indirection and inability to inline can be significant (2-10×
-> slower). For cold paths, configuration, or plugin architectures, the
-> flexibility of `dyn Trait` is worth the small cost.
+> **vtable 비용이 중요한 경우**: 트레잇 메서드를 수백만 번 부르는 타이트 루프에서는
+> 간접 참조와 인라인 불가가 2–10배 느려질 수 있습니다. 콜드 경로, 설정, 플러그인 아키텍처에서는
+> `dyn Trait`의 유연성이 작은 비용을 감수할 만합니다.
 
-### Higher-Ranked Trait Bounds (HRTBs)
+<a id="higher-ranked-trait-bounds-hrtbs"></a>
+### 상위 순위 트레잇 바운드(HRTB)
 
-Sometimes you need a function that works with references of *any* lifetime, not a specific one. This is where `for<'a>` syntax appears:
+특정 라이프타임이 아니라 *임의의* 라이프타임에 대한 참조를 다루는 함수가 필요할 때 `for<'a>` 구문이 등장합니다:
 
 ```rust
 // Problem: this function needs a closure that can process
@@ -441,10 +445,10 @@ fn main() {
 }
 ```
 
-**When you encounter HRTBs**:
-- `Fn(&T) -> &U` traits — the compiler infers `for<'a>` automatically in most cases
-- Custom trait implementations that must work across different borrows
-- Deserialization with `serde`: `for<'de> Deserialize<'de>`
+**HRTB를 마주치는 경우**:
+- `Fn(&T) -> &U` 계열 트레잇 — 대부분 컴파일러가 `for<'a>`를 자동 추론
+- 서로 다른 빌림에 걸쳐 동작해야 하는 커스텀 트레잇 구현
+- `serde` 역직렬화: `for<'de> Deserialize<'de>`
 
 ```rust,ignore
 // serde's DeserializeOwned is defined as:
@@ -459,14 +463,14 @@ fn parse_json<T: DeserializeOwned>(input: &str) -> T {
 }
 ```
 
-> **Practical advice**: You'll rarely write `for<'a>` yourself. It mostly appears
-> in trait bounds on closure parameters, where the compiler handles it implicitly.
-> But recognizing it in error messages ("expected a `for<'a> Fn(&'a ...)` bound")
-> helps you understand what the compiler is asking for.
+> **실무 조언**: 직접 `for<'a>`를 쓸 일은 드뭅니다. 대부분 클로저 매개변수의 트레잇 바운드에 나타나며
+> 컴파일러가 암시적으로 처리합니다. 다만 에러 메시지에서 (`expected a `for<'a> Fn(&'a ...)` bound` 등)
+> 알아보면 컴파일러가 요구하는 것을 이해하는 데 도움이 됩니다.
 
-### `impl Trait` — Argument Position vs Return Position
+<a id="impl-trait-argument-position-vs-return-position"></a>
+### `impl Trait` — 인자 위치 vs 반환 위치
 
-`impl Trait` appears in two positions with **different semantics**:
+`impl Trait`는 **의미가 다른** 두 위치에 나타납니다:
 
 ```rust
 // --- Argument-Position impl Trait (APIT) ---
@@ -490,18 +494,18 @@ fn evens(limit: i32) -> impl Iterator<Item = i32> {
 }
 ```
 
-**Key difference**:
+**핵심 차이**:
 
 | | APIT (`fn foo(x: impl T)`) | RPIT (`fn foo() -> impl T`) |
 |---|---|---|
-| Who picks the type? | Caller | Callee (function body) |
-| Monomorphized? | Yes — one copy per type | Yes — one concrete type |
-| Turbofish? | No (`foo::<X>()` not allowed) | N/A |
-| Equivalent to | `fn foo<X: T>(x: X)` | Existential type |
+| 타입을 고르는 주체 | 호출자 | 피호출자(함수 본문) |
+| 단형성? | 예 — 타입마다 사본 하나 | 예 — 구체 타입 하나 |
+| 터보피시? | 아니오 (`foo::<X>()` 불가) | 해당 없음 |
+| 동등 표현 | `fn foo<X: T>(x: X)` | 존재 타입(existential type) |
 
-#### RPIT in Trait Definitions (RPITIT)
+#### 트레잇 정의의 RPIT(RPITIT)
 
-Since Rust 1.75, you can use `-> impl Trait` directly in trait definitions:
+Rust 1.75부터 트레잇 정의에 `-> impl Trait`를 직접 쓸 수 있습니다:
 
 ```rust
 trait Container {
@@ -528,36 +532,36 @@ impl Container for FixedFields {
 }
 ```
 
-> **Before Rust 1.75**, you had to use `Box<dyn Iterator>` or an associated
-> type to achieve this in traits. RPITIT removes the allocation.
+> **Rust 1.75 이전**에는 트레잇에서 이를 이루려면 `Box<dyn Iterator>`나 연관 타입이 필요했습니다.
+> RPITIT은 할당을 없앱니다.
 
-#### `impl Trait` vs `dyn Trait` — Decision Guide
+#### `impl Trait` vs `dyn Trait` — 선택 가이드
 
 ```text
-Do you know the concrete type at compile time?
-├── YES → Use impl Trait or generics (zero cost, inlinable)
-└── NO  → Do you need a heterogeneous collection?
-     ├── YES → Use dyn Trait (Box<dyn T>, &dyn T)
-     └── NO  → Do you need the SAME trait object across an API boundary?
-          ├── YES → Use dyn Trait
-          └── NO  → Use generics / impl Trait
+컴파일 타임에 구체 타입을 아는가?
+├── 예 → impl Trait 또는 제네릭(제로 코스트, 인라인 가능)
+└── 아니오 → 이질 컬렉션이 필요한가?
+     ├── 예 → dyn Trait (Box<dyn T>, &dyn T)
+     └── 아니오 → API 경계에서 동일한 트레잇 객체가 필요한가?
+          ├── 예 → dyn Trait
+          └── 아니오 → 제네릭 / impl Trait
 ```
 
-| Feature | `impl Trait` | `dyn Trait` |
+| 특징 | `impl Trait` | `dyn Trait` |
 |---------|-------------|------------|
-| Dispatch | Static (monomorphized) | Dynamic (vtable) |
-| Performance | Best — inlinable | One indirection per call |
-| Heterogeneous collections | ❌ | ✅ |
-| Binary size per type | One copy each | Shared code |
-| Trait must be object-safe? | No | Yes |
-| Works in trait definitions | ✅ (Rust 1.75+) | Always |
+| 디스패치 | 정적(단형성) | 동적(vtable) |
+| 성능 | 최선 — 인라인 가능 | 호출당 간접 참조 한 번 |
+| 이질 컬렉션 | ❌ | ✅ |
+| 타입당 바이너리 | 사본 각각 | 공유 코드 |
+| 트레잇이 객체 안전해야 하나? | 아니오 | 예 |
+| 트레잇 정의에서 동작 | ✅ (Rust 1.75+) | 항상 |
 
 ***
 
-## Type Erasure with `Any` and `TypeId`
+<a id="type-erasure-with-any-and-typeid"></a>
+## `Any`와 `TypeId`로 타입 지우기
 
-Sometimes you need to store values of *unknown* types and downcast them later — a pattern
-familiar from `void*` in C or `object` in C#. Rust provides this through `std::any::Any`:
+*알 수 없는* 타입의 값을 저장했다가 나중에 다운캐스트해야 할 때가 있습니다 — C의 `void*`나 C#의 `object`에 익숙한 패턴입니다. Rust는 `std::any::Any`로 이를 제공합니다:
 
 ```rust
 use std::any::Any;
@@ -601,24 +605,24 @@ fn main() {
 }
 ```
 
-> **When to use `Any`**: Plugin/extension systems, type-indexed maps (`typemap`),
-> error downcasting (`anyhow::Error::downcast_ref`). Prefer generics or trait
-> objects when the set of types is known at compile time — `Any` is a last resort
-> that trades compile-time safety for flexibility.
+> **`Any`를 쓸 때**: 플러그인/확장 시스템, 타입 인덱스 맵(`typemap`),
+> 에러 다운캐스트(`anyhow::Error::downcast_ref`). 컴파일 타임에 타입 집합을 알면
+> 제네릭이나 트레잇 객체를 선호하세요 — `Any`는 컴파일 타임 안전을 유연성과 바꾸는 최후 수단입니다.
 
 ***
 
-## Extension Traits — Adding Methods to Types You Don't Own
+<a id="extension-traits-adding-methods-to-types-you-dont-own"></a>
+## 확장 트레잇 — 내가 소유하지 않은 타입에 메서드 추가
 
-Rust's orphan rule prevents you from implementing a foreign trait on a foreign type.
-Extension traits are the standard workaround: define a **new trait** in your crate whose
-methods have a blanket implementation for any type that meets a bound. The caller imports
-the trait and the new methods appear on existing types.
+Rust의 고아 규칙은 외부 트레잇을 외부 타입에 구현하는 것을 막습니다.
+확장 트레잇은 일반적인 우회: 크레이트에 **새 트레잇**을 정의하고, 바운드를 만족하는
+임의 타입에 대해 blanket으로 메서드를 구현합니다. 호출자가 트레잇을 임포트하면
+기존 타입에 새 메서드가 붙습니다.
 
-This pattern is pervasive in the Rust ecosystem: `itertools::Itertools`, `futures::StreamExt`,
+이 패턴은 Rust 생태계에 널리 퍼져 있습니다: `itertools::Itertools`, `futures::StreamExt`,
 `tokio::io::AsyncReadExt`, `tower::ServiceExt`.
 
-### The Problem
+### 문제
 
 ```rust
 // We want to add a .mean() method to all iterators that yield f64.
@@ -629,7 +633,7 @@ This pattern is pervasive in the Rust ecosystem: `itertools::Itertools`, `future
 // }
 ```
 
-### The Solution: An Extension Trait
+### 해결: 확장 트레잇
 
 ```rust
 /// Extension methods for iterators over numeric values.
@@ -670,7 +674,7 @@ fn analyze_sensor_data(data: &[i32]) -> Option<f64> {
 }
 ```
 
-### Real-World Example: Diagnostic Result Extensions
+### 실전 예: 진단 결과 확장
 
 ```rust
 use std::collections::HashMap;
@@ -722,11 +726,11 @@ fn report(results: Vec<DiagResult>) {
 }
 ```
 
-### Naming Convention
+### 이름 짓기 규칙
 
-The Rust ecosystem uses a consistent `Ext` suffix:
+Rust 생태계는 `Ext` 접미사를 일관되게 씁니다:
 
-| Crate | Extension Trait | Extends |
+| 크레이트 | 확장 트레잇 | 확장 대상 |
 |-------|----------------|---------|
 | `itertools` | `Itertools` | `Iterator` |
 | `futures` | `StreamExt`, `FutureExt` | `Stream`, `Future` |
@@ -735,25 +739,26 @@ The Rust ecosystem uses a consistent `Ext` suffix:
 | `bytes` | `BufMut` (partial) | `&mut [u8]` |
 | Your crate | `DiagResultsExt` | `Vec<DiagResult>` |
 
-### When to Use
+### 언제 쓸지
 
-| Situation | Use Extension Trait? |
+| 상황 | 확장 트레잇? |
 |-----------|:---:|
-| Adding convenience methods to a foreign type | ✅ |
-| Grouping domain-specific logic on generic collections | ✅ |
-| The method needs access to private fields | ❌ (use a wrapper/newtype) |
-| The method logically belongs on a new type you control | ❌ (just add it to your type) |
-| You want the method available without any import | ❌ (inherent methods only) |
+| 외부 타입에 편의 메서드 추가 | ✅ |
+| 제네릭 컬렉션에 도메인 로직 묶기 | ✅ |
+| 메서드가 비공개 필드에 접근해야 함 | ❌ (래퍼/뉴타입 사용) |
+| 메서드가 논리적으로 내가 쓰는 새 타입에 붙어야 함 | ❌ (고유 메서드로 추가) |
+| 임포트 없이 메서드를 쓰고 싶음 | ❌ (고유 메서드만 가능) |
 
 ***
 
-## Enum Dispatch — Static Polymorphism Without `dyn`
+<a id="enum-dispatch-static-polymorphism-without-dyn"></a>
+## 열거형 디스패치 — `dyn` 없는 정적 다형성
 
-When you have a **closed set** of types implementing a trait, you can replace `dyn Trait`
-with an enum whose variants hold the concrete types. This eliminates the vtable indirection
-and heap allocation while preserving the same caller-facing interface.
+트레잇을 구현하는 타입이 **닫힌 집합**이면 `dyn Trait` 대신
+구체 타입을 담는 열거형으로 바꿀 수 있습니다. 호출자에게 동일한 인터페이스를 유지하면서
+vtable 간접 참조와 힙 할당을 없앱니다.
 
-### The Problem with `dyn Trait`
+### `dyn Trait`의 문제
 
 ```rust
 trait Sensor {
@@ -778,7 +783,7 @@ impl Sensor for Accelerometer {
     fn name(&self) -> &str { "Accelerometer" }
 }
 
-// Heterogeneous collection with dyn — works, but has costs:
+// dyn으로 이질 컬렉션 — 동작하지만 비용이 있음:
 fn read_all_dyn(sensors: &[Box<dyn Sensor>]) -> Vec<f64> {
     sensors.iter().map(|s| s.read()).collect()
     // Each .read() goes through a vtable indirection
@@ -786,7 +791,7 @@ fn read_all_dyn(sensors: &[Box<dyn Sensor>]) -> Vec<f64> {
 }
 ```
 
-### The Enum Dispatch Solution
+### 열거형 디스패치 해결책
 
 ```rust
 // Replace the trait object with an enum:
@@ -833,9 +838,9 @@ fn main() {
 }
 ```
 
-### Implement the Trait on the Enum
+### 열거형에 원래 트레잇 구현
 
-For interoperability, you can implement the original trait on the enum itself:
+상호 운용을 위해 열거형 자체에 원래 트레잇을 구현할 수 있습니다:
 
 ```rust
 impl Sensor for AnySensor {
@@ -862,9 +867,9 @@ fn report<S: Sensor>(s: &S) {
 }
 ```
 
-### Reducing Boilerplate with a Macro
+### 매크로로 보일러플레이트 줄이기
 
-The match-arm delegation is repetitive. A macro eliminates it:
+match 위임이 반복됩니다. 매크로로 없앱니다:
 
 ```rust
 macro_rules! dispatch_sensor {
@@ -883,7 +888,7 @@ impl Sensor for AnySensor {
 }
 ```
 
-For larger projects, the `enum_dispatch` crate automates this entirely:
+큰 프로젝트에서는 `enum_dispatch` 크레이트가 이를 자동화합니다:
 
 ```rust
 use enum_dispatch::enum_dispatch;
@@ -903,60 +908,58 @@ enum AnySensor {
 // All delegation code is generated automatically.
 ```
 
-### `dyn Trait` vs Enum Dispatch — Decision Guide
+### `dyn Trait` vs 열거형 디스패치 — 선택 가이드
 
 ```text
-Is the set of types closed (known at compile time)?
-├── YES → Prefer enum dispatch (faster, no heap allocation)
-│         ├── Few variants (< ~20)?     → Manual enum
-│         └── Many variants or growing? → enum_dispatch crate
-└── NO  → Must use dyn Trait (plugins, user-provided types)
+타입 집합이 닫혀 있나(컴파일 타임에 알려지나)?
+├── 예 → 열거형 디스패치 선호(더 빠름, 힙 할당 없음)
+│         ├── 변형 적음(~20 미만)?     → 수동 열거형
+│         └── 변형 많거나 늘어남? → enum_dispatch 크레이트
+└── 아니오 → dyn Trait 필수(플러그인, 사용자 제공 타입)
 ```
 
-| Property | `dyn Trait` | Enum Dispatch |
+| 속성 | `dyn Trait` | 열거형 디스패치 |
 |----------|:-----------:|:-------------:|
-| Dispatch cost | Vtable indirection (~2ns) | Branch prediction (~0.3ns) |
-| Heap allocation | Usually (Box) | None (inline) |
-| Cache-friendly | No (pointer chasing) | Yes (contiguous) |
-| Open to new types | ✅ (anyone can impl) | ❌ (closed set) |
-| Code size | Shared | One copy per variant |
-| Trait must be object-safe | Yes | No |
-| Adding a variant | No code changes | Update enum + match arms |
+| 디스패치 비용 | Vtable 간접 참조(~2ns) | 분기 예측(~0.3ns) |
+| 힙 할당 | 보통(Box) | 없음(인라인) |
+| 캐시 친화 | 아니오(포인터 추적) | 예(연속) |
+| 새 타입에 열림 | ✅ (누구나 impl) | ❌ (닫힌 집합) |
+| 코드 크기 | 공유 | 변형마다 사본 |
+| 트레잇 객체 안전 필요 | 예 | 아니오 |
+| 변형 추가 | 코드 변경 없음 | 열거형 + match 갱신 |
 
-### When to Use Enum Dispatch
+### 열거형 디스패치를 쓸 때
 
-| Scenario | Recommendation |
+| 시나리오 | 권장 |
 |----------|---------------|
-| Diagnostic test types (CPU, GPU, NIC, Memory, ...) | ✅ Enum dispatch — closed set, known at compile time |
-| Bus protocols (SPI, I2C, UART, ...) | ✅ Enum dispatch or Config trait |
-| Plugin system (user loads .so at runtime) | ❌ Use `dyn Trait` |
-| 2-3 variants | ✅ Manual enum dispatch |
-| 10+ variants with many methods | ✅ `enum_dispatch` crate |
-| Performance-critical inner loop | ✅ Enum dispatch (eliminates vtable) |
+| 진단 테스트 타입(CPU, GPU, NIC, Memory, …) | ✅ 열거형 디스패치 — 닫힌 집합, 컴파일 타임에 알려짐 |
+| 버스 프로토콜(SPI, I2C, UART, …) | ✅ 열거형 디스패치 또는 Config 트레잇 |
+| 플러그인(런타임에 .so 로드) | ❌ `dyn Trait` |
+| 변형 2–3개 | ✅ 수동 열거형 디스패치 |
+| 변형 10개 이상·메서드 많음 | ✅ `enum_dispatch` 크레이트 |
+| 성능이 중요한 내부 루프 | ✅ 열거형 디스패치(vtable 제거) |
 
 ***
 
-## Capability Mixins — Associated Types as Zero-Cost Composition
+<a id="capability-mixins-associated-types-as-zero-cost-composition"></a>
+## 역량 믹스인 — 연관 타입으로 제로 코스트 조합
 
-Ruby developers compose behaviour with **mixins** — `include SomeModule` injects methods
-into a class.  Rust traits with **associated types + default methods + blanket impls**
-produce the same result, except:
+Ruby 개발자는 **믹스인**으로 동작을 조합합니다 — `include SomeModule`이 클래스에 메서드를 주입합니다.
+Rust에서는 **연관 타입 + 기본 메서드 + blanket 구현**이 있는 트레잇이 비슷한 결과를 내지만:
 
-* Everything resolves at **compile time** — no method-missing surprises
-* Each associated type is a **knob** that changes what the default methods produce
-* The compiler **monomorphises** each combination — zero vtable overhead
+* 모두 **컴파일 타임**에 해결됩니다 — method_missing 같은 깜짝 동작 없음
+* 각 연관 타입이 기본 메서드가 만들어내는 결과를 바꾸는 **노브**입니다
+* 컴파일러가 조합마다 **단형성**합니다 — vtable 오버헤드 제로
 
-### The Problem: Cross-Cutting Bus Dependencies
+### 문제: 횡단 버스 의존성
 
-Hardware diagnostic routines share common operations — read an IPMI sensor, toggle a
-GPIO rail, sample a temperature over SPI — but different diagnostics need different
-combinations.  Inheritance hierarchies don't exist in Rust.  Passing every bus handle
-as a function argument creates unwieldy signatures.  We need a way to **mix in** bus
-capabilities à la carte.
+하드웨어 진단 루틴은 공통 연산(IPMI 센서 읽기, GPIO 레일 토글, SPI로 온도 샘플)을 공유하지만
+진단마다 필요한 조합이 다릅니다. Rust에는 상속 계층이 없습니다. 모든 버스 핸들을
+함수 인자로 넘기면 시그니처가 지저분해집니다. 버스 **역량을 à la carte로 믹스인**할 방법이 필요합니다.
 
-### Step 1 — Define "Ingredient" Traits
+### 1단계 — “재료(Ingredient)” 트레잇 정의
 
-Each ingredient provides one hardware capability via an associated type:
+각 재료는 연관 타입으로 하드웨어 역량 하나를 제공합니다:
 
 ```rust
 use std::io;
@@ -1004,12 +1007,11 @@ pub trait HasIpmi {
 }
 ```
 
-Each ingredient is tiny, generic, and testable in isolation.
+각 재료는 작고 제네릭하며 단독으로 테스트하기 좋습니다.
 
-### Step 2 — Define "Mixin" Traits
+### 2단계 — “믹스인” 트레잇 정의
 
-A mixin trait declares its required ingredients as supertraits, then provides all
-its methods via **defaults** — implementors get them for free:
+믹스인 트레잇은 필요한 재료를 슈퍼트레잇으로 선언한 뒤, 모든 메서드를 **기본 구현**으로 제공합니다 — 구현자는 공짜로 얻습니다:
 
 ```rust
 /// Mixin: fan diagnostics — needs I2C (tachometer) + GPIO (PWM enable)
@@ -1077,9 +1079,9 @@ pub trait PowerSeqMixin: HasGpio + HasIpmi {
 }
 ```
 
-### Step 3 — Blanket Impls Make It Truly "Mixin"
+### 3단계 — Blanket 구현으로 진짜 “믹스인”
 
-The magic line — provide the ingredients, get the methods:
+마법의 한 줄 — 재료만 제공하면 메서드를 얻습니다:
 
 ```rust
 impl<T: HasI2c + HasGpio>  FanDiagMixin    for T {}
@@ -1087,10 +1089,9 @@ impl<T: HasSpi  + HasIpmi>  TempMonitorMixin for T {}
 impl<T: HasGpio + HasIpmi>  PowerSeqMixin   for T {}
 ```
 
-Any struct that implements the right ingredient traits **automatically** gains every
-mixin method — no boilerplate, no forwarding, no inheritance.
+올바른 재료 트레잇을 구현한 구조체는 **자동으로** 모든 믹스인 메서드를 갖습니다 — 보일러플레이트 없음, 전달 없음, 상속 없음.
 
-### Step 4 — Wire Up Production
+### 4단계 — 프로덕션 연결
 
 ```rust
 // ── Concrete bus implementations (Linux platform) ────────────────
@@ -1148,7 +1149,7 @@ fn production_diagnostics(platform: &DiagPlatform) -> io::Result<()> {
 }
 ```
 
-### Step 5 — Test With Mocks (No Hardware Required)
+### 5단계 — 목으로 테스트(하드웨어 불필요)
 
 ```rust
 #[cfg(test)]
@@ -1216,14 +1217,13 @@ mod tests {
 }
 ```
 
-Notice that `FanTestRig` only implements `HasI2c + HasGpio` — it gets `FanDiagMixin`
-automatically, but the compiler **refuses** `rig.read_thermocouple()` because `HasSpi`
-is not satisfied.  This is mixin scoping enforced at compile time.
+`FanTestRig`는 `HasI2c + HasGpio`만 구현합니다 — `FanDiagMixin`은 자동으로 오지만
+`HasSpi`가 없어 컴파일러는 `rig.read_thermocouple()`을 **거부**합니다.
+컴파일 타임에 강제되는 믹스인 범위입니다.
 
-### Conditional Methods — Beyond What Ruby Can Do
+### 조건부 메서드 — Ruby가 못 하는 것
 
-Add `where` bounds to individual default methods.  The method only **exists** when
-the associated type satisfies the extra bound:
+개별 기본 메서드에 `where` 바운드를 붙입니다. 연관 타입이 추가 바운드를 만족할 때만 메서드가 **존재**합니다:
 
 ```rust
 /// Marker trait for DMA-capable SPI controllers
@@ -1264,13 +1264,12 @@ pub trait AdvancedDiagMixin: HasSpi + HasGpio {
 impl<T: HasSpi + HasGpio> AdvancedDiagMixin for T {}
 ```
 
-If your platform's SPI doesn't support DMA, calling `bulk_sensor_read()` is a
-**compile error**, not a runtime crash.  Ruby's `respond_to?` check is the closest
-equivalent — but it happens at deploy time, not compile time.
+플랫폼 SPI가 DMA를 지원하지 않으면 `bulk_sensor_read()` 호출은 **컴파일 에러**이지
+런타임 크래시가 아닙니다. Ruby의 `respond_to?`와 가장 가깝지만 — 배포 시점이 아니라 컴파일 시점입니다.
 
-### Composability: Stacking Mixins
+### 조합성: 믹스인 쌓기
 
-Multiple mixins can share the same ingredient — no diamond problem:
+여러 믹스인이 같은 재료를 공유할 수 있습니다 — 다이아몬드 문제 없음:
 
 ```text
 ┌─────────────┐    ┌───────────┐    ┌──────────────┐
@@ -1285,60 +1284,58 @@ Multiple mixins can share the same ingredient — no diamond problem:
            └───────────────────────────┘
 ```
 
-`DiagPlatform` implements `HasGpio` **once**, and both `FanDiagMixin` and
-`PowerSeqMixin` use the same `self.gpio()`.  In Ruby, this would be two modules
-both calling `self.gpio_pin` — but if they expected different pin numbers, you'd
-discover the conflict at runtime.  In Rust, you can disambiguate at the type level.
+`DiagPlatform`은 `HasGpio`를 **한 번만** 구현하고 `FanDiagMixin`과 `PowerSeqMixin`이
+같은 `self.gpio()`를 씁니다. Ruby라면 두 모듈이 모두 `self.gpio_pin`을 부르는 식인데 —
+핀 번호 기대가 다르면 런타임에 충돌을 발견합니다. Rust에서는 타입 수준에서 모호함을 없앨 수 있습니다.
 
-### Comparison: Ruby Mixins vs Rust Capability Mixins
+### 비교: Ruby 믹스인 vs Rust 역량 믹스인
 
-| Dimension | Ruby Mixins | Rust Capability Mixins |
+| 차원 | Ruby 믹스인 | Rust 역량 믹스인 |
 |-----------|-------------|------------------------|
-| Dispatch | Runtime (method table lookup) | Compile-time (monomorphised) |
-| Safe composition | MRO linearisation hides conflicts | Compiler rejects ambiguity |
-| Conditional methods | `respond_to?` at runtime | `where` bounds at compile time |
-| Overhead | Method dispatch + GC | Zero-cost (inlined) |
-| Testability | Stub/mock via metaprogramming | Generic over mock types |
-| Adding new buses | `include` at runtime | Add ingredient trait, recompile |
-| Runtime flexibility | `extend`, `prepend`, open classes | None (fully static) |
+| 디스패치 | 런타임(메서드 테이블 조회) | 컴파일 타임(단형성) |
+| 안전한 조합 | MRO 선형화가 충돌 숨김 | 컴파일러가 모호함 거부 |
+| 조건부 메서드 | 런타임 `respond_to?` | 컴파일 타임 `where` 바운드 |
+| 오버헤드 | 메서드 디스패치 + GC | 제로 코스트(인라인) |
+| 테스트 가능성 | 메타프로그래밍으로 스텁/목 | 목 타입에 대한 제네릭 |
+| 새 버스 추가 | 런타임 `include` | 재료 트레잇 추가, 재컴파일 |
+| 런타임 유연성 | `extend`, `prepend`, 열린 클래스 | 없음(완전 정적) |
 
-### When to Use Capability Mixins
+### 역량 믹스인을 쓸 때
 
-| Scenario | Use Mixins? |
+| 시나리오 | 믹스인? |
 |----------|:-----------:|
-| Multiple diagnostics share bus-reading logic | ✅ |
-| Test harness needs different bus subsets | ✅ (partial ingredient structs) |
-| Methods only valid for certain bus capabilities (DMA, IRQ) | ✅ (conditional `where` bounds) |
-| You need runtime module loading (plugins) | ❌ (use `dyn Trait` or enum dispatch) |
-| Single struct with one bus — no sharing needed | ❌ (keep it simple) |
-| Cross-crate ingredients with coherence issues | ⚠️ (use newtype wrappers) |
+| 여러 진단이 버스 읽기 로직을 공유 | ✅ |
+| 테스트 하네스가 다른 버스 부분 집합 필요 | ✅ (부분 재료 구조체) |
+| 특정 버스 역량(DMA, IRQ)에서만 유효한 메서드 | ✅ (조건부 `where` 바운드) |
+| 런타임 모듈 로딩(플러그인) 필요 | ❌ (`dyn Trait` 또는 열거형 디스패치) |
+| 버스 하나짜리 단일 구조체 — 공유 불필요 | ❌ (단순하게 유지) |
+| 크레이트 간 재료로 일관성 문제 | ⚠️ (뉴타입 래퍼) |
 
-> **Key Takeaways — Capability Mixins**
+> **핵심 정리 — 역량 믹스인**
 >
-> 1. **Ingredient trait** = associated type + accessor method (e.g., `HasSpi`)
-> 2. **Mixin trait** = supertrait bounds on ingredients + default method bodies
-> 3. **Blanket impl** = `impl<T: HasX + HasY> Mixin for T {}` — auto-injects methods
-> 4. **Conditional methods** = `where Self::Spi: DmaCapable` on individual defaults
-> 5. **Partial platforms** = test structs that only impl the needed ingredients
-> 6. **No runtime cost** — the compiler generates specialised code for each platform type
+> 1. **재료 트레잇** = 연관 타입 + 접근자 메서드(예: `HasSpi`)
+> 2. **믹스인 트레잇** = 재료에 대한 슈퍼트레잇 바운드 + 기본 메서드 본문
+> 3. **Blanket 구현** = `impl<T: HasX + HasY> Mixin for T {}` — 메서드 자동 주입
+> 4. **조건부 메서드** = 개별 기본값에 `where Self::Spi: DmaCapable`
+> 5. **부분 플랫폼** = 필요한 재료만 impl하는 테스트용 구조체
+> 6. **런타임 비용 없음** — 플랫폼 타입마다 전문화된 코드 생성
 
 ***
 
-## Typed Commands — GADT-Style Return Type Safety
+<a id="typed-commands-gadt-style-return-type-safety"></a>
+## 타입이 지정된 커맨드 — GADT 스타일 반환 타입 안전성
 
-In Haskell, **Generalised Algebraic Data Types (GADTs)** let each constructor of a
-data type refine the type parameter — so `Expr Int` and `Expr Bool` are enforced by
-the type checker.  Rust has no direct GADT syntax, but **traits with associated types**
-achieve the same guarantee: the command type **determines** the response type, and
-mixing them up is a compile error.
+Haskell에서 **일반화 대수 자료형(GADT)**은 자료형의 각 생성자가 타입 매개변수를 정제하게 해
+`Expr Int`와 `Expr Bool`을 타입 검사기가 강제합니다. Rust에는 GADT 문법이 직접 없지만
+**연관 타입이 있는 트레잇**으로 같은 보장을 얻을 수 있습니다: 커맨드 타입이 응답 타입을 **결정**하고
+섞으면 컴파일 에러입니다.
 
-This pattern is particularly powerful for hardware diagnostics, where IPMI commands,
-register reads, and sensor queries each return different physical quantities that
-should never be confused.
+하드웨어 진단(IPMI 커맨드, 레지스터 읽기, 센서 쿼리)처럼 서로 다른 물리량을 반환해
+절대 혼동되면 안 될 때 특히 강력합니다.
 
-### The Problem: The Untyped `Vec<u8>` Swamp
+### 문제: 타입 없는 `Vec<u8>` 늪
 
-Most C/C++ IPMI stacks — and naïve Rust ports — use raw bytes everywhere:
+대부분의 C/C++ IPMI 스택 — 그리고 순진한 Rust 포트 — 는 어디서나 raw 바이트를 씁니다:
 
 ```rust
 use std::io;
@@ -1381,19 +1378,19 @@ fn log_temp_untyped(t: f64)  { println!("Temp: {t}°C"); }
 fn log_volts_untyped(v: f64) { println!("Voltage: {v}V"); }
 ```
 
-**Every reading is `f64`** — the compiler has no idea that one is a temperature, another
-is RPM, another is voltage.  Four distinct bugs compile without warning:
+**모든 읽기 값이 `f64`** — 컴파일러는 어느 것이 온도이고 RPM이고 전압인지 모릅니다.
+서로 다른 버그 네 가지가 경고 없이 컴파일됩니다:
 
-| # | Bug | Consequence | Discovered |
+| # | 버그 | 결과 | 발견 시점 |
 |---|-----|-------------|------------|
-| 1 | Fan RPM parsed as 1 byte instead of 2 | Reads 25 RPM instead of 6400 | Production, 3 AM fan-failure flood |
-| 2 | Voltage not divided by 1000 | 12000V instead of 12.0V | Threshold check flags every PSU |
-| 3 | Comparing °C to RPM | Meaningless boolean | Possibly never |
-| 4 | Voltage passed to `log_temp_untyped()` | Silent data corruption in logs | 6 months later, reading history |
+| 1 | 팬 RPM을 1바이트로 파싱 | 6400 대신 25 RPM 읽음 | 프로덕션, 새벽 3시 팬 장애 폭주 |
+| 2 | 전압을 1000으로 나누지 않음 | 12.0V 대신 12000V | 임계값 검사가 모든 PSU 오탐 |
+| 3 | °C와 RPM 비교 | 무의미한 불리언 | 아마 영원히 |
+| 4 | 전압을 `log_temp_untyped()`에 전달 | 로그의 조용한 데이터 손상 | 6개월 뒤 이력 조회 |
 
-### The Solution: Typed Commands via Associated Types
+### 해결책: 연관 타입으로 타입이 지정된 커맨드
 
-#### Step 1 — Domain newtypes
+#### 1단계 — 도메인 뉴타입
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -1409,7 +1406,7 @@ struct Volts(f64);
 struct Watts(f64);
 ```
 
-#### Step 2 — The command trait (the GADT equivalent)
+#### 2단계 — 커맨드 트레잇(GADT에 해당)
 
 The associated type `Response` is the key — it binds each command to its return type:
 
@@ -1427,7 +1424,7 @@ trait IpmiCmd {
 }
 ```
 
-#### Step 3 — One struct per command, parsing written once
+#### 3단계 — 커맨드마다 struct 하나, 파싱은 한 곳에
 
 ```rust
 struct ReadTemp { sensor_id: u8 }
@@ -1478,7 +1475,7 @@ impl IpmiCmd for ReadFru {
 }
 ```
 
-#### Step 4 — The executor (zero `dyn`, monomorphised)
+#### 4단계 — 실행기(`dyn` 없음, 단형성)
 
 ```rust
 struct BmcConnection { timeout_secs: u32 }
@@ -1496,7 +1493,7 @@ impl BmcConnection {
 }
 ```
 
-#### Step 5 — Caller code: all four bugs become compile errors
+#### 5단계 — 호출 코드: 네 가지 버그가 모두 컴파일 에러로
 
 ```rust
 fn diagnose_thermal(bmc: &BmcConnection) -> io::Result<()> {
@@ -1531,10 +1528,10 @@ fn log_temperature(t: Celsius) { println!("Temp: {:?}", t); }
 fn log_voltage(v: Volts)       { println!("Voltage: {:?}", v); }
 ```
 
-### Macro DSL for Diagnostic Scripts
+### 진단 스크립트용 매크로 DSL
 
-For large diagnostic routines that run many commands in sequence, a macro gives
-concise declarative syntax while preserving full type safety:
+많은 커맨드를 순서대로 돌리는 큰 진단 루틴에는 매크로가 간결한 선언적 문법을 주면서
+타입 안전성을 유지합니다:
 
 ```rust
 /// Execute a series of typed IPMI commands, returning a tuple of results.
@@ -1566,14 +1563,14 @@ fn full_pre_flight(bmc: &BmcConnection) -> io::Result<()> {
 }
 ```
 
-The macro is just syntactic sugar — the tuple type `(Celsius, Rpm, Volts, String)` is
-fully inferred by the compiler.  Swap two commands and the destructuring breaks at
-compile time, not at runtime.
+매크로는 문법 설탕에 불과합니다 — 튜플 타입 `(Celsius, Rpm, Volts, String)`은
+컴파일러가 완전히 추론합니다. 커맨드 두 개를 바꾸면 분해 대입이 컴파일 타임에 깨지고
+런타임에는 깨지지 않습니다.
 
-### Enum Dispatch for Heterogeneous Command Lists
+### 이질 커맨드 목록에 대한 열거형 디스패치
 
-When you need a `Vec` of mixed commands (e.g., a configurable script loaded from JSON),
-use enum dispatch to stay `dyn`-free:
+JSON에서 불러온 설정 가능한 스크립트처럼 섞인 커맨드의 `Vec`이 필요하면
+열거형 디스패치로 `dyn` 없이 유지합니다:
 
 ```rust
 enum AnyReading {
@@ -1607,10 +1604,10 @@ fn run_script(bmc: &BmcConnection, script: &[AnyCmd]) -> io::Result<Vec<AnyReadi
 }
 ```
 
-You lose per-element type tracking (everything is `AnyReading`), but you gain
-runtime flexibility — and the parsing is still encapsulated in each `IpmiCmd` impl.
+요소별 타입 추적은 잃습니다(모두 `AnyReading`)만 런타임 유연성을 얻고 —
+파싱은 여전히 각 `IpmiCmd` 구현에 캡슐화됩니다.
 
-### Testing Typed Commands
+### 타입이 지정된 커맨드 테스트
 
 ```rust
 #[cfg(test)]
@@ -1659,14 +1656,14 @@ mod tests {
 }
 ```
 
-Each command's parsing is tested independently.  If `ReadFanSpeed` changes from 2-byte
-LE to 4-byte BE in a new IPMI spec revision, you update **one** `parse_response` and
-the test catches regressions.
+각 커맨드의 파싱을 독립적으로 테스트합니다. 새 IPMI 규격에서 `ReadFanSpeed`가
+2바이트 LE에서 4바이트 BE로 바뀌면 **`parse_response` 한 곳**만 고치면 되고
+테스트가 회귀를 잡습니다.
 
-### How This Maps to Haskell GADTs
+### Haskell GADT와의 대응
 
 ```text
-Haskell GADT                         Rust Equivalent
+Haskell GADT                         Rust 대응
 ────────────────                     ───────────────────────
 data Cmd a where                     trait IpmiCmd {
   ReadTemp :: SensorId -> Cmd Temp       type Response;
@@ -1676,56 +1673,56 @@ data Cmd a where                     trait IpmiCmd {
 eval :: Cmd a -> IO a                fn execute<C: IpmiCmd>(&self, cmd: &C)
                                          -> io::Result<C::Response>
 
-Type refinement in case branches     Monomorphisation: compiler generates
-                                     execute::<ReadTemp>() → returns Celsius
-                                     execute::<ReadFanSpeed>() → returns Rpm
+case 분기에서 타입 정제                단형성: 컴파일러가 생성
+                                     execute::<ReadTemp>() → Celsius 반환
+                                     execute::<ReadFanSpeed>() → Rpm 반환
 ```
 
-Both guarantee: **the command determines the return type**.  Rust achieves it through
-generic monomorphisation instead of type-level case analysis — same safety, zero
-runtime cost.
+둘 다 **커맨드가 반환 타입을 결정**한다는 보장을 합니다. Rust는 타입 수준 case 분석 대신
+제네릭 단형성으로 달성합니다 — 같은 안전성, 런타임 비용 제로.
 
-### Before vs After Summary
+### 전후 요약
 
-| Dimension | Untyped (`Vec<u8>`) | Typed Commands |
+| 차원 | 타입 없음(`Vec<u8>`) | 타입이 지정된 커맨드 |
 |-----------|:---:|:---:|
-| Lines per sensor | ~3 (duplicated at every call site) | ~15 (written and tested once) |
-| Parsing errors possible | At every call site | In one `parse_response` impl |
-| Unit confusion bugs | Unlimited | Zero (compile error) |
-| Adding a new sensor | Touch N files, copy-paste parsing | Add 1 struct + 1 impl |
-| Runtime cost | — | Identical (monomorphised) |
-| IDE autocomplete | `f64` everywhere | `Celsius`, `Rpm`, `Volts` — self-documenting |
-| Code review burden | Must verify every raw byte parse | Verify one `parse_response` per sensor |
-| Macro DSL | N/A | `diag_script!(bmc; ReadTemp{..}, ReadFan{..})` → `(Celsius, Rpm)` |
-| Dynamic scripts | Manual dispatch | `AnyCmd` enum — still `dyn`-free |
+| 센서당 줄 수 | ~3(호출부마다 중복) | ~15(한 번 작성·테스트) |
+| 파싱 오류 가능성 | 모든 호출부 | `parse_response` 구현 한 곳 |
+| 단위 혼동 버그 | 무제한 | 제로(컴파일 에러) |
+| 새 센서 추가 | N개 파일 만지며 파싱 복붙 | struct 1개 + impl 1개 |
+| 런타임 비용 | — | 동일(단형성) |
+| IDE 자동완성 | 어디서나 `f64` | `Celsius`, `Rpm`, `Volts` — 자기 문서화 |
+| 코드 리뷰 부담 | 모든 raw 바이트 파싱 검증 | 센서당 `parse_response` 하나 검증 |
+| 매크로 DSL | 해당 없음 | `diag_script!(bmc; ReadTemp{..}, ReadFan{..})` → `(Celsius, Rpm)` |
+| 동적 스크립트 | 수동 디스패치 | `AnyCmd` 열거형 — 여전히 `dyn` 없음 |
 
-### When to Use Typed Commands
+### 타입이 지정된 커맨드를 쓸 때
 
-| Scenario | Recommendation |
+| 시나리오 | 권장 |
 |----------|:--------------:|
-| IPMI sensor reads with distinct physical units | ✅ Typed commands |
-| Register map with different-width fields | ✅ Typed commands |
-| Network protocol messages (request → response) | ✅ Typed commands |
-| Single command type with one return format | ❌ Overkill — just return the type directly |
-| Prototyping / exploring an unknown device | ❌ Raw bytes first, type later |
-| Plugin system where commands aren't known at compile time | ⚠️ Use `AnyCmd` enum dispatch |
+| 물리 단위가 다른 IPMI 센서 읽기 | ✅ 타입이 지정된 커맨드 |
+| 폭이 다른 필드의 레지스터 맵 | ✅ 타입이 지정된 커맨드 |
+| 네트워크 프로토콜 메시지(요청 → 응답) | ✅ 타입이 지정된 커맨드 |
+| 반환 형식이 하나인 단일 커맨드 타입 | ❌ 과함 — 그냥 그 타입을 반환 |
+| 프로토타입·미지의 장치 탐색 | ❌ 먼저 raw 바이트, 나중에 타입 |
+| 컴파일 타임에 커맨드를 모르는 플러그인 | ⚠️ `AnyCmd` 열거형 디스패치 |
 
-> **Key Takeaways — Traits**
-> - Associated types = one impl per type; generic parameters = many impls per type
-> - GATs unlock lending iterators and async-in-traits patterns
-> - Use enum dispatch for closed sets (fast); `dyn Trait` for open sets (flexible)
-> - `Any` + `TypeId` is the escape hatch when compile-time types are unknown
+> **핵심 정리 — 트레잇**
+> - 연관 타입 = 타입당 구현 하나; 제네릭 매개변수 = 타입당 여러 구현
+> - GAT은 대여 이터레이터와 트레잇 속 async 패턴을 엽니다
+> - 닫힌 집합은 열거형 디스패치(빠름); 열린 집합은 `dyn Trait`(유연)
+> - 컴파일 타임 타입을 모를 때의 탈출구는 `Any` + `TypeId`
 
-> **See also:** [Ch 1 — Generics](ch01-generics-the-full-picture.md) for monomorphization and when generics cause code bloat. [Ch 3 — Newtype & Type-State](ch03-the-newtype-and-type-state-patterns.md) for using traits with the config trait pattern.
+> **더 보기:** 단형성화와 코드 팽창은 [1장 — 제네릭](ch01-generics-the-full-picture.md). Config 트레잇 패턴과 함께 쓰는 트레잇은 [3장 — 뉴타입·타입 상태](ch03-the-newtype-and-type-state-patterns.md).
 
 ---
 
-### Exercise: Repository with Associated Types ★★★ (~40 min)
+<a id="exercise-repository-with-associated-types"></a>
+### 연습: 연관 타입이 있는 Repository ★★★ (~40분)
 
-Design a `Repository` trait with associated `Error`, `Id`, and `Item` types. Implement it for an in-memory store and demonstrate compile-time type safety.
+연관 타입 `Error`, `Id`, `Item`을 가진 `Repository` 트레잇을 설계하세요. 메모리 내 저장소에 구현하고 컴파일 타임 타입 안전성을 보여주세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::collections::HashMap;

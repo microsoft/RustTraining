@@ -1,11 +1,15 @@
-## Exercises
+<a id="exercises"></a>
 
-### Exercise 1: Type-Safe State Machine ★★ (~30 min)
+## 연습문제
 
-Build a traffic light state machine using the type-state pattern. The light must transition `Red → Green → Yellow → Red` and no other order should be possible.
+<a id="exercise-1-type-safe-state-machine"></a>
+
+### 연습 1: 타입 안전 상태 머신 ★★ (~30분)
+
+타입 상태 패턴으로 신호등 상태 머신을 만드세요. `빨강 → 초록 → 노랑 → 빨강`만 허용되고 다른 순서는 불가능해야 합니다.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::marker::PhantomData;
@@ -45,32 +49,34 @@ impl TrafficLight<Yellow> {
 }
 
 fn main() {
-    let light = TrafficLight::new(); // Red
-    let light = light.go();          // Green
-    let light = light.caution();     // Yellow
-    let light = light.stop();        // Red
+    let light = TrafficLight::new();
+    let light = light.go();
+    let light = light.caution();
+    let light = light.stop();
 
-    // light.caution(); // ❌ Compile error: no method `caution` on Red
-    // TrafficLight::new().stop(); // ❌ Compile error: no method `stop` on Red
+    // light.caution(); // ❌ 컴파일 에러: Red에 `caution` 없음
+    // TrafficLight::new().stop(); // ❌ 컴파일 에러: Red에 `stop` 없음
 }
 ```
 
-**Key takeaway**: Invalid transitions are compile errors, not runtime panics.
+**핵심**: 잘못된 전환은 런타임 패닉이 아니라 컴파일 에러입니다.
 
 </details>
 
 ---
 
-### Exercise 2: Unit-of-Measure with PhantomData ★★ (~30 min)
+<a id="exercise-2-unit-of-measure-with-phantomdata"></a>
 
-Extend the unit-of-measure pattern from Ch4 to support:
+### 연습 2: PhantomData로 단위 계량 ★★ (~30분)
+
+4장의 단위 계량 패턴을 확장합니다:
 - `Meters`, `Seconds`, `Kilograms`
-- Addition of same units
-- Multiplication: `Meters * Meters = SquareMeters`
-- Division: `Meters / Seconds = MetersPerSecond`
+- 같은 단위끼리 덧셈
+- 곱셈: `Meters * Meters = SquareMeters`
+- 나눗셈: `Meters / Seconds = MetersPerSecond`
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::marker::PhantomData;
@@ -119,7 +125,7 @@ impl Div<Qty<Seconds>> for Qty<Meters> {
 fn main() {
     let width = Qty::<Meters>::new(5.0);
     let height = Qty::<Meters>::new(3.0);
-    let area = width * height; // Qty<SquareMeters>
+    let area = width * height;
     println!("Area: {:.1} m²", area.value);
 
     let dist = Qty::<Meters>::new(100.0);
@@ -127,10 +133,10 @@ fn main() {
     let speed = dist / time;
     println!("Speed: {:.2} m/s", speed.value);
 
-    let sum = width + height; // Same unit ✅
+    let sum = width + height;
     println!("Sum: {:.1} m", sum.value);
 
-    // let bad = width + time; // ❌ Compile error: can't add Meters + Seconds
+    // let bad = width + time; // ❌ 컴파일 에러: Meters + Seconds 불가
 }
 ```
 
@@ -138,15 +144,17 @@ fn main() {
 
 ---
 
-### Exercise 3: Channel-Based Worker Pool ★★★ (~45 min)
+<a id="exercise-3-channel-based-worker-pool"></a>
 
-Build a worker pool using channels where:
-- A dispatcher sends `Job` structs through a channel
-- N workers consume jobs and send results back
-- Use `crossbeam-channel` (or `std::sync::mpsc` if crossbeam is unavailable)
+### 연습 3: 채널 기반 워커 풀 ★★★ (~45분)
+
+다음을 만족하는 워커 풀을 채널로 구현하세요:
+- 디스패처가 `Job`을 채널로 보냄
+- N개의 워커가 작업을 꺼내 결과를 되돌려보냄
+- `crossbeam-channel`(없으면 `std::sync::mpsc`)
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::sync::mpsc;
@@ -167,20 +175,17 @@ fn worker_pool(jobs: Vec<Job>, num_workers: usize) -> Vec<JobResult> {
     let (job_tx, job_rx) = mpsc::channel::<Job>();
     let (result_tx, result_rx) = mpsc::channel::<JobResult>();
 
-    // Wrap receiver in Arc<Mutex> for sharing among workers
     let job_rx = std::sync::Arc::new(std::sync::Mutex::new(job_rx));
 
-    // Spawn workers
     let mut handles = Vec::new();
     for worker_id in 0..num_workers {
         let job_rx = job_rx.clone();
         let result_tx = result_tx.clone();
         handles.push(thread::spawn(move || {
             loop {
-                // Lock, receive, unlock — short critical section
                 let job = {
                     let rx = job_rx.lock().unwrap();
-                    rx.recv() // Blocks until a job or channel closes
+                    rx.recv()
                 };
                 match job {
                     Ok(job) => {
@@ -191,21 +196,19 @@ fn worker_pool(jobs: Vec<Job>, num_workers: usize) -> Vec<JobResult> {
                             worker_id,
                         }).unwrap();
                     }
-                    Err(_) => break, // Channel closed — exit
+                    Err(_) => break,
                 }
             }
         }));
     }
-    drop(result_tx); // Drop our copy so result channel closes when workers finish
+    drop(result_tx);
 
-    // Dispatch jobs
     let num_jobs = jobs.len();
     for job in jobs {
         job_tx.send(job).unwrap();
     }
-    drop(job_tx); // Close the job channel — workers will exit after draining
+    drop(job_tx);
 
-    // Collect results
     let mut results = Vec::new();
     for result in result_rx {
         results.push(result);
@@ -233,12 +236,14 @@ fn main() {
 
 ---
 
-### Exercise 4: Higher-Order Combinator Pipeline ★★ (~25 min)
+<a id="exercise-4-higher-order-combinator-pipeline"></a>
 
-Create a `Pipeline` struct that chains transformations. It should support `.pipe(f)` to add a transformation and `.execute(input)` to run the full chain.
+### 연습 4: 고차 조합자 파이프라인 ★★ (~25분)
+
+변환을 연쇄하는 `Pipeline` 구조체를 만드세요. `.pipe(f)`로 변환을 추가하고 `.execute(input)`으로 전체를 실행합니다.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 struct Pipeline<T> {
@@ -267,31 +272,32 @@ fn main() {
         .pipe(|s| format!(">>> {s} <<<"))
         .execute("  hello world  ".to_string());
 
-    println!("{result}"); // >>> HELLO WORLD <<<
+    println!("{result}");
 
-    // Numeric pipeline:
     let result = Pipeline::new()
         .pipe(|x: i32| x * 2)
         .pipe(|x| x + 10)
         .pipe(|x| x * x)
         .execute(5);
 
-    println!("{result}"); // (5*2 + 10)^2 = 400
+    println!("{result}");
 }
 ```
 
-**Bonus**: Generic pipeline that changes type between stages would use a different design — each `.pipe()` returns a `Pipeline` with a different output type (this requires more advanced generic plumbing).
+**보너스**: 단계마다 타입이 바뀌는 제네릭 파이프라인은 다른 설계가 필요합니다 — 각 `.pipe()`가 다른 출력 타입의 `Pipeline`을 반환합니다(더 고급 제네릭 필요).
 
 </details>
 
 ---
 
-### Exercise 5: Error Hierarchy with thiserror ★★ (~30 min)
+<a id="exercise-5-error-hierarchy-with-thiserror"></a>
 
-Design an error type hierarchy for a file-processing application that can fail during I/O, parsing (JSON and CSV), and validation. Use `thiserror` and demonstrate `?` propagation.
+### 연습 5: thiserror로 에러 계층 ★★ (~30분)
+
+I/O, 파싱(JSON·CSV), 검증에서 실패할 수 있는 파일 처리 앱의 에러 타입 계층을 설계하세요. `thiserror`를 쓰고 `?` 전파를 보여주세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust,ignore
 use thiserror::Error;
@@ -312,11 +318,11 @@ pub enum AppError {
 }
 
 fn read_file(path: &str) -> Result<String, AppError> {
-    Ok(std::fs::read_to_string(path)?) // io::Error → AppError::Io via #[from]
+    Ok(std::fs::read_to_string(path)?)
 }
 
 fn parse_json(content: &str) -> Result<serde_json::Value, AppError> {
-    Ok(serde_json::from_str(content)?) // serde_json::Error → AppError::Json
+    Ok(serde_json::from_str(content)?)
 }
 
 fn validate_name(value: &serde_json::Value) -> Result<String, AppError> {
@@ -356,12 +362,14 @@ fn main() {
 
 ---
 
-### Exercise 6: Generic Trait with Associated Types ★★★ (~40 min)
+<a id="exercise-6-generic-trait-with-associated-types"></a>
 
-Design a `Repository<T>` trait with associated `Error` and `Id` types. Implement it for an in-memory store and demonstrate compile-time type safety.
+### 연습 6: 연관 타입이 있는 제네릭 트레잇 ★★★ (~40분)
+
+연관 `Error`, `Id` 타입을 가진 `Repository` 트레잇을 설계하세요. 인메모리 저장소에 구현하고 컴파일 타임 안전성을 보여주세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::collections::HashMap;
@@ -393,7 +401,6 @@ impl InMemoryUserRepo {
     }
 }
 
-// Error type is Infallible — in-memory ops never fail
 impl Repository for InMemoryUserRepo {
     type Item = User;
     type Id = u64;
@@ -415,7 +422,6 @@ impl Repository for InMemoryUserRepo {
     }
 }
 
-// Generic function works with ANY repository:
 fn create_and_fetch<R: Repository>(repo: &mut R, item: R::Item) -> Result<(), R::Error>
 where
     R::Item: std::fmt::Debug,
@@ -441,20 +447,22 @@ fn main() {
 
 ---
 
-### Exercise 7: Safe Wrapper around Unsafe (Ch11) ★★★ (~45 min)
+<a id="exercise-7-safe-wrapper-around-unsafe"></a>
 
-Write a `FixedVec<T, const N: usize>` — a fixed-capacity, stack-allocated vector.
-Requirements:
-- `push(&mut self, value: T) -> Result<(), T>` returns `Err(value)` when full
-- `pop(&mut self) -> Option<T>` returns and removes the last element
-- `as_slice(&self) -> &[T]` borrows initialized elements
-- All public methods must be safe; all unsafe must be encapsulated with `SAFETY:` comments
-- `Drop` must clean up initialized elements
+### 연습 7: Unsafe 주변의 안전한 래퍼(11장) ★★★ (~45분)
 
-**Hint**: Use `MaybeUninit<T>` and `[const { MaybeUninit::uninit() }; N]`.
+스택에 고정 용량을 두는 `FixedVec<T, const N: usize>`를 작성하세요.
+요구사항:
+- `push(&mut self, value: T) -> Result<(), T>` — 가득 차면 `Err(value)`
+- `pop(&mut self) -> Option<T>` — 마지막 요소 제거·반환
+- `as_slice(&self) -> &[T]` — 초기화된 요소만 빌림
+- 공개 API는 모두 safe; unsafe는 `SAFETY:` 주석과 함께 캡슐화
+- `Drop`에서 초기화된 요소 정리
+
+**힌트**: `MaybeUninit<T>`와 `[const { MaybeUninit::uninit() }; N]` 사용.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::mem::MaybeUninit;
@@ -474,7 +482,7 @@ impl<T, const N: usize> FixedVec<T, N> {
 
     pub fn push(&mut self, value: T) -> Result<(), T> {
         if self.len >= N { return Err(value); }
-        // SAFETY: len < N, so data[len] is within bounds.
+        // SAFETY: len < N이므로 data[len]는 범위 안.
         self.data[self.len] = MaybeUninit::new(value);
         self.len += 1;
         Ok(())
@@ -483,13 +491,12 @@ impl<T, const N: usize> FixedVec<T, N> {
     pub fn pop(&mut self) -> Option<T> {
         if self.len == 0 { return None; }
         self.len -= 1;
-        // SAFETY: data[len] was initialized (len was > 0 before decrement).
+        // SAFETY: data[len]는 감소 전에 초기화되어 있었음.
         Some(unsafe { self.data[self.len].assume_init_read() })
     }
 
     pub fn as_slice(&self) -> &[T] {
-        // SAFETY: data[0..len] are all initialized, and MaybeUninit<T>
-        // has the same layout as T.
+        // SAFETY: data[0..len]는 모두 초기화되었고, MaybeUninit<T>는 T와 같은 레이아웃.
         unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const T, self.len) }
     }
 
@@ -499,7 +506,7 @@ impl<T, const N: usize> FixedVec<T, N> {
 
 impl<T, const N: usize> Drop for FixedVec<T, N> {
     fn drop(&mut self) {
-        // SAFETY: data[0..len] are initialized — drop each one.
+        // SAFETY: data[0..len]는 초기화됨 — 각각 drop.
         for i in 0..self.len {
             unsafe { self.data[i].assume_init_drop(); }
         }
@@ -513,7 +520,6 @@ fn main() {
     assert_eq!(v.as_slice(), &["hello", "world"]);
     assert_eq!(v.pop(), Some("world".into()));
     assert_eq!(v.len(), 1);
-    // Drop cleans up remaining "hello"
 }
 ```
 
@@ -521,9 +527,11 @@ fn main() {
 
 ---
 
-### Exercise 8: Declarative Macro — `map!` (Ch12) ★ (~15 min)
+<a id="exercise-8-declarative-macro-map"></a>
 
-Write a `map!` macro that creates a `HashMap` from key-value pairs, similar to `vec![]`:
+### 연습 8: 선언적 매크로 — `map!`(12장) ★ (~15분)
+
+키–값 쌍으로 `HashMap`을 만드는 `map!` 매크로를 작성하세요. `vec![]`와 비슷하게:
 
 ```rust
 let m = map! {
@@ -534,21 +542,19 @@ assert_eq!(m.get("host"), Some(&"localhost"));
 assert_eq!(m.len(), 2);
 ```
 
-Requirements:
-- Support trailing comma
-- Support empty invocation `map!{}`
-- Work with any types that implement `Into<K>` and `Into<V>` for maximum flexibility
+요구사항:
+- 후행 쉼표 허용
+- 빈 호출 `map!{}` 지원
+- `Into<K>`, `Into<V>`인 타입에 최대한 유연하게
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 macro_rules! map {
-    // Empty case
     () => {
         std::collections::HashMap::new()
     };
-    // One or more key => value pairs (trailing comma optional)
     ( $( $key:expr => $val:expr ),+ $(,)? ) => {{
         let mut m = std::collections::HashMap::new();
         $( m.insert($key, $val); )+
@@ -557,7 +563,6 @@ macro_rules! map {
 }
 
 fn main() {
-    // Basic usage:
     let config = map! {
         "host" => "localhost",
         "port" => "8080",
@@ -566,11 +571,9 @@ fn main() {
     assert_eq!(config.len(), 3);
     assert_eq!(config["host"], "localhost");
 
-    // Empty map:
     let empty: std::collections::HashMap<String, String> = map!();
     assert!(empty.is_empty());
 
-    // Different types:
     let scores = map! {
         1 => 100,
         2 => 200,
@@ -583,12 +586,14 @@ fn main() {
 
 ---
 
-### Exercise 9: Custom serde Deserialization (Ch10) ★★★ (~45 min)
+<a id="exercise-9-custom-serde-deserialization"></a>
 
-Design a `Duration` wrapper that deserializes from human-readable strings like `"30s"`, `"5m"`, `"2h"` using a custom serde deserializer. The struct should also serialize back to the same format.
+### 연습 9: 사용자 정의 serde 역직렬화(10장) ★★★ (~45분)
+
+`"30s"`, `"5m"`, `"2h"` 같은 사람이 읽기 쉬운 문자열에서 역직렬화하는 `Duration` 래퍼를 설계하세요. 같은 형식으로 다시 직렬화합니다.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust,ignore
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -660,7 +665,6 @@ fn main() {
     assert_eq!(config.timeout.0, std::time::Duration::from_secs(30));
     assert_eq!(config.retry_interval.0, std::time::Duration::from_secs(300));
 
-    // Round-trips correctly:
     let serialized = serde_json::to_string(&config).unwrap();
     assert!(serialized.contains("30s"));
     assert!(serialized.contains("5m"));
@@ -670,28 +674,24 @@ fn main() {
 
 </details>
 
-### Exercise 10 — Concurrent Fetcher with Timeout ★★ (~25 min)
+<a id="exercise-10-concurrent-fetcher-with-timeout"></a>
 
-Write an async function `fetch_all` that spawns three `tokio::spawn` tasks, each
-simulating a network call with `tokio::time::sleep`. Join all three with
-`tokio::try_join!` wrapped in `tokio::time::timeout(Duration::from_secs(5), ...)`.
-Return `Result<Vec<String>, ...>` or an error if any task fails or the deadline
-expires.
+### 연습 10 — 타임아웃이 있는 동시 fetch ★★ (~25분)
 
-**Learning goals**: `tokio::spawn`, `try_join!`, `timeout`, error propagation
-across task boundaries.
+16장 연습과 동일: 세 개의 `tokio::spawn`과 `try_join!`, `timeout`을 사용하세요.
+
+**학습 목표**: `tokio::spawn`, `try_join!`, `timeout`, 태스크 경계 너머 에러 전파.
 
 <details>
-<summary>Hint</summary>
+<summary>힌트</summary>
 
-Each spawned task returns `Result<String, _>`. `try_join!` unwraps all three.
-Wrap the whole `try_join!` in `timeout()` — the `Elapsed` error means you hit the
-deadline.
+스폰된 태스크는 `Result<String, _>`를 돌려줍니다. `try_join!`으로 세 개를 풀고,
+전체를 `timeout()`으로 감쌉니다 — `Elapsed`는 데드라인 초과입니다.
 
 </details>
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust,ignore
 use tokio::time::{sleep, timeout, Duration};
@@ -710,9 +710,9 @@ async fn fetch_all() -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let h3 = tokio::spawn(fake_fetch("svc-c", 150));
         tokio::try_join!(h1, h2, h3)
     })
-    .await??; // first ? = timeout, second ? = join
+    .await??;
 
-    Ok(vec![a?, b?, c?]) // unwrap inner Results
+    Ok(vec![a?, b?, c?])
 }
 
 #[tokio::main]
@@ -726,48 +726,43 @@ async fn main() {
 
 </details>
 
-### Exercise 11 — Async Channel Pipeline ★★★ (~40 min)
+<a id="exercise-11-async-channel-pipeline"></a>
 
-Build a producer → transformer → consumer pipeline using `tokio::sync::mpsc`:
+### 연습 11 — async 채널 파이프라인 ★★★ (~40분)
 
-1. **Producer**: sends integers 1..=20 into channel A (capacity 4).
-2. **Transformer**: reads from channel A, squares each value, sends into channel B.
-3. **Consumer**: reads from channel B, collects into a `Vec<u64>`, returns it.
+`tokio::sync::mpsc`로 생산자 → 변환기 → 소비자 파이프라인을 만드세요:
 
-All three stages run as concurrent `tokio::spawn` tasks. Use bounded channels to
-demonstrate back-pressure. Assert the final vec equals `[1, 4, 9, ..., 400]`.
+1. **생산자**: 1..=20을 채널 A(용량 4)로 전송
+2. **변환기**: A에서 읽어 제곱한 뒤 채널 B로 전송
+3. **소비자**: B에서 읽어 `Vec<u64>`로 모아 반환
 
-**Learning goals**: `mpsc::channel`, bounded back-pressure, `tokio::spawn` with
-move closures, graceful shutdown via channel close.
+세 단계 모두 `tokio::spawn`으로 동시 실행. 용량 제한 채널로 백프레셔를 보여주고, 최종 벡터가 `[1, 4, 9, ..., 400]`과 같은지 검증합니다.
+
+**학습 목표**: `mpsc::channel`, 백프레셔, `move` 클로저와 `tokio::spawn`, 채널 종료로 정상 종료.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust,ignore
 use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() {
-    let (tx_a, mut rx_a) = mpsc::channel::<u64>(4); // bounded — back-pressure
+    let (tx_a, mut rx_a) = mpsc::channel::<u64>(4);
     let (tx_b, mut rx_b) = mpsc::channel::<u64>(4);
 
-    // Producer
     let producer = tokio::spawn(async move {
         for i in 1..=20u64 {
             tx_a.send(i).await.unwrap();
         }
-        // tx_a dropped here → channel A closes
     });
 
-    // Transformer
     let transformer = tokio::spawn(async move {
         while let Some(val) = rx_a.recv().await {
             tx_b.send(val * val).await.unwrap();
         }
-        // tx_b dropped here → channel B closes
     });
 
-    // Consumer
     let consumer = tokio::spawn(async move {
         let mut results = Vec::new();
         while let Some(val) = rx_b.recv().await {

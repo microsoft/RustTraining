@@ -1,23 +1,25 @@
-## Exceptions vs Result
+<a id="exceptions-vs-result"></a>
+## 예외 vs Result
 
-> **What you'll learn:** `Result<T, E>` vs `try`/`except`, the `?` operator for concise error propagation,
-> custom error types with `thiserror`, `anyhow` for applications, and why explicit errors prevent hidden bugs.
+> **이 장에서 배울 것:** `Result<T, E>`와 `try`/`except`의 차이, 간결하게 에러를 전파하는 `?` 연산자,
+> `thiserror`로 커스텀 에러 타입을 만드는 법, 애플리케이션용 `anyhow`, 그리고 명시적 에러가 숨은 버그를 막는 이유.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
-This is one of the biggest mindset changes for Python developers. Python uses exceptions
-for error handling — errors can be thrown from anywhere and caught anywhere (or not at all).
-Rust uses `Result<T, E>` — errors are values that must be explicitly handled.
+이 부분은 Python 개발자에게 가장 큰 사고방식 전환 중 하나입니다. Python은 에러 처리에
+예외를 사용합니다. 예외는 어디서든 발생할 수 있고, 어디서든 잡을 수 있으며, 아무 데서도
+잡히지 않을 수도 있습니다. Rust는 `Result<T, E>`를 사용합니다. 즉 에러는 반드시
+명시적으로 처리해야 하는 값입니다.
 
-### Python Exception Handling
+### Python 예외 처리
 ```python
-# Python — exceptions can be thrown from anywhere
+# Python — 예외는 어디서든 발생할 수 있음
 import json
 
 def load_config(path: str) -> dict:
     try:
         with open(path) as f:
-            data = json.load(f)     # Can raise JSONDecodeError
+            data = json.load(f)     # JSONDecodeError가 발생할 수 있음
             if "version" not in data:
                 raise ValueError("Missing version field")
             return data
@@ -27,22 +29,22 @@ def load_config(path: str) -> dict:
     except json.JSONDecodeError as e:
         print(f"Invalid JSON: {e}")
         return {}
-    # What other exceptions can this throw?
+    # 이 함수가 또 어떤 예외를 던질 수 있을까?
     # IOError? PermissionError? UnicodeDecodeError?
-    # You can't tell from the function signature!
+    # 함수 시그니처만 봐서는 알 수 없다!
 ```
 
-### Rust Result-Based Error Handling
+### Rust의 Result 기반 에러 처리
 ```rust
-// Rust — errors are return values, visible in the function signature
+// Rust — 에러는 반환 값이며, 함수 시그니처에 드러남
 use std::fs;
 use serde_json::Value;
 
 fn load_config(path: &str) -> Result<Value, ConfigError> {
-    let contents = fs::read_to_string(path)    // Returns Result
+    let contents = fs::read_to_string(path)    // Result를 반환
         .map_err(|e| ConfigError::FileError(e.to_string()))?;
 
-    let data: Value = serde_json::from_str(&contents)  // Returns Result
+    let data: Value = serde_json::from_str(&contents)  // Result를 반환
         .map_err(|e| ConfigError::ParseError(e.to_string()))?;
 
     if data.get("version").is_none() {
@@ -60,37 +62,37 @@ enum ConfigError {
 }
 ```
 
-### Key Differences
+### 핵심 차이
 
 ```text
 Python:                                 Rust:
 ─────────                               ─────
-- Errors are exceptions (thrown)        - Errors are values (returned)
-- Hidden control flow (stack unwinding) - Explicit control flow (? operator)
-- Can't tell what errors from signature- MUST see errors in return type
-- Uncaught exceptions crash at runtime - Unhandled Results are compile warnings
-- try/except is optional               - Handling Result is required
-- Broad except catches everything      - match arms are exhaustive
+- 에러는 예외다 (던져짐)                - 에러는 값이다 (반환됨)
+- 제어 흐름이 숨겨진다 (스택 언와인딩) - 제어 흐름이 명시적이다 (? 연산자)
+- 시그니처로 에러를 알 수 없다         - 반환 타입에 에러가 반드시 드러난다
+- 잡히지 않은 예외는 런타임에 크래시    - 처리되지 않은 Result는 컴파일 경고
+- try/except는 선택 사항               - Result 처리는 필수
+- 광범위한 except는 무엇이든 잡는다    - match 가지는 빠짐없이 작성한다
 ```
 
-### The Two Result Variants
+### Result의 두 가지 변형
 ```rust
-// Result<T, E> has exactly two variants:
+// Result<T, E>에는 정확히 두 가지 변형만 있다:
 enum Result<T, E> {
-    Ok(T),    // Success — contains the value (like Python's return value)
-    Err(E),   // Failure — contains the error (like Python's raised exception)
+    Ok(T),    // 성공 — 값이 들어 있다 (Python의 return 값과 비슷)
+    Err(E),   // 실패 — 에러가 들어 있다 (Python의 raise된 예외와 비슷)
 }
 
-// Using Result:
+// Result 사용하기:
 fn divide(a: f64, b: f64) -> Result<f64, String> {
     if b == 0.0 {
-        Err("Division by zero".to_string())  // Like: raise ValueError("...")
+        Err("Division by zero".to_string())  // 예: raise ValueError("...")
     } else {
-        Ok(a / b)                             // Like: return a / b
+        Ok(a / b)                             // 예: return a / b
     }
 }
 
-// Handling Result — like try/except but explicit
+// Result 처리하기 — try/except와 비슷하지만 더 명시적
 match divide(10.0, 0.0) {
     Ok(result) => println!("Result: {result}"),
     Err(msg) => println!("Error: {msg}"),
@@ -99,84 +101,85 @@ match divide(10.0, 0.0) {
 
 ***
 
-## The ? Operator
+<a id="the--operator"></a>
+## `?` 연산자
 
-The `?` operator is Rust's equivalent of letting exceptions propagate up the call stack,
-but it's visible and explicit.
+`?` 연산자는 예외를 호출 스택 위로 전파하는 Python 방식과 가장 비슷한 Rust 기능이지만,
+그 전파가 코드에 분명히 드러난다는 점이 다릅니다.
 
-### Python — Implicit Propagation
+### Python — 암묵적 전파
 ```python
-# Python — exceptions propagate silently up the call stack
+# Python — 예외는 호출 스택 위로 조용히 전파된다
 def read_username() -> str:
-    with open("config.txt") as f:      # FileNotFoundError propagates
-        return f.readline().strip()    # IOError propagates
+    with open("config.txt") as f:      # FileNotFoundError가 전파됨
+        return f.readline().strip()    # IOError가 전파됨
 
 def greet():
-    name = read_username()             # If this throws, greet() also throws
-    print(f"Hello, {name}!")           # This is skipped on error
+    name = read_username()             # 여기서 예외가 나면 greet()도 그대로 예외 발생
+    print(f"Hello, {name}!")           # 에러가 나면 이 줄은 실행되지 않음
 
-# The error propagation is INVISIBLE — you have to read the implementation
-# to know what exceptions might escape.
+# 에러 전파가 보이지 않는다 — 어떤 예외가 밖으로 나갈 수 있는지 알려면
+# 구현을 직접 읽어봐야 한다.
 ```
 
-### Rust — Explicit Propagation with ?
+### Rust — `?`로 명시적 전파
 ```rust
-// Rust — ? propagates errors, but it's visible in the code AND the signature
+// Rust — ?는 에러를 전파하지만, 코드와 시그니처에 모두 드러난다
 use std::fs;
 use std::io;
 
 fn read_username() -> Result<String, io::Error> {
-    let contents = fs::read_to_string("config.txt")?;  // ? = propagate on Err
+    let contents = fs::read_to_string("config.txt")?;  // ? = Err면 전파
     Ok(contents.lines().next().unwrap_or("").to_string())
 }
 
 fn greet() -> Result<(), io::Error> {
-    let name = read_username()?;       // ? = if Err, return Err immediately
-    println!("Hello, {name}!");        // Only reached on Ok
+    let name = read_username()?;       // ? = Err면 즉시 Err 반환
+    println!("Hello, {name}!");        // Ok일 때만 여기 도달
     Ok(())
 }
 
-// The ? says: "if this is Err, return it from THIS function immediately."
-// It's like Python's exception propagation, but:
-// 1. It's visible (you see the ?)
-// 2. It's in the return type (Result<..., io::Error>)
-// 3. The compiler ensures you handle it somewhere
+// ?의 의미: "이 값이 Err면, 지금 이 함수에서 즉시 반환하라."
+// Python의 예외 전파와 비슷하지만:
+// 1. 눈에 보인다 (?가 보인다)
+// 2. 반환 타입에 드러난다 (Result<..., io::Error>)
+// 3. 컴파일러가 어딘가에서 반드시 처리되도록 강제한다
 ```
 
-### Chaining with ?
+### `?`로 연쇄 처리하기
 ```python
-# Python — multiple operations that might fail
+# Python — 실패할 수 있는 연산이 여러 개 이어짐
 def process_file(path: str) -> dict:
-    with open(path) as f:                    # Might fail
-        text = f.read()                       # Might fail
-    data = json.loads(text)                   # Might fail
-    validate(data)                            # Might fail
-    return transform(data)                    # Might fail
-    # Any of these can throw — and the exception type varies!
+    with open(path) as f:                    # 실패할 수 있음
+        text = f.read()                       # 실패할 수 있음
+    data = json.loads(text)                   # 실패할 수 있음
+    validate(data)                            # 실패할 수 있음
+    return transform(data)                    # 실패할 수 있음
+    # 어느 줄이든 예외를 던질 수 있고, 예외 타입도 제각각이다!
 ```
 
 ```rust
-// Rust — same chain, but explicit
+// Rust — 같은 흐름이지만, 실패 지점이 명시적이다
 fn process_file(path: &str) -> Result<Data, AppError> {
-    let text = fs::read_to_string(path)?;     // ? propagates io::Error
-    let data: Value = serde_json::from_str(&text)?;  // ? propagates serde error
-    let validated = validate(&data)?;          // ? propagates validation error
-    let result = transform(&validated)?;       // ? propagates transform error
+    let text = fs::read_to_string(path)?;     // ?가 io::Error를 전파
+    let data: Value = serde_json::from_str(&text)?;  // ?가 serde 에러를 전파
+    let validated = validate(&data)?;          // ?가 검증 에러를 전파
+    let result = transform(&validated)?;       // ?가 변환 에러를 전파
     Ok(result)
 }
-// Every ? is a potential early return — and they're all visible!
+// 모든 ?는 조기 반환 지점이며, 그 위치가 코드에 전부 드러난다!
 ```
 
 ```mermaid
 flowchart TD
-    A["read_to_string(path)?"] -->|Ok| B["serde_json::from_str?"] 
-    A -->|Err| X["Return Err(io::Error)"]
-    B -->|Ok| C["validate(&data)?"]
-    B -->|Err| Y["Return Err(serde::Error)"]
-    C -->|Ok| D["transform(&validated)?"]
-    C -->|Err| Z["Return Err(ValidationError)"]
-    D -->|Ok| E["Ok(result) ✅"]
-    D -->|Err| W["Return Err(TransformError)"]
+    A["read_to_string(path)?"] -->|"성공 (Ok)"| B["serde_json::from_str?"]
+    A -->|"실패 (Err)"| X["Err(io::Error) 반환"]
+    B -->|"성공 (Ok)"| C["validate(&data)?"]
+    B -->|"실패 (Err)"| Y["Err(serde::Error) 반환"]
+    C -->|"성공 (Ok)"| D["transform(&validated)?"]
+    C -->|"실패 (Err)"| Z["Err(ValidationError) 반환"]
+    D -->|"성공 (Ok)"| E["Ok(result) ✅"]
+    D -->|"실패 (Err)"| W["Err(TransformError) 반환"]
     style E fill:#d4edda,stroke:#28a745
     style X fill:#f8d7da,stroke:#dc3545
     style Y fill:#f8d7da,stroke:#dc3545
@@ -184,13 +187,14 @@ flowchart TD
     style W fill:#f8d7da,stroke:#dc3545
 ```
 
-> Each `?` is an exit point — unlike Python's try/except where you can't see which line might throw without reading the docs.
+> 각 `?`는 하나의 탈출 지점입니다. Python의 `try`/`except`와 달리, 문서를 읽지 않아도 어느 줄이 실패할 수 있는지 코드에서 바로 보입니다.
 >
-> 📌 **See also**: [Ch. 15 — Migration Patterns](ch15-migration-patterns.md) covers translating Python try/except patterns to Rust in real codebases.
+> 📌 **함께 보기**: [15장 — 마이그레이션 패턴](ch15-migration-patterns.md)에서는 실제 코드베이스에서 Python의 `try`/`except` 패턴을 Rust로 옮기는 방법을 다룹니다.
 
 ***
 
-## Custom Error Types with thiserror
+<a id="custom-error-types-with-thiserror"></a>
+## `thiserror`로 커스텀 에러 타입 만들기
 
 ```mermaid
 graph TD
@@ -198,8 +202,8 @@ graph TD
     AE --> VE["Validation\n{ field, message }"]
     AE --> IO["Io(std::io::Error)\n#[from]"]
     AE --> JSON["Json(serde_json::Error)\n#[from]"]
-    IO2["std::io::Error"] -->|"auto-convert via From"| IO
-    JSON2["serde_json::Error"] -->|"auto-convert via From"| JSON
+    IO2["std::io::Error"] -->|"From으로 자동 변환"| IO
+    JSON2["serde_json::Error"] -->|"From으로 자동 변환"| JSON
     style AE fill:#d4edda,stroke:#28a745
     style NF fill:#fff3cd
     style VE fill:#fff3cd
@@ -209,11 +213,11 @@ graph TD
     style JSON2 fill:#f8d7da
 ```
 
-> The `#[from]` attribute auto-generates `impl From<io::Error> for AppError`, so `?` converts library errors into your app errors automatically.
+> `#[from]` 속성은 `impl From<io::Error> for AppError`를 자동 생성하므로, `?`를 사용할 때 라이브러리 에러를 애플리케이션 에러로 자동 변환해 줍니다.
 
-### Python Custom Exceptions
+### Python 커스텀 예외
 ```python
-# Python — custom exception classes
+# Python — 커스텀 예외 클래스
 class AppError(Exception):
     pass
 
@@ -228,16 +232,16 @@ class ValidationError(AppError):
         self.field = field
         super().__init__(f"Validation error on {field}: {message}")
 
-# Usage:
+# 사용 예:
 def find_user(user_id: int) -> dict:
     if user_id not in users:
         raise NotFoundError("User", user_id)
     return users[user_id]
 ```
 
-### Rust Custom Errors with thiserror
+### Rust + `thiserror` 커스텀 에러
 ```rust
-// Rust — error enums with thiserror (most popular approach)
+// Rust — thiserror를 사용한 에러 enum (가장 널리 쓰이는 방식)
 // Cargo.toml: thiserror = "2"
 
 use thiserror::Error;
@@ -251,13 +255,13 @@ enum AppError {
     Validation { field: String, message: String },
 
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),        // Auto-convert from io::Error
+    Io(#[from] std::io::Error),        // io::Error에서 자동 변환
 
     #[error("JSON error: {0}")]
-    Json(#[from] serde_json::Error),   // Auto-convert from serde error
+    Json(#[from] serde_json::Error),   // serde 에러에서 자동 변환
 }
 
-// Usage:
+// 사용 예:
 fn find_user(user_id: i64) -> Result<User, AppError> {
     users.get(&user_id)
         .cloned()
@@ -267,43 +271,44 @@ fn find_user(user_id: i64) -> Result<User, AppError> {
         })
 }
 
-// The #[from] attribute means ? auto-converts io::Error → AppError::Io
+// #[from] 덕분에 ?가 io::Error를 AppError::Io로 자동 변환한다
 fn load_users(path: &str) -> Result<Vec<User>, AppError> {
-    let data = fs::read_to_string(path)?;  // io::Error → AppError::Io automatically
+    let data = fs::read_to_string(path)?;  // io::Error → AppError::Io 자동 변환
     let users: Vec<User> = serde_json::from_str(&data)?;  // → AppError::Json
     Ok(users)
 }
 ```
 
-### Error Handling Quick Reference
+### 에러 처리 빠른 비교
 
-| Python | Rust | Notes |
-|--------|------|-------|
-| `raise ValueError("msg")` | `return Err(AppError::Validation {...})` | Explicit return |
-| `try: ... except:` | `match result { Ok(v) => ..., Err(e) => ... }` | Exhaustive |
-| `except ValueError as e:` | `Err(AppError::Validation { .. }) =>` | Pattern match |
-| `raise ... from e` | `#[from]` attribute or `.map_err()` | Error chaining |
-| `finally:` | `Drop` trait (automatic) | Deterministic cleanup |
-| `with open(...):` | Scope-based drop (automatic) | RAII pattern |
-| Exception propagates silently | `?` propagates visibly | Always in return type |
-| `isinstance(e, ValueError)` | `matches!(e, AppError::Validation {..})` | Type checking |
+| Python | Rust | 비고 |
+|--------|------|------|
+| `raise ValueError("msg")` | `return Err(AppError::Validation {...})` | 명시적 반환 |
+| `try: ... except:` | `match result { Ok(v) => ..., Err(e) => ... }` | 빠짐없음 |
+| `except ValueError as e:` | `Err(AppError::Validation { .. }) =>` | 패턴 매칭 |
+| `raise ... from e` | `#[from]` 속성 또는 `.map_err()` | 에러 체이닝 |
+| `finally:` | `Drop` 트레잇 (자동) | 결정적 정리 |
+| `with open(...):` | 스코프 기반 drop (자동) | RAII 패턴 |
+| 예외가 조용히 전파됨 | `?`가 눈에 보이게 전파함 | 반환 타입에 항상 드러남 |
+| `isinstance(e, ValueError)` | `matches!(e, AppError::Validation {..})` | 타입 검사 |
 
 ---
 
-## Exercises
+<a id="exercises"></a>
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Parse Config Value</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 설정 값 파싱하기</strong> (펼쳐서 보기)</summary>
 
-**Challenge**: Write a function `parse_port(s: &str) -> Result<u16, String>` that:
-1. Rejects empty strings with error `"empty input"`
-2. Parses the string to `u16`, mapping the parse error to `"invalid number: {original_error}"`
-3. Rejects ports below 1024 with `"port {n} is privileged"`
+**도전 과제**: 다음 요구사항을 만족하는 함수 `parse_port(s: &str) -> Result<u16, String>`를 작성하세요.
+1. 빈 문자열은 `"empty input"` 에러로 거부한다.
+2. 문자열을 `u16`으로 파싱하고, 파싱 에러는 `"invalid number: {original_error}"`로 매핑한다.
+3. 1024 미만 포트는 `"port {n} is privileged"`로 거부한다.
 
-Call it with `""`, `"hello"`, `"80"`, and `"8080"` and print the results.
+그런 다음 `""`, `"hello"`, `"80"`, `"8080"`에 대해 함수를 호출하고 결과를 출력하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 fn parse_port(s: &str) -> Result<u16, String> {
@@ -327,7 +332,7 @@ fn main() {
 }
 ```
 
-**Key takeaway**: `?` with `.map_err()` is Rust's replacement for `try/except ValueError as e: raise ConfigError(...) from e`. Every error path is visible in the return type.
+**핵심 포인트**: `.map_err()`와 함께 쓰는 `?`는 Rust에서 `try/except ValueError as e: raise ConfigError(...) from e`를 대체하는 방식입니다. 모든 에러 경로가 반환 타입에 명확히 드러납니다.
 
 </details>
 </details>

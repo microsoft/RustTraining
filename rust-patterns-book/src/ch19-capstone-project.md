@@ -1,27 +1,31 @@
-# Capstone Project: Type-Safe Task Scheduler
+<a id="capstone-project-type-safe-task-scheduler"></a>
 
-This project integrates patterns from across the book into a single, production-style system. You'll build a **type-safe, concurrent task scheduler** that uses generics, traits, typestate, channels, error handling, and testing.
+# 캡스톤 프로젝트: 타입 안전한 작업 스케줄러
 
-**Estimated time**: 4–6 hours | **Difficulty**: ★★★
+이 프로젝트는 책 전반의 패턴을 하나의 프로덕션 스타일 시스템으로 묶습니다. **타입 안전하고 동시성 있는 작업 스케줄러**를 만들며, 제네릭, 트레잇, 타입 상태, 채널, 에러 처리, 테스트를 모두 사용합니다.
 
-> **What you'll practice:**
-> - Generics and trait bounds (Ch 1–2)
-> - Typestate pattern for task lifecycle (Ch 3)
-> - PhantomData for zero-cost state markers (Ch 4)
-> - Channels for worker communication (Ch 5)
-> - Concurrency with scoped threads (Ch 6)
-> - Error handling with `thiserror` (Ch 9)
-> - Testing with property-based tests (Ch 13)
-> - API design with `TryFrom` and validated types (Ch 14)
+**예상 시간**: 4–6시간 | **난이도**: ★★★
 
-## The Problem
+> **연습할 내용:**
+> - 제네릭과 트레잇 바운드 (1–2장)
+> - 작업 생명주기를 위한 타입 상태 패턴 (3장)
+> - PhantomData로 제로 비용 상태 마커 (4장)
+> - 워커 통신용 채널 (5장)
+> - 스코프 스레드로 동시성 (6장)
+> - `thiserror`로 에러 처리 (9장)
+> - 프로퍼티 기반 테스트 (14장 — 테스트와 벤치마킹)
+> - `TryFrom`과 검증된 타입으로 API 설계 (15장 — 크레이트 아키텍처)
 
-Build a task scheduler where:
+<a id="the-problem"></a>
 
-1. **Tasks** have a typed lifecycle: `Pending → Running → Completed` (or `Failed`)
-2. **Workers** pull tasks from a channel, execute them, and report results
-3. The **scheduler** manages task submission, worker coordination, and result collection
-4. Invalid state transitions are **compile-time errors**
+## 문제
+
+다음을 만족하는 작업 스케줄러를 만듭니다:
+
+1. **작업**은 타입이 있는 생명주기: `대기 중 → 실행 중 → 완료`(또는 `실패`)
+2. **워커**는 채널에서 작업을 꺼내 실행하고 결과를 보고
+3. **스케줄러**는 제출, 워커 조정, 결과 수집을 담당
+4. 잘못된 상태 전이는 **컴파일 에러**
 
 ```mermaid
 stateDiagram-v2
@@ -36,24 +40,23 @@ stateDiagram-v2
     Completed --> Running: ❌ can't re-run
 ```
 
-## Step 1: Define the Task Types
+<a id="step-1-define-the-task-types"></a>
 
-Start with the typestate markers and a generic `Task`:
+## 1단계: 작업 타입 정의
+
+타입 상태 마커와 제네릭 `Task`부터 시작합니다:
 
 ```rust
 use std::marker::PhantomData;
 
-// --- State markers (zero-sized) ---
 struct Pending;
 struct Running;
 struct Completed;
 struct Failed;
 
-// --- Task ID (newtype for type safety) ---
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct TaskId(u64);
 
-// --- The Task struct, parameterized by lifecycle state ---
 struct Task<State, R> {
     id: TaskId,
     name: String,
@@ -62,15 +65,15 @@ struct Task<State, R> {
 }
 ```
 
-**Your job**: Implement state transitions so that:
-- `Task<Pending, R>` can transition to `Task<Running, R>` (via `start()`)
-- `Task<Running, R>` can transition to `Task<Completed, R>` or `Task<Failed, R>`
-- No other transitions compile
+**할 일**: 다음 전이만 구현하세요:
+- `Task<Pending, R>` → `Task<Running, R>` (`start()`)
+- `Task<Running, R>` → `Task<Completed, R>` 또는 `Task<Failed, R>`
+- 그 외 전이는 컴파일되지 않게
 
 <details>
-<summary>💡 Hint</summary>
+<summary>💡 힌트</summary>
 
-Each transition method should consume `self` and return the new state:
+각 전이 메서드는 `self`를 소비하고 새 상태를 반환합니다:
 
 ```rust
 impl<R> Task<Pending, R> {
@@ -87,9 +90,11 @@ impl<R> Task<Pending, R> {
 
 </details>
 
-## Step 2: Define the Work Function
+<a id="step-2-define-the-work-function"></a>
 
-Tasks need a function to execute. Use a boxed closure:
+## 2단계: 작업 함수 정의
+
+실행할 작업은 박스 클로저로 둡니다:
 
 ```rust
 struct WorkItem<R: Send + 'static> {
@@ -99,12 +104,13 @@ struct WorkItem<R: Send + 'static> {
 }
 ```
 
-**Your job**: Implement `WorkItem::new()` that accepts a task name and closure.
-Add a `TaskId` generator (simple atomic counter or mutex-protected counter).
+**할 일**: 작업 이름과 클로저를 받는 `WorkItem::new()`를 구현하고, `TaskId` 생성기(원자 카운터 또는 mutex 보호 카운터)를 추가합니다.
 
-## Step 3: Error Handling
+<a id="step-3-error-handling"></a>
 
-Define the scheduler's error types using `thiserror`:
+## 3단계: 에러 처리
+
+`thiserror`로 스케줄러 에러 타입을 정의합니다:
 
 ```rust,ignore
 use thiserror::Error;
@@ -125,9 +131,11 @@ pub enum SchedulerError {
 }
 ```
 
-## Step 4: The Scheduler
+<a id="step-4-the-scheduler"></a>
 
-Build the scheduler using channels (Ch 5) and scoped threads (Ch 6):
+## 4단계: 스케줄러
+
+채널(5장)과 스코프 스레드(6장)로 스케줄러를 만듭니다:
 
 ```rust
 use std::sync::mpsc;
@@ -145,13 +153,13 @@ struct TaskResult<R> {
 }
 ```
 
-**Your job**: Implement:
-- `Scheduler::new(num_workers: usize) -> Self` — creates channels and spawns workers
+**할 일**:
+- `Scheduler::new(num_workers: usize) -> Self` — 채널 생성 및 워커 스폰
 - `Scheduler::submit(&self, item: WorkItem<R>) -> Result<TaskId, SchedulerError>`
-- `Scheduler::shutdown(self) -> Vec<TaskResult<R>>` — drops the sender, joins workers, collects results
+- `Scheduler::shutdown(self) -> Vec<TaskResult<R>>` — 송신자 드롭, 워커 조인, 결과 수집
 
 <details>
-<summary>💡 Hint — Worker loop</summary>
+<summary>💡 힌트 — 워커 루프</summary>
 
 ```rust
 fn worker_loop<R: Send + 'static>(
@@ -173,7 +181,7 @@ fn worker_loop<R: Send + 'static>(
                     outcome,
                 });
             }
-            Err(_) => break, // Channel closed
+            Err(_) => break,
         }
     }
 }
@@ -181,14 +189,16 @@ fn worker_loop<R: Send + 'static>(
 
 </details>
 
-## Step 5: Integration Test
+<a id="step-5-integration-test"></a>
 
-Write tests that verify:
+## 5단계: 통합 테스트
 
-1. **Happy path**: Submit 10 tasks, shut down, verify all 10 results are `Ok`
-2. **Error handling**: Submit tasks that fail, verify `TaskResult.outcome` is `Err`
-3. **Empty scheduler**: Create and immediately shut down — no panics
-4. **Property test** (bonus): Use `proptest` to verify that for any N tasks (1..100), the scheduler always returns exactly N results
+다음을 검증하는 테스트를 작성하세요:
+
+1. **해피 패스**: 작업 10개 제출, 종료 후 10개 결과가 모두 `Ok`
+2. **에러 처리**: 실패하는 작업 제출, `TaskResult.outcome`이 `Err`인지
+3. **빈 스케줄러**: 즉시 생성·종료 — 패닉 없음
+4. **프로퍼티 테스트**(보너스): `proptest`로 작업 수 N(1..100)일 때 항상 N개 결과가 나오는지
 
 ```rust
 #[cfg(test)]
@@ -232,20 +242,20 @@ mod tests {
 }
 ```
 
-## Step 6: Put It All Together
+<a id="step-6-put-it-all-together"></a>
 
-Here's the `main()` that demonstrates the full system:
+## 6단계: 전체 연결
+
+전체 시스템을 보여 주는 `main()` 예:
 
 ```rust,ignore
 fn main() {
     let scheduler = Scheduler::<String>::new(4);
 
-    // Submit tasks with varying workloads
     for i in 0..20 {
         let item = WorkItem::new(
             format!("compute-{i}"),
             move || {
-                // Simulate work
                 std::thread::sleep(std::time::Duration::from_millis(10));
                 if i % 7 == 0 {
                     Err(format!("task {i} hit a simulated error"))
@@ -275,25 +285,30 @@ fn main() {
 }
 ```
 
-## Evaluation Criteria
+<a id="evaluation-criteria"></a>
 
-| Criterion | Target |
+## 평가 기준
+
+| 기준 | 목표 |
 |-----------|--------|
-| Type safety | Invalid state transitions don't compile |
-| Concurrency | Workers run in parallel, no data races |
-| Error handling | All failures captured in `TaskResult`, no panics |
-| Testing | At least 3 tests; bonus for proptest |
-| Code organization | Clean module structure, public API uses validated types |
-| Documentation | Key types have doc comments explaining invariants |
+| 타입 안전성 | 잘못된 상태 전이는 컴파일되지 않음 |
+| 동시성 | 워커가 병렬 실행, 데이터 레이스 없음 |
+| 에러 처리 | 실패는 `TaskResult`에 담김, 패닉 없음 |
+| 테스트 | 최소 3개; proptest는 보너스 |
+| 코드 구조 | 모듈이 깔끔하고 공개 API는 검증된 타입 |
+| 문서화 | 주요 타입에 불변식 설명 주석 |
 
-## Extension Ideas
+<a id="extension-ideas"></a>
 
-Once the basic scheduler works, try these enhancements:
+## 확장 아이디어
 
-1. **Priority queue**: Add a `Priority` newtype (1–10) and process higher-priority tasks first
-2. **Retry policy**: Failed tasks retry up to N times before being marked permanently failed
-3. **Cancellation**: Add a `cancel(TaskId)` method that removes pending tasks
-4. **Async version**: Port to `tokio::spawn` with `tokio::sync::mpsc` channels (Ch 15)
-5. **Metrics**: Track per-worker task counts, average execution time, and failure rates
+기본 스케줄러가 동작하면 다음을 시도해 보세요:
+
+1. **우선순위 큐**: `Priority` 뉴타입(1–10)을 두고 높은 우선순위 작업을 먼저 처리
+2. **재시도 정책**: 실패한 작업을 최대 N번 재시도 후 영구 실패로 표시
+3. **취소**: `cancel(TaskId)`로 대기 중인 작업 제거
+4. **async 버전**: `tokio::spawn`과 `tokio::sync::mpsc` 채널로 이식 (16장 Async/Await 핵심)
+5. **메트릭**: 워커별 작업 수, 평균 실행 시간, 실패율 추적
 
 ***
+

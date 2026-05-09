@@ -1,32 +1,31 @@
-# Tricks from the Trenches 🟡
+<a id="tricks-from-the-trenches"></a>
+# 실전에서 건진 요령 🟡
 
-> **What you'll learn:**
-> - Battle-tested patterns that don't fit neatly into one chapter
-> - Common pitfalls and their fixes — from CI flake to binary bloat
-> - Quick-win techniques you can apply to any Rust project today
+> **이 장에서 배우는 것:**
+> - 한 장에 깔끔하게 묶기 어려운, 실전에서 검증된 패턴
+> - CI flake부터 바이너리 비대화까지 이어지는 흔한 함정과 그 해결책
+> - 오늘 바로 어떤 Rust 프로젝트에도 적용할 수 있는 quick win 기법
 >
-> **Cross-references:** Every chapter in this book — these tricks cut across all topics
+> **상호 참조:** 이 책의 모든 장 — 이 요령들은 전 주제에 걸쳐 적용됩니다
 
-This chapter collects engineering patterns that come up repeatedly in
-production Rust codebases. Each trick is self-contained — read them in
-any order.
+이 장은 프로덕션 Rust 코드베이스에서 반복해서 마주치는 엔지니어링 패턴을 모았습니다. 각 요령은 독립적이므로 원하는 순서로 읽어도 됩니다.
 
 ---
 
-### 1. The `deny(warnings)` Trap
+<a id="1-the-denywarnings-trap"></a>
+### 1. `deny(warnings)` 함정
 
-**Problem**: `#![deny(warnings)]` in source code breaks builds when Clippy
-adds new lints — your code that compiled yesterday fails today.
+**문제**: 소스 코드에 `#![deny(warnings)]`를 넣어 두면, Clippy가 새 lint를 추가하는 순간 빌드가 깨집니다. 어제까지 컴파일되던 코드가 오늘 갑자기 실패할 수 있습니다.
 
-**Fix**: Use `CARGO_ENCODED_RUSTFLAGS` in CI instead of a source-level attribute:
+**해결**: 소스 수준 attribute 대신 CI에서 `CARGO_ENCODED_RUSTFLAGS`를 사용하세요:
 
 ```yaml
-# CI: treat warnings as errors without touching source
+# CI: 소스를 건드리지 않고 경고를 오류로 취급
 env:
   CARGO_ENCODED_RUSTFLAGS: "-Dwarnings"
 ```
 
-Or use `[workspace.lints]` for finer control:
+더 세밀한 제어가 필요하면 `[workspace.lints]`를 사용하세요:
 
 ```toml
 # Cargo.toml
@@ -38,33 +37,32 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 ```
 
-> See [Compile-Time Tools, Workspace Lints](ch08-compile-time-and-developer-tools.md) for the full pattern.
+> 전체 패턴은 [컴파일 시간 도구, 워크스페이스 lint](ch08-compile-time-and-developer-tools.md)에서 자세히 다룹니다.
 
 ---
 
-### 2. Compile Once, Test Everywhere
+<a id="2-compile-once-test-everywhere"></a>
+### 2. 한 번 컴파일하고, 어디서나 테스트하기
 
-**Problem**: `cargo test` recompiles when switching between `--lib`, `--doc`,
-and `--test` because they use different profiles.
+**문제**: `cargo test`는 `--lib`, `--doc`, `--test` 사이를 오갈 때마다 서로 다른 profile을 쓰기 때문에 다시 컴파일합니다.
 
-**Fix**: Use `cargo nextest` for unit/integration tests and run doc-tests
-separately:
+**해결**: unit/integration test는 `cargo nextest`로 돌리고, doc-test는 별도로 실행하세요:
 
 ```bash
-cargo nextest run --workspace        # Fast: parallel, cached
-cargo test --workspace --doc         # Doc-tests (nextest can't run these)
+cargo nextest run --workspace        # 빠름: 병렬 실행, 캐시 활용
+cargo test --workspace --doc         # doc-test (nextest는 이것을 실행하지 못함)
 ```
 
-> See [Compile-Time Tools](ch08-compile-time-and-developer-tools.md) for `cargo-nextest` setup.
+> `cargo-nextest` 설정은 [컴파일 시간 도구](ch08-compile-time-and-developer-tools.md)를 참고하세요.
 
 ---
 
-### 3. Feature Flag Hygiene
+<a id="3-feature-flag-hygiene"></a>
+### 3. Feature Flag 위생 관리
 
-**Problem**: A library crate has `default = ["std"]` but nobody tests
-`--no-default-features`. One day an embedded user reports it doesn't compile.
+**문제**: 라이브러리 크레이트가 `default = ["std"]`를 갖고 있는데 아무도 `--no-default-features`를 테스트하지 않습니다. 그러다 어느 날 임베디드 사용자가 컴파일조차 되지 않는다고 제보합니다.
 
-**Fix**: Add `cargo-hack` to CI:
+**해결**: CI에 `cargo-hack`를 추가하세요:
 
 ```yaml
 - name: Feature matrix
@@ -74,57 +72,55 @@ cargo test --workspace --doc         # Doc-tests (nextest can't run these)
     cargo check --all-features
 ```
 
-> See [`no_std` and Feature Verification](ch09-no-std-and-feature-verification.md) for the full pattern.
+> 전체 패턴은 [`no_std`와 feature 검증](ch09-no-std-and-feature-verification.md)에서 자세히 다룹니다.
 
 ---
 
-### 4. The Lock File Debate — Commit or Ignore?
+<a id="4-the-lock-file-debate--commit-or-ignore"></a>
+### 4. 잠금 파일 논쟁 — 커밋할까, 무시할까?
 
-**Rule of thumb:**
+**실전 규칙:**
 
-| Crate Type | Commit `Cargo.lock`? | Why |
+| 크레이트 종류 | `Cargo.lock` 커밋? | 이유 |
 |------------|---------------------|-----|
-| Binary / application | **Yes** | Reproducible builds |
-| Library | **No** (`.gitignore`) | Let downstream choose versions |
-| Workspace with both | **Yes** | Binary wins |
+| 바이너리 / 애플리케이션 | **예** | 재현 가능한 빌드 |
+| 라이브러리 | **아니오** (`.gitignore`) | 하위 사용자가 버전을 선택하게 둠 |
+| 둘 다 있는 워크스페이스 | **예** | 바이너리 쪽 규칙이 우선 |
 
-Add a CI check to ensure the lock file stays up-to-date:
+잠금 파일이 최신 상태인지 확인하는 CI 검사도 추가하세요:
 
 ```yaml
 - name: Check lock file
-  run: cargo update --locked  # Fails if Cargo.lock is stale
+  run: cargo update --locked  # Cargo.lock 이 오래되었으면 실패
 ```
 
 ---
 
-### 5. Debug Builds with Optimized Dependencies
+<a id="5-debug-builds-with-optimized-dependencies"></a>
+### 5. 최적화된 의존성을 사용하는 디버그 빌드
 
-**Problem**: Debug builds are painfully slow because dependencies (especially
-`serde`, `regex`) aren't optimized.
+**문제**: 디버그 빌드가 지나치게 느립니다. 특히 `serde`, `regex` 같은 의존성이 최적화되지 않기 때문입니다.
 
-**Fix**: Optimize deps in dev profile while keeping your code unoptimized
-for fast recompilation:
+**해결**: dev profile에서는 의존성만 최적화하고, 내 코드는 빠른 재컴파일을 위해 비최적화 상태로 두세요:
 
 ```toml
 # Cargo.toml
 [profile.dev.package."*"]
-opt-level = 2  # Optimize all dependencies in dev mode
+opt-level = 2  # dev 모드에서 모든 의존성 최적화
 ```
 
-This slows the first build slightly but makes runtime dramatically faster
-during development. Particularly impactful for database-backed services and
-parsers.
+이 설정은 첫 빌드를 약간 느리게 만들 수 있지만, 개발 중 런타임은 크게 빨라집니다. 특히 데이터베이스를 붙인 서비스나 parser 계열 코드에서 효과가 큽니다.
 
-> See [Release Profiles](ch07-release-profiles-and-binary-size.md) for per-crate profile overrides.
+> 크레이트별 profile override는 [릴리스 프로파일](ch07-release-profiles-and-binary-size.md)을 참고하세요.
 
 ---
 
-### 6. CI Cache Thrashing
+<a id="6-ci-cache-thrashing"></a>
+### 6. CI 캐시 흔들림
 
-**Problem**: `Swatinem/rust-cache@v2` saves a new cache on every PR, bloating
-storage and slowing restore times.
+**문제**: `Swatinem/rust-cache@v2`가 모든 PR마다 새 캐시를 저장해 스토리지를 불리고 복원 시간도 느려집니다.
 
-**Fix**: Only save cache from `main`, restore from anywhere:
+**해결**: 캐시는 `main`에서만 저장하고, 복원은 어디서든 하게 하세요:
 
 ```yaml
 - uses: Swatinem/rust-cache@v2
@@ -132,7 +128,7 @@ storage and slowing restore times.
     save-if: ${{ github.ref == 'refs/heads/main' }}
 ```
 
-For workspaces with multiple binaries, add a `shared-key`:
+바이너리가 여러 개인 워크스페이스라면 `shared-key`를 추가하세요:
 
 ```yaml
 - uses: Swatinem/rust-cache@v2
@@ -141,39 +137,37 @@ For workspaces with multiple binaries, add a `shared-key`:
     save-if: ${{ github.ref == 'refs/heads/main' }}
 ```
 
-> See [CI/CD Pipeline](ch11-putting-it-all-together-a-production-cic.md) for the full workflow.
+> 전체 워크플로는 [CI/CD 파이프라인](ch11-putting-it-all-together-a-production-cic.md)에서 확인할 수 있습니다.
 
 ---
 
+<a id="7-rustflags-vs-cargo-encoded-rustflags"></a>
 ### 7. `RUSTFLAGS` vs `CARGO_ENCODED_RUSTFLAGS`
 
-**Problem**: `RUSTFLAGS="-Dwarnings"` applies to *everything* — including
-build scripts and proc-macros. A warning in `serde_derive`'s build.rs
-fails your CI.
+**문제**: `RUSTFLAGS="-Dwarnings"`는 *모든 것*에 적용됩니다. build script와 proc-macro까지 포함됩니다. 결국 `serde_derive`의 build.rs 경고 하나가 CI를 깨뜨릴 수도 있습니다.
 
-**Fix**: Use `CARGO_ENCODED_RUSTFLAGS` which only applies to the top-level
-crate:
+**해결**: 최상위 크레이트에만 적용되는 `CARGO_ENCODED_RUSTFLAGS`를 사용하세요:
 
 ```bash
-# BAD — breaks on third-party build script warnings
+# 나쁨 - 서드파티 build script 경고로도 깨질 수 있음
 RUSTFLAGS="-Dwarnings" cargo build
 
-# GOOD — only affects your crate
+# 좋음 - 내 크레이트에만 영향
 CARGO_ENCODED_RUSTFLAGS="-Dwarnings" cargo build
 
-# ALSO GOOD — workspace lints (Cargo.toml)
+# 이것도 좋음 - 워크스페이스 lint (Cargo.toml)
 [workspace.lints.rust]
 warnings = "deny"
 ```
 
 ---
 
-### 8. Reproducible Builds with `SOURCE_DATE_EPOCH`
+<a id="8-reproducible-builds-with-source-date-epoch"></a>
+### 8. `SOURCE_DATE_EPOCH`를 이용한 재현 가능한 빌드
 
-**Problem**: Embedding `chrono::Utc::now()` in `build.rs` makes builds
-non-reproducible — every build produces a different binary hash.
+**문제**: `build.rs` 안에 `chrono::Utc::now()`를 박아 두면 빌드가 재현 가능하지 않게 됩니다. 빌드할 때마다 바이너리 해시가 달라집니다.
 
-**Fix**: Honor `SOURCE_DATE_EPOCH`:
+**해결**: `SOURCE_DATE_EPOCH`를 존중하세요:
 
 ```rust
 // build.rs
@@ -184,44 +178,45 @@ let timestamp = std::env::var("SOURCE_DATE_EPOCH")
 println!("cargo:rustc-env=BUILD_TIMESTAMP={timestamp}");
 ```
 
-> See [Build Scripts](ch01-build-scripts-buildrs-in-depth.md) for the full build.rs patterns.
+> 전체 `build.rs` 패턴은 [빌드 스크립트](ch01-build-scripts-buildrs-in-depth.md)를 참고하세요.
 
 ---
 
-### 9. The `cargo tree` Deduplication Workflow
+<a id="9-the-cargo-tree-deduplication-workflow"></a>
+### 9. `cargo tree` 중복 제거 워크플로
 
-**Problem**: `cargo tree --duplicates` shows 5 versions of `syn` and 3 of
-`tokio-util`. Compile time is painful.
+**문제**: `cargo tree --duplicates`를 돌려 보니 `syn`은 5개 버전, `tokio-util`은 3개 버전이 잡힙니다. 컴파일 시간이 고통스러워집니다.
 
-**Fix**: Systematic deduplication:
+**해결**: 체계적으로 중복을 제거하세요:
 
 ```bash
-# Step 1: Find duplicates
+# 1단계: 중복 찾기
 cargo tree --duplicates
 
-# Step 2: Find who pulls the old version
+# 2단계: 누가 오래된 버전을 끌어오는지 찾기
 cargo tree --invert --package syn@1.0.109
 
-# Step 3: Update the culprit
-cargo update -p serde_derive  # Might pull in syn 2.x
+# 3단계: 원인 크레이트 업데이트
+cargo update -p serde_derive  # syn 2.x 를 끌어올 수도 있음
 
-# Step 4: If no update available, pin in [patch]
+# 4단계: 업데이트가 없으면 [patch] 로 고정
 # [patch.crates-io]
 # old-crate = { git = "...", branch = "syn2-migration" }
 
-# Step 5: Verify
-cargo tree --duplicates  # Should be shorter
+# 5단계: 검증
+cargo tree --duplicates  # 더 짧아져 있어야 함
 ```
 
-> See [Dependency Management](ch06-dependency-management-and-supply-chain-s.md) for `cargo-deny` and supply chain security.
+> `cargo-deny`와 공급망 보안은 [의존성 관리](ch06-dependency-management-and-supply-chain-s.md)에서 다룹니다.
 
 ---
 
-### 10. Pre-Push Smoke Test
+<a id="10-pre-push-smoke-test"></a>
+### 10. pre-push 스모크 테스트
 
-**Problem**: You push, CI takes 10 minutes, fails on a formatting issue.
+**문제**: 코드를 push했는데 CI가 10분이나 돌고 나서 포맷팅 문제 하나 때문에 실패합니다.
 
-**Fix**: Run the fast checks locally before push:
+**해결**: push 전에 빠른 검사를 로컬에서 먼저 돌리세요:
 
 ```toml
 # Makefile.toml (cargo-make)
@@ -235,11 +230,11 @@ cargo test --workspace --lib
 ```
 
 ```bash
-cargo make pre-push  # < 30 seconds
+cargo make pre-push  # 30초 미만
 git push
 ```
 
-Or use a git pre-push hook:
+또는 git pre-push hook을 사용할 수도 있습니다:
 
 ```bash
 #!/bin/sh
@@ -247,73 +242,77 @@ Or use a git pre-push hook:
 cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings
 ```
 
-> See [CI/CD Pipeline](ch11-putting-it-all-together-a-production-cic.md) for `Makefile.toml` patterns.
+> `Makefile.toml` 패턴은 [CI/CD 파이프라인](ch11-putting-it-all-together-a-production-cic.md)에서 자세히 다룹니다.
 
 ---
 
-### 🏋️ Exercises
+<a id="exercises"></a>
+### 🏋️ 연습문제
 
-#### 🟢 Exercise 1: Apply Three Tricks
+<a id="exercise-1-apply-three-tricks"></a>
+#### 🟢 연습 1: 세 가지 요령 적용하기
 
-Pick three tricks from this chapter and apply them to an existing Rust project. Which had the biggest impact?
+이 장에서 세 가지 요령을 골라 기존 Rust 프로젝트에 적용해 보세요. 무엇이 가장 큰 효과를 냈나요?
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
-Typical high-impact combination:
+보통 효과가 큰 조합은 다음과 같습니다:
 
-1. **`[profile.dev.package."*"] opt-level = 2`** — Immediate improvement in dev-mode runtime (2-10× faster for parsing-heavy code)
+1. **`[profile.dev.package."*"] opt-level = 2`** — dev 모드 런타임이 즉시 개선됩니다 (파싱 비중이 큰 코드에서는 2~10배 빨라질 수 있음)
 
-2. **`CARGO_ENCODED_RUSTFLAGS`** — Eliminates false CI failures from third-party warnings
+2. **`CARGO_ENCODED_RUSTFLAGS`** — 서드파티 경고 때문에 CI가 거짓 실패하는 일을 없애 줍니다
 
-3. **`cargo-hack --each-feature`** — Usually finds at least one broken feature combination in any project with 3+ features
+3. **`cargo-hack --each-feature`** — feature가 3개 이상 있는 프로젝트라면 보통 적어도 하나의 깨진 feature 조합을 찾아냅니다
 
 ```bash
-# Apply trick 5:
+# 5번 요령 적용
 echo '[profile.dev.package."*"]' >> Cargo.toml
 echo 'opt-level = 2' >> Cargo.toml
 
-# Apply trick 7 in CI:
-# Replace RUSTFLAGS with CARGO_ENCODED_RUSTFLAGS
+# CI에 7번 요령 적용
+# RUSTFLAGS 를 CARGO_ENCODED_RUSTFLAGS 로 교체
 
-# Apply trick 3:
+# 3번 요령 적용
 cargo install cargo-hack
 cargo hack check --each-feature --no-dev-deps
 ```
 </details>
 
-#### 🟡 Exercise 2: Deduplicate Your Dependency Tree
+<a id="exercise-2-deduplicate-your-dependency-tree"></a>
+#### 🟡 연습 2: 의존성 트리 중복 제거하기
 
-Run `cargo tree --duplicates` on a real project. Eliminate at least one duplicate. Measure compile-time before and after.
+실제 프로젝트에 `cargo tree --duplicates`를 실행해 보세요. 중복을 적어도 하나 제거하고, 전후 컴파일 시간을 측정하세요.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```bash
-# Before
+# 변경 전
 time cargo build --release 2>&1 | tail -1
-cargo tree --duplicates | wc -l  # Count duplicate lines
+cargo tree --duplicates | wc -l  # 중복 줄 수 세기
 
-# Find and fix one duplicate
+# 중복 하나를 찾아 고치기
 cargo tree --duplicates
 cargo tree --invert --package <duplicate-crate>@<old-version>
 cargo update -p <parent-crate>
 
-# After
+# 변경 후
 time cargo build --release 2>&1 | tail -1
-cargo tree --duplicates | wc -l  # Should be fewer
+cargo tree --duplicates | wc -l  # 줄어들어 있어야 함
 
-# Typical result: 5-15% compile time reduction per eliminated
-# duplicate (especially for heavy crates like syn, tokio)
+# 보통 결과: 제거한 중복 하나당 컴파일 시간이 5~15% 감소
+# (특히 syn, tokio 같은 무거운 크레이트에서 효과가 큼)
 ```
 </details>
 
-### Key Takeaways
+<a id="key-takeaways"></a>
+### 핵심 정리
 
-- Use `CARGO_ENCODED_RUSTFLAGS` instead of `RUSTFLAGS` to avoid breaking third-party build scripts
-- `[profile.dev.package."*"] opt-level = 2` is the single highest-impact dev experience trick
-- Cache tuning (`save-if` on main only) prevents CI cache bloat on active repositories
-- `cargo tree --duplicates` + `cargo update` is a free compile-time win — do it monthly
-- Run fast checks locally with `cargo make pre-push` to avoid CI round-trip waste
+- 서드파티 build script를 깨뜨리지 않으려면 `RUSTFLAGS` 대신 `CARGO_ENCODED_RUSTFLAGS`를 사용하세요
+- `[profile.dev.package."*"] opt-level = 2`는 개발 경험에 가장 큰 영향을 주는 단일 요령입니다
+- 캐시 튜닝 (`main`에서만 `save-if`)은 활발한 저장소에서 CI 캐시 비대화를 막아 줍니다
+- `cargo tree --duplicates` + `cargo update`는 공짜에 가까운 컴파일 시간 개선입니다. 매달 한 번씩 해도 좋습니다
+- `cargo make pre-push`로 빠른 검사를 로컬에서 돌리면 CI 왕복 시간 낭비를 줄일 수 있습니다
 
 ---

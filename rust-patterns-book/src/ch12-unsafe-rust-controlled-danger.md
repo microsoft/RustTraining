@@ -1,49 +1,51 @@
-# 11. Unsafe Rust — Controlled Danger 🔴
+<a id="unsafe-rust-controlled-danger"></a>
+# 12. Unsafe Rust — 통제된 위험 🔴
 
-> **What you'll learn:**
-> - The five unsafe superpowers and when each is needed
-> - Writing sound abstractions: safe API, unsafe internals
-> - FFI patterns for calling C from Rust (and back)
-> - Common UB pitfalls and arena/slab allocator patterns
+> **이 장에서 배울 내용:**
+> - 다섯 가지 unsafe 권한과 각각이 필요한 때
+> - 건전한 추상화: 안전한 API, unsafe 내부
+> - Rust에서 C 호출(및 역) FFI 패턴
+> - 흔한 UB 함정과 arena/slab 할당자 패턴
 
-## The Five Unsafe Superpowers
+<a id="the-five-unsafe-superpowers"></a>
+## 다섯 가지 unsafe 권한
 
-`unsafe` unlocks five operations that the compiler can't verify:
+`unsafe`는 컴파일러가 검증할 수 없는 다섯 가지 연산을 허용합니다.
 
 ```rust
 unsafe {
-    // 1. Dereference a raw pointer
+    // 1. raw 포인터 역참조
     let ptr: *const i32 = &42;
-    let value = *ptr; // Could be a dangling/null pointer
+    let value = *ptr; // 댕글링/널일 수 있음
 
-    // 2. Call an unsafe function
+    // 2. unsafe 함수 호출
     let layout = std::alloc::Layout::new::<u64>();
     let mem = std::alloc::alloc(layout);
 
-    // 3. Access a mutable static variable
+    // 3. 가변 static 변수 접근
     static mut COUNTER: u32 = 0;
-    COUNTER += 1; // Data race if multiple threads access
+    COUNTER += 1; // 여러 스레드가 접근하면 데이터 레이스
 
-    // 4. Implement an unsafe trait
+    // 4. unsafe 트레잇 구현
     // unsafe impl Send for MyType {}
 
-    // 5. Access fields of a union
+    // 5. union 필드 접근
     // union IntOrFloat { i: i32, f: f32 }
     // let u = IntOrFloat { i: 42 };
-    // let f = u.f; // Reinterpret bits — could be garbage
+    // let f = u.f; // 비트 재해석 — 쓰레기일 수 있음
 }
 ```
 
-> **Key principle**: `unsafe` doesn't turn off the borrow checker or type system.
-> It only unlocks these five specific capabilities. All other Rust rules still apply.
+> **핵심 원칙**: `unsafe`가 borrow checker나 타입 시스템을 끄는 것은 아닙니다. 이 다섯 가지 능력만 열어 줍니다. 그 외 Rust 규칙은 그대로입니다.
 
-### Writing Sound Abstractions
+<a id="writing-sound-abstractions"></a>
+### 건전한 추상화 쓰기
 
-The purpose of `unsafe` is to build **safe abstractions** around unsafe operations:
+`unsafe`의 목적은 unsafe 연산 주변에 **안전한 추상화**를 만드는 것입니다.
 
 ```rust
-/// A fixed-capacity stack-allocated buffer.
-/// All public methods are safe — the unsafe is encapsulated.
+/// 고정 용량 스택 할당 버퍼.
+/// 공개 메서드는 모두 안전 — unsafe는 캡슐화됨.
 pub struct StackBuf<T, const N: usize> {
     data: [std::mem::MaybeUninit<T>; N],
     len: usize,
@@ -52,9 +54,9 @@ pub struct StackBuf<T, const N: usize> {
 impl<T, const N: usize> StackBuf<T, N> {
     pub fn new() -> Self {
         StackBuf {
-            // Each element is individually MaybeUninit — no unsafe needed.
-            // `const { ... }` blocks (Rust 1.79+) let us repeat a non-Copy
-            // const expression N times.
+            // 원소마다 MaybeUninit — unsafe 불필요.
+            // `const { ... }` 블록(Rust 1.79+)으로 Copy가 아닌
+            // 식을 N번 반복할 수 있음.
             data: [const { std::mem::MaybeUninit::uninit() }; N],
             len: 0,
         }
@@ -62,10 +64,10 @@ impl<T, const N: usize> StackBuf<T, N> {
 
     pub fn push(&mut self, value: T) -> Result<(), T> {
         if self.len >= N {
-            return Err(value); // Buffer full — return value to caller
+            return Err(value); // 가득 참 — 값을 호출자에게 반환
         }
-        // SAFETY: len < N, so data[len] is within bounds.
-        // We write a valid T into the MaybeUninit slot.
+        // SAFETY: len < N이므로 data[len]는 범위 안.
+        // 유효한 T를 MaybeUninit 슬롯에 씀.
         self.data[self.len] = std::mem::MaybeUninit::new(value);
         self.len += 1;
         Ok(())
@@ -73,7 +75,7 @@ impl<T, const N: usize> StackBuf<T, N> {
 
     pub fn get(&self, index: usize) -> Option<&T> {
         if index < self.len {
-            // SAFETY: index < len, and data[0..len] are all initialized.
+            // SAFETY: index < len이고 data[0..len]은 모두 초기화됨.
             Some(unsafe { self.data[index].assume_init_ref() })
         } else {
             None
@@ -83,7 +85,7 @@ impl<T, const N: usize> StackBuf<T, N> {
 
 impl<T, const N: usize> Drop for StackBuf<T, N> {
     fn drop(&mut self) {
-        // SAFETY: data[0..len] are initialized — drop them properly.
+        // SAFETY: data[0..len]은 초기화됨 — 제대로 드롭.
         for i in 0..self.len {
             unsafe { self.data[i].assume_init_drop(); }
         }
@@ -91,84 +93,82 @@ impl<T, const N: usize> Drop for StackBuf<T, N> {
 }
 ```
 
-**The three rules of sound unsafe code**:
-1. **Document invariants** — every `// SAFETY:` comment explains why the operation is valid
-2. **Encapsulate** — the unsafe is inside a safe API; users can't trigger UB
-3. **Minimize** — only the smallest possible block is `unsafe`
+**건전한 unsafe 코드 세 가지 규칙**:
+1. **불변식 문서화** — 모든 `// SAFETY:` 주석이 연산이 왜 유효한지 설명
+2. **캡슐화** — unsafe는 안전 API 안에; 사용자가 UB를 유발할 수 없게
+3. **최소화** — `unsafe` 블록은 가능한 한 작게
 
-### FFI Patterns: Calling C from Rust
+<a id="ffi-patterns-calling-c-from-rust"></a>
+### FFI 패턴: Rust에서 C 호출
 
 ```rust
-// Declare the C function signature:
+// C 함수 시그니처 선언:
 extern "C" {
     fn strlen(s: *const std::ffi::c_char) -> usize;
     fn printf(format: *const std::ffi::c_char, ...) -> std::ffi::c_int;
 }
 
-// Safe wrapper:
+// 안전 래퍼:
 fn safe_strlen(s: &str) -> usize {
     let c_string = std::ffi::CString::new(s).expect("string contains null byte");
-    // SAFETY: c_string is a valid null-terminated string, alive for the call.
+    // SAFETY: c_string은 호출 동안 유효한 널 종료 문자열.
     unsafe { strlen(c_string.as_ptr()) }
 }
 
-// Calling Rust from C (export a function):
+// C에서 Rust 호출(함수 내보내기):
 #[no_mangle]
 pub extern "C" fn rust_add(a: i32, b: i32) -> i32 {
     a + b
 }
 ```
 
-**Common FFI types**:
+**흔한 FFI 타입**:
 
-| Rust | C | Notes |
+| Rust | C | 비고 |
 |------|---|-------|
-| `i32` / `u32` | `int32_t` / `uint32_t` | Fixed-width, safe |
-| `*const T` / `*mut T` | `const T*` / `T*` | Raw pointers |
-| `std::ffi::CStr` | `const char*` (borrowed) | Null-terminated, borrowed |
-| `std::ffi::CString` | `char*` (owned) | Null-terminated, owned |
-| `std::ffi::c_void` | `void` | Opaque pointer target |
-| `Option<fn(...)>` | Nullable function pointer | `None` = NULL |
+| `i32` / `u32` | `int32_t` / `uint32_t` | 고정 폭, 안전 |
+| `*const T` / `*mut T` | `const T*` / `T*` | Raw 포인터 |
+| `std::ffi::CStr` | `const char*` (빌림) | 널 종료, 빌림 |
+| `std::ffi::CString` | `char*` (소유) | 널 종료, 소유 |
+| `std::ffi::c_void` | `void` | 불투명 포인터 대상 |
+| `Option<fn(...)>` | 널 가능 함수 포인터 | `None` = NULL |
 
-### Common UB Pitfalls
+<a id="common-ub-pitfalls"></a>
+### 흔한 UB 함정
 
-| Pitfall | Example | Why It's UB |
+| 함정 | 예 | 왜 UB인가 |
 |---------|---------|------------|
-| Null dereference | `*std::ptr::null::<i32>()` | Dereferencing null is always UB |
-| Dangling pointer | Dereference after `drop()` | Memory may be reused |
-| Data race | Two threads write to `static mut` | Unsynchronized concurrent writes |
-| Wrong `assume_init` | `MaybeUninit::<String>::uninit().assume_init()` | Reading uninitialized memory. **Note**: `[const { MaybeUninit::uninit() }; N]` (Rust 1.79+) is the safe way to create an array of `MaybeUninit` — no `unsafe` or `assume_init` needed (see `StackBuf::new()` above). |
-| Aliasing violation | Creating two `&mut` to same data | Violates Rust's aliasing model |
-| Invalid enum value | `std::mem::transmute::<u8, bool>(2)` | `bool` can only be 0 or 1 |
+| 널 역참조 | `*std::ptr::null::<i32>()` | 널 역참조는 항상 UB |
+| 댕글링 포인터 | `drop()` 이후 역참조 | 메모리가 재사용될 수 있음 |
+| 데이터 레이스 | 두 스레드가 `static mut`에 쓰기 | 동기화 없는 동시 쓰기 |
+| 잘못된 `assume_init` | `MaybeUninit::<String>::uninit().assume_init()` | 초기화되지 않은 메모리 읽기. **참고**: `[const { MaybeUninit::uninit() }; N]`(Rust 1.79+)이 `MaybeUninit` 배열을 만드는 안전한 방법 — `unsafe`나 `assume_init` 불필요(위 `StackBuf::new()` 참고). |
+| 별칭 위반 | 같은 데이터에 `&mut` 두 개 | Rust 별칭 모델 위반 |
+| 잘못된 enum 값 | `std::mem::transmute::<u8, bool>(2)` | `bool`은 0 또는 1만 유효 |
 
-> **When to use `unsafe` in production**:
-> - FFI boundaries (calling C/C++ code)
-> - Performance-critical inner loops (avoid bounds checks)
-> - Building primitives (`Vec`, `HashMap` — these use unsafe internally)
-> - Never in application logic if you can avoid it
+> **프로덕션에서 `unsafe`를 쓸 때**:
+> - FFI 경계(C/C++ 코드 호출)
+> - 성능이 중요한 내부 루프(경계 검사 회피)
+> - 원시 타입(`Vec`, `HashMap` — 내부에 unsafe 사용)
+> - 피할 수 있으면 애플리케이션 로직에는 쓰지 않기
 
-### Custom Allocators — Arena and Slab Patterns
+<a id="custom-allocators--arena-and-slab-patterns"></a>
+### 사용자 정의 할당자 — Arena와 Slab 패턴
 
-In C, you'd write custom `malloc()` replacements for specific allocation patterns —
-arena allocators that free everything at once, slab allocators for fixed-size objects,
-or pool allocators for high-throughput systems. Rust provides the same power through
-the `GlobalAlloc` trait and allocator crates, with the added benefit of lifetime-scoped
-arenas that **prevent use-after-free at compile time**.
+C에서는 특정 할당 패턴에 맞춘 `malloc()` 대체 — 한 번에 전부 해제하는 arena, 고정 크기 객체용 slab, 고처리량 풀 — Rust는 `GlobalAlloc` 트레잇과 할당자 크레이트로 같은 힘을 주며, **컴파일 타임에 수명이 묶인 arena**로 use-after-free를 막는 이점이 있습니다.
 
-#### Arena Allocators — Bulk Allocation, Bulk Free
+<a id="arena-allocators--bulk-allocation-bulk-free"></a>
+#### Arena 할당자 — 대량 할당, 대량 해제
 
-An arena allocates by bumping a pointer forward. Individual items can't be freed —
-the entire arena is freed at once. This is perfect for request-scoped or
-frame-scoped allocations:
+Arena는 포인터를 앞으로 밀며 할당합니다. 개별 항목은 해제할 수 없고 arena 전체가 한 번에 해제됩니다. 요청 단위 또는 프레임 단위 할당에 적합합니다.
 
 ```rust
 use bumpalo::Bump;
 
 fn process_sensor_frame(raw_data: &[u8]) {
-    // Create an arena for this frame's allocations
+    // 이 프레임용 arena
     let arena = Bump::new();
 
-    // Allocate objects in the arena — ~2ns each (just a pointer bump)
+    // arena에 할당 — 각 ~2ns(포인터만 밀기)
     let header = arena.alloc(parse_header(raw_data));
     let readings: &mut [f32] = arena.alloc_slice_fill_default(header.sensor_count);
 
@@ -178,31 +178,31 @@ fn process_sensor_frame(raw_data: &[u8]) {
         }
     }
 
-    // Use readings...
+    // readings 사용...
     let avg = readings.iter().sum::<f32>() / readings.len() as f32;
     println!("Frame avg: {avg:.2}");
 
-    // `arena` drops here — ALL allocations freed at once in O(1)
-    // No per-object destructor overhead, no fragmentation
+    // `arena`가 여기서 드롭 — 모든 할당이 O(1)로 한 번에 해제
+    // 객체마다 소멸자 부담 없음, 단편화 없음
 }
 # fn parse_header(_: &[u8]) -> Header { Header { sensor_count: 4, payload_offset: 8 } }
 # struct Header { sensor_count: usize, payload_offset: usize }
 ```
 
-**Arena vs standard allocator**:
+**Arena vs 표준 할당자**:
 
-| Aspect | `Vec::new()` / `Box::new()` | `Bump` arena |
+| 측면 | `Vec::new()` / `Box::new()` | `Bump` arena |
 |--------|---------------------------|--------------|
-| Alloc speed | ~25ns (malloc) | ~2ns (pointer bump) |
-| Free speed | Per-object destructor | O(1) bulk free |
-| Fragmentation | Yes (long-lived processes) | None within arena |
-| Lifetime safety | Heap — freed on `Drop` | Arena reference — compile-time scoped |
-| Use case | General purpose | Request/frame/batch processing |
+| 할당 속도 | ~25ns(malloc) | ~2ns(포인터 밀기) |
+| 해제 속도 | 객체마다 소멸자 | O(1) 대량 해제 |
+| 단편화 | 있음(장기 프로세스) | arena 안에서는 없음 |
+| 수명 안전 | 힙 — Drop 시 해제 | arena 참조 — 컴파일 타임 스코프 |
+| 용도 | 범용 | 요청/프레임/배치 처리 |
 
-#### `typed-arena` — Type-Safe Arena
+<a id="typed-arena--type-safe-arena"></a>
+#### `typed-arena` — 타입 안전 Arena
 
-When all arena objects are the same type, `typed-arena` provides a simpler API
-that returns references with the arena's lifetime:
+arena 객체가 모두 같은 타입이면 `typed-arena`가 arena 수명에 묶인 참조를 돌려주는 더 단순한 API를 제공합니다.
 
 ```rust
 use typed_arena::Arena;
@@ -215,25 +215,24 @@ struct AstNode<'a> {
 fn build_tree() {
     let arena: Arena<AstNode<'_>> = Arena::new();
 
-    // Allocate nodes — returns &AstNode tied to arena's lifetime
+    // 노드 할당 — arena 수명에 묶인 &AstNode 반환
     let root = arena.alloc(AstNode { value: 1, children: vec![] });
     let left = arena.alloc(AstNode { value: 2, children: vec![] });
     let right = arena.alloc(AstNode { value: 3, children: vec![] });
 
-    // Build the tree — all references valid as long as `arena` lives
-    // (Mutable access requires interior mutability for truly mutable trees)
+    // 트리 구성 — `arena`가 살아 있는 동안 모든 참조 유효
+    // (진짜 가변 트리는 내부 가변성 필요)
 
     println!("Root: {}, Left: {}, Right: {}", root.value, left.value, right.value);
 
-    // `arena` drops here — all nodes freed at once
+    // `arena` 드롭 — 모든 노드 한 번에 해제
 }
 ```
 
-#### Slab Allocators — Fixed-Size Object Pools
+<a id="slab-allocators--fixed-size-object-pools"></a>
+#### Slab 할당자 — 고정 크기 객체 풀
 
-A slab allocator pre-allocates a pool of fixed-size slots. Objects are allocated
-and returned individually, but all slots are the same size — eliminating
-fragmentation and enabling O(1) alloc/free:
+Slab은 고정 크기 슬롯 풀을 미리 할당합니다. 객체는 개별 할당·반환되지만 슬롯 크기는 동일 — 단편화를 없애고 O(1) 할당/해제를 가능하게 합니다.
 
 ```rust
 use slab::Slab;
@@ -245,10 +244,10 @@ struct Connection {
 }
 
 fn connection_pool_example() {
-    // Pre-allocate a slab for connections
+    // 연결용 slab 미리 할당
     let mut connections: Slab<Connection> = Slab::with_capacity(256);
 
-    // Insert returns a key (usize index) — O(1)
+    // insert는 키(usize 인덱스) 반환 — O(1)
     let key1 = connections.insert(Connection {
         id: 1001,
         buffer: [0; 1024],
@@ -261,29 +260,29 @@ fn connection_pool_example() {
         active: true,
     });
 
-    // Access by key — O(1)
+    // 키로 접근 — O(1)
     if let Some(conn) = connections.get_mut(key1) {
         conn.buffer[0..5].copy_from_slice(b"hello");
     }
 
-    // Remove returns the value — O(1), slot is reused for next insert
+    // remove는 값 반환 — O(1), 슬롯은 다음 insert에 재사용
     let removed = connections.remove(key2);
     assert_eq!(removed.id, 1002);
 
-    // Next insert reuses the freed slot — no fragmentation
+    // 다음 insert가 해제된 슬롯 재사용 — 단편화 없음
     let key3 = connections.insert(Connection {
         id: 1003,
         buffer: [0; 1024],
         active: true,
     });
-    assert_eq!(key3, key2); // Same slot reused!
+    assert_eq!(key3, key2); // 같은 슬롯 재사용!
 }
 ```
 
-#### Implementing a Minimal Arena (for `no_std`)
+<a id="implementing-a-minimal-arena-for-no_std"></a>
+#### 최소 Arena 구현(`no_std`용)
 
-For bare-metal environments where you can't pull in `bumpalo`, here's a
-minimal arena built on `unsafe`:
+`bumpalo`를 쓸 수 없는 베어메탈 환경용으로 `unsafe`로 만든 최소 arena입니다.
 
 ```rust
 #![cfg_attr(not(test), no_std)]
@@ -291,19 +290,18 @@ minimal arena built on `unsafe`:
 use core::alloc::Layout;
 use core::cell::{Cell, UnsafeCell};
 
-/// A simple bump allocator backed by a fixed-size byte array.
-/// Not thread-safe — use per-core or with a lock for multi-threaded contexts.
+/// 고정 크기 바이트 배열을 뒷받침하는 단순 bump 할당자.
+/// 스레드 안전 아님 — 멀티스레드는 코어마다 또는 락과 함께.
 ///
-/// **Important**: Like `bumpalo`, this arena does NOT call destructors on
-/// allocated items when the arena is dropped. Types with `Drop` impls will
-/// leak their resources (file handles, sockets, etc.). Only allocate types
-/// without meaningful `Drop` impls, or manually drop them before the arena.
+/// **중요**: `bumpalo`처럼 이 arena는 드롭 시 할당된 항목의 **소멸자를 호출하지 않습니다**.
+/// `Drop`이 있는 타입은 리소스(파일 핸들, 소켓 등)를 누수할 수 있습니다.
+/// 의미 있는 `Drop`이 없는 타입만 할당하거나, arena 전에 수동으로 드롭하세요.
 pub struct FixedArena<const N: usize> {
-    // UnsafeCell is REQUIRED here: we mutate `buf` through `&self`.
-    // Without UnsafeCell, casting &self.buf to *mut u8 would be UB
-    // (violates Rust's aliasing model — shared ref implies immutable).
+    // UnsafeCell 필수: `&self`로 `buf`를 변경함.
+    // UnsafeCell 없이 &self.buf를 *mut u8로 캐스팅하면 UB
+    // (공유 참조는 불변 — Rust 별칭 모델 위반).
     buf: UnsafeCell<[u8; N]>,
-    offset: Cell<usize>, // Interior mutability for &self allocation
+    offset: Cell<usize>, // &self 할당용 내부 가변성
 }
 
 impl<const N: usize> FixedArena<N> {
@@ -314,27 +312,27 @@ impl<const N: usize> FixedArena<N> {
         }
     }
 
-    /// Allocate a `T` in the arena. Returns `None` if out of space.
+    /// arena에 `T` 할당. 공간 없으면 `None`.
     pub fn alloc<T>(&self, value: T) -> Option<&mut T> {
         let layout = Layout::new::<T>();
         let current = self.offset.get();
 
-        // Align up
+        // 정렬 올림
         let aligned = (current + layout.align() - 1) & !(layout.align() - 1);
         let new_offset = aligned + layout.size();
 
         if new_offset > N {
-            return None; // Arena full
+            return None; // arena 가득
         }
 
         self.offset.set(new_offset);
 
         // SAFETY:
-        // - `aligned` is within `buf` bounds (checked above)
-        // - Alignment is correct (aligned to T's requirement)
-        // - No aliasing: each alloc returns a unique, non-overlapping region
-        // - UnsafeCell grants permission to mutate through &self
-        // - The arena outlives the returned reference (caller must ensure)
+        // - `aligned`는 위에서 `buf` 범위 안
+        // - 정렬은 T 요구사항에 맞음
+        // - 별칭 없음: 각 alloc은 겹치지 않는 영역만 반환
+        // - UnsafeCell이 `&self`로 변경 허용
+        // - 반환 참조는 arena보다 오래 살아 있으면 안 됨(호출자 책임)
         let ptr = unsafe {
             let base = (self.buf.get() as *mut u8).add(aligned);
             let typed = base as *mut T;
@@ -345,8 +343,8 @@ impl<const N: usize> FixedArena<N> {
         Some(ptr)
     }
 
-    /// Reset the arena — invalidates all previous allocations.
-    /// Caller must ensure no references to arena-allocated data exist.
+    /// arena 리셋 — 이전 할당에 대한 참조는 모두 무효.
+    /// arena 데이터에 대한 참조가 없을 때만 호출.
     pub unsafe fn reset(&self) {
         self.offset.set(0);
     }
@@ -361,24 +359,23 @@ impl<const N: usize> FixedArena<N> {
 }
 ```
 
-#### Choosing an Allocator Strategy
+<a id="choosing-an-allocator-strategy"></a>
+#### 할당자 전략 선택
 
-> **Note**: The diagram below uses Mermaid syntax. It renders on GitHub and in
-> tools that support Mermaid (mdBook with `mermaid` plugin, VS Code with
-> Mermaid extension). In plain Markdown viewers, you'll see the raw source.
+> **참고**: 아래 다이어그램은 Mermaid 문법입니다. GitHub와 Mermaid를 지원하는 도구에서 렌더됩니다.
 
 ```mermaid
 graph TD
-    A["What's your allocation pattern?"] --> B{All same type?}
-    A --> I{"Environment?"}
-    B -->|Yes| C{Need individual free?}
-    B -->|No| D{Need individual free?}
-    C -->|Yes| E["<b>Slab</b><br/>slab crate<br/>O(1) alloc + free<br/>Index-based access"]
-    C -->|No| F["<b>typed-arena</b><br/>Bulk alloc, bulk free<br/>Lifetime-scoped refs"]
-    D -->|Yes| G["<b>Standard allocator</b><br/>Box, Vec, etc.<br/>General-purpose malloc"]
-    D -->|No| H["<b>Bump arena</b><br/>bumpalo crate<br/>~2ns alloc, O(1) bulk free"]
+    A["할당 패턴이?"] --> B{모두 같은 타입?}
+    A --> I{"환경?"}
+    B -->|Yes| C{개별 해제 필요?}
+    B -->|No| D{개별 해제 필요?}
+    C -->|Yes| E["<b>Slab</b><br/>slab crate<br/>O(1) 할당+해제<br/>인덱스 접근"]
+    C -->|No| F["<b>typed-arena</b><br/>대량 할당·대량 해제<br/>수명 묶인 참조"]
+    D -->|Yes| G["<b>표준 할당자</b><br/>Box, Vec 등<br/>범용 malloc"]
+    D -->|No| H["<b>Bump arena</b><br/>bumpalo crate<br/>~2ns 할당, O(1) 대량 해제"]
     
-    I -->|no_std| J["FixedArena (custom)<br/>or embedded-alloc"]
+    I -->|no_std| J["FixedArena (직접)<br/>또는 embedded-alloc"]
     I -->|std| K["bumpalo / typed-arena / slab"]
     
     style E fill:#91e5a3,color:#000
@@ -389,40 +386,39 @@ graph TD
     style K fill:#91e5a3,color:#000
 ```
 
-| C Pattern | Rust Equivalent | Key Advantage |
+| C 패턴 | Rust 대응 | 핵심 이점 |
 |-----------|----------------|---------------|
-| Custom `malloc()` pool | `#[global_allocator]` impl | Type-safe, debuggable |
-| `obstack` (GNU) | `bumpalo::Bump` | Lifetime-scoped, no use-after-free |
-| Kernel slab (`kmem_cache`) | `slab::Slab<T>` | Type-safe, index-based |
-| Stack-allocated temp buffer | `FixedArena<N>` (above) | No heap, `const` constructible |
-| `alloca()` | `[T; N]` or `SmallVec` | Compile-time sized, no UB |
+| 사용자 `malloc()` 풀 | `#[global_allocator]` 구현 | 타입 안전, 디버깅 용이 |
+| `obstack`(GNU) | `bumpalo::Bump` | 수명 스코프, use-after-free 방지 |
+| 커널 slab(`kmem_cache`) | `slab::Slab<T>` | 타입 안전, 인덱스 기반 |
+| 스택 임시 버퍼 | `FixedArena<N>` (위) | 힙 없음, `const` 생성 가능 |
+| `alloca()` | `[T; N]` 또는 `SmallVec` | 컴파일 타임 크기, UB 없음
 
-> **Cross-reference**: For bare-metal allocator setup (`#[global_allocator]` with
-> `embedded-alloc`), see the *Rust Training for C Programmers*, Chapter 15.1
-> "Global Allocator Setup" which covers the embedded-specific bootstrapping.
+> **교차 참조**: 베어메탈 할당자 설정(`#[global_allocator]` + `embedded-alloc`)은 *C 프로그래머를 위한 Rust Training* 15.1장 "전역 할당자 설정"을 보세요.
 
-> **Key Takeaways — Unsafe Rust**
-> - Document invariants (`SAFETY:` comments), encapsulate behind safe APIs, minimize unsafe scope
-> - `[const { MaybeUninit::uninit() }; N]` (Rust 1.79+) replaces the old `assume_init` anti-pattern
-> - FFI requires `extern "C"`, `#[repr(C)]`, and careful null/lifetime handling
-> - Arena and slab allocators trade general-purpose flexibility for allocation speed
+> **핵심 정리 — Unsafe Rust**
+> - 불변식 문서(`SAFETY:` 주석), 안전 API 뒤에 캡슐화, unsafe 범위 최소화
+> - `[const { MaybeUninit::uninit() }; N]`(Rust 1.79+)이 옛 `assume_init` 안티패턴을 대체
+> - FFI는 `extern "C"`, `#[repr(C)]`, 널·수명 처리에 주의
+> - Arena와 slab은 범용 유연성과 바꿔 할당 속도를 취함
 
-> **See also:** [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for variance and drop-check interactions with unsafe code. [Ch 8 — Smart Pointers](ch08-smart-pointers-and-interior-mutability.md) for Pin and self-referential types.
+> **함께 보기:** unsafe와 분산·드롭 체크 상호작용은 [4장 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md). Pin과 자기 참조 타입은 [9장 — 스마트 포인터](ch09-smart-pointers-and-interior-mutability.md).
 
 ---
 
-### Exercise: Safe Wrapper around Unsafe ★★★ (~45 min)
+<a id="exercise-safe-wrapper-around-unsafe"></a>
+### 연습: unsafe 주변 안전 래퍼 ★★★ (~45분)
 
-Write a `FixedVec<T, const N: usize>` — a fixed-capacity, stack-allocated vector.
-Requirements:
-- `push(&mut self, value: T) -> Result<(), T>` returns `Err(value)` when full
-- `pop(&mut self) -> Option<T>` returns and removes the last element
-- `as_slice(&self) -> &[T]` borrows initialized elements
-- All public methods must be safe; all unsafe must be encapsulated with `SAFETY:` comments
-- `Drop` must clean up initialized elements
+`FixedVec<T, const N: usize>` — 고정 용량·스택 할당 벡터를 작성하세요.
+요구사항:
+- `push(&mut self, value: T) -> Result<(), T>` — 가득하면 `Err(value)`
+- `pop(&mut self) -> Option<T>` — 마지막 원소 제거·반환
+- `as_slice(&self) -> &[T]` — 초기화된 원소만 빌림
+- 공개 메서드는 모두 안전; unsafe는 `SAFETY:` 주석과 함께 캡슐화
+- `Drop`이 초기화된 원소를 정리
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::mem::MaybeUninit;
@@ -442,7 +438,7 @@ impl<T, const N: usize> FixedVec<T, N> {
 
     pub fn push(&mut self, value: T) -> Result<(), T> {
         if self.len >= N { return Err(value); }
-        // SAFETY: len < N, so data[len] is within bounds.
+        // SAFETY: len < N이므로 data[len]는 범위 안.
         self.data[self.len] = MaybeUninit::new(value);
         self.len += 1;
         Ok(())
@@ -451,13 +447,12 @@ impl<T, const N: usize> FixedVec<T, N> {
     pub fn pop(&mut self) -> Option<T> {
         if self.len == 0 { return None; }
         self.len -= 1;
-        // SAFETY: data[len] was initialized (len was > 0 before decrement).
+        // SAFETY: data[len]은 초기화됨(len을 줄이기 전에 > 0이었음).
         Some(unsafe { self.data[self.len].assume_init_read() })
     }
 
     pub fn as_slice(&self) -> &[T] {
-        // SAFETY: data[0..len] are all initialized, and MaybeUninit<T>
-        // has the same layout as T.
+        // SAFETY: data[0..len]은 모두 초기화, MaybeUninit<T> 레이아웃은 T와 동일.
         unsafe { std::slice::from_raw_parts(self.data.as_ptr() as *const T, self.len) }
     }
 
@@ -467,7 +462,7 @@ impl<T, const N: usize> FixedVec<T, N> {
 
 impl<T, const N: usize> Drop for FixedVec<T, N> {
     fn drop(&mut self) {
-        // SAFETY: data[0..len] are initialized — drop each one.
+        // SAFETY: data[0..len]은 초기화됨 — 각각 드롭.
         for i in 0..self.len {
             unsafe { self.data[i].assume_init_drop(); }
         }

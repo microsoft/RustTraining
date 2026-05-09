@@ -1,82 +1,85 @@
-# 6. Concurrency vs Parallelism vs Threads 🟡
+# 6. 동시성 vs 병렬성 vs 스레드 🟡
 
-> **What you'll learn:**
-> - The precise distinction between concurrency and parallelism
-> - OS threads, scoped threads, and rayon for data parallelism
-> - Shared state primitives: Arc, Mutex, RwLock, Atomics, Condvar
-> - Lazy initialization with OnceLock/LazyLock and lock-free patterns
+> **이 장에서 배울 내용:**
+> - 동시성과 병렬성의 정확한 구분
+> - OS 스레드, 스코프 스레드, 데이터 병렬성용 rayon
+> - 공유 상태: Arc, Mutex, RwLock, 원자 연산, Condvar
+> - OnceLock/LazyLock 지연 초기화와 락프리 패턴
 
-## Terminology: Concurrency ≠ Parallelism
+<a id="terminology-concurrency-parallelism"></a>
+## 용어: 동시성 ≠ 병렬성
 
-These terms are often confused. Here is the precise distinction:
+두 용어는 자주 혼동됩니다. 구분은 다음과 같습니다:
 
-| | Concurrency | Parallelism |
+| | 동시성 | 병렬성 |
 |---|---|---|
-| **Definition** | Managing multiple tasks that can make progress | Executing multiple tasks simultaneously |
-| **Hardware requirement** | One core is enough | Requires multiple cores |
-| **Analogy** | One cook, multiple dishes (switching between them) | Multiple cooks, each working on a dish |
-| **Rust tools** | `async/await`, channels, `select!` | `rayon`, `thread::spawn`, `par_iter()` |
+| **정의** | 여러 작업이 진행될 수 있게 관리함 | 여러 작업을 동시에 실행함 |
+| **하드웨어** | 코어 하나로도 충분 | 여러 코어 필요 |
+| **비유** | 요리사 한 명, 요리 여러 개(번갈아 함) | 요리사 여러 명, 각자 요리 |
+| **Rust 도구** | `async/await`, 채널, `select!` | `rayon`, `thread::spawn`, `par_iter()` |
 
 ```text
-Concurrency (single core):           Parallelism (multi-core):
+동시성(단일 코어):           병렬성(멀티 코어):
                                       
 Task A: ██░░██░░██                   Task A: ██████████
 Task B: ░░██░░██░░                   Task B: ██████████
 ─────────────────→ time              ─────────────────→ time
-(interleaved on one core)           (simultaneous on two cores)
+(한 코어에서 시간 분할)              (두 코어에서 동시)
 ```
 
-### std::thread — OS Threads
+<a id="stdthread-os-threads"></a>
+### std::thread — OS 스레드
 
-Rust threads map 1:1 to OS threads. Each gets its own stack (typically 2-8 MB):
+Rust 스레드는 OS 스레드와 1:1로 대응합니다. 각각 스택이 따로 있습니다(보통 2–8MB):
 
 ```rust
 use std::thread;
 use std::time::Duration;
 
 fn main() {
-    // Spawn a thread — takes a closure
+    // 스레드 생성 — 클로저를 받음
     let handle = thread::spawn(|| {
         for i in 0..5 {
             println!("spawned thread: {i}");
             thread::sleep(Duration::from_millis(100));
         }
-        42 // Return value
+        42 // 반환값
     });
 
-    // Do work on the main thread simultaneously
+    // 메인 스레드에서 동시에 작업
     for i in 0..3 {
         println!("main thread: {i}");
         thread::sleep(Duration::from_millis(150));
     }
 
-    // Wait for the thread to finish and get its return value
-    let result = handle.join().unwrap(); // unwrap panics if thread panicked
+    // 스레드 종료 대기 및 반환값
+    let result = handle.join().unwrap(); // 스레드가 패닉하면 unwrap도 패닉
     println!("Thread returned: {result}");
 }
 ```
 
-**Thread::spawn type requirements**:
+**Thread::spawn 타입 요구사항**:
 
 ```rust
-// The closure must be:
-// 1. Send — can be transferred to another thread
-// 2. 'static — can't borrow from the calling scope
-// 3. FnOnce — takes ownership of captured variables
+// 클로저는:
+// 1. Send — 다른 스레드로 옮길 수 있어야 함
+// 2. 'static — 호출 스코프에서 빌릴 수 없음
+// 3. FnOnce — 캡처한 변수의 소유권을 가짐
 
 let data = vec![1, 2, 3];
 
-// ❌ Borrows data — not 'static
+// ❌ data를 빌림 — 'static 아님
 // thread::spawn(|| println!("{data:?}"));
 
-// ✅ Move ownership into the thread
+// ✅ 소유권을 스레드로 이동
 thread::spawn(move || println!("{data:?}"));
-// data is no longer accessible here
+// data는 여기서 더 이상 사용 불가
 ```
 
-### Scoped Threads (std::thread::scope)
+<a id="scoped-threads-stdthreadscope"></a>
+### 스코프 스레드(std::thread::scope)
 
-Since Rust 1.63, scoped threads solve the `'static` requirement — threads can borrow from the parent scope:
+Rust 1.63부터 스코프 스레드가 `'static` 요구를 없앱니다 — 부모 스코프에서 빌릴 수 있습니다:
 
 ```rust
 use std::thread;
@@ -85,36 +88,37 @@ fn main() {
     let mut data = vec![1, 2, 3, 4, 5];
 
     thread::scope(|s| {
-        // Thread 1: borrow shared reference
+        // 스레드 1: 공유 참조 빌림
         s.spawn(|| {
             let sum: i32 = data.iter().sum();
             println!("Sum: {sum}");
         });
 
-        // Thread 2: also borrow shared reference (multiple readers OK)
+        // 스레드 2: 공유 참조 빌림(읽기 여러 개 OK)
         s.spawn(|| {
             let max = data.iter().max().unwrap();
             println!("Max: {max}");
         });
 
-        // ❌ Can't mutably borrow while shared borrows exist:
+        // ❌ 공유 빌림이 있는 동안 가변 빌림 불가:
         // s.spawn(|| data.push(6));
     });
-    // ALL scoped threads joined here — guaranteed before scope returns
+    // 모든 스코프 스레드가 여기서 join — 스코프 반환 전에 보장
 
-    // Now safe to mutate — all threads have finished
+    // 이제 변경 안전 — 모든 스레드 종료 후
     data.push(6);
     println!("Updated: {data:?}");
 }
 ```
 
-> **This is huge**: Before scoped threads, you had to `Arc::clone()` everything
-> to share with threads. Now you can borrow directly, and the compiler proves
-> all threads finish before the data goes out of scope.
+> **중요**: 스코프 스레드 이전에는 모든 것을 스레드와 공유하려고 `Arc::clone()`을
+> 남발했습니다. 이제 직접 빌릴 수 있고, 컴파일러가 데이터가 스코프를 벗어나기 전에
+> 모든 스레드가 끝났음을 증명합니다.
 
-### rayon — Data Parallelism
+<a id="rayon-data-parallelism"></a>
+### rayon — 데이터 병렬성
 
-`rayon` provides parallel iterators that distribute work across a thread pool automatically:
+`rayon`은 병렬 이터레이터로 작업을 스레드 풀에 자동 분배합니다:
 
 ```rust,ignore
 // Cargo.toml: rayon = "1"
@@ -123,19 +127,19 @@ use rayon::prelude::*;
 fn main() {
     let data: Vec<u64> = (0..1_000_000).collect();
 
-    // Sequential:
+    // 순차:
     let sum_seq: u64 = data.iter().map(|x| x * x).sum();
 
-    // Parallel — just change .iter() to .par_iter():
+    // 병렬 — .iter()만 .par_iter()로 바꿈:
     let sum_par: u64 = data.par_iter().map(|x| x * x).sum();
 
     assert_eq!(sum_seq, sum_par);
 
-    // Parallel sort:
+    // 병렬 정렬:
     let mut numbers = vec![5, 2, 8, 1, 9, 3];
     numbers.par_sort();
 
-    // Parallel processing with map/filter/collect:
+    // map/filter/collect 병렬 처리:
     let results: Vec<_> = data
         .par_iter()
         .filter(|&&x| x % 2 == 0)
@@ -144,30 +148,31 @@ fn main() {
 }
 
 fn expensive_computation(x: u64) -> u64 {
-    // Simulate CPU-heavy work
+    // CPU 무거운 작업 시뮬레이션
     (0..1000).fold(x, |acc, _| acc.wrapping_mul(7).wrapping_add(13))
 }
 ```
 
-**When to use rayon vs threads**:
+**rayon vs 스레드**:
 
-| Use | When |
+| 사용 | 언제 |
 |-----|------|
-| `rayon::par_iter()` | Processing collections in parallel (map, filter, reduce) |
-| `thread::spawn` | Long-running background tasks, I/O workers |
-| `thread::scope` | Short-lived parallel tasks that borrow local data |
-| `async` + `tokio` | I/O-bound concurrency (networking, file I/O) |
+| `rayon::par_iter()` | 컬렉션 병렬 처리(map, filter, reduce) |
+| `thread::spawn` | 장기 백그라운드 작업, I/O 워커 |
+| `thread::scope` | 지역 데이터를 빌리는 단기 병렬 작업 |
+| `async` + `tokio` | I/O 바운드 동시성(네트워크, 파일) |
 
-### Shared State: Arc, Mutex, RwLock, Atomics
+<a id="shared-state-arc-mutex-rwlock-atomics"></a>
+### 공유 상태: Arc, Mutex, RwLock, 원자 연산
 
-When threads need shared mutable state, Rust provides safe abstractions:
+스레드가 가변 공유 상태가 필요할 때 Rust는 안전한 추상화를 제공합니다:
 
 ```rust
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 
-// --- Arc<Mutex<T>>: Shared + Exclusive access ---
+// --- Arc<Mutex<T>>: 공유 + 배타적 접근 ---
 fn mutex_example() {
     let counter = Arc::new(Mutex::new(0u64));
     let mut handles = vec![];
@@ -178,7 +183,7 @@ fn mutex_example() {
             for _ in 0..1000 {
                 let mut guard = counter.lock().unwrap();
                 *guard += 1;
-            } // Guard dropped → lock released
+            } // Guard drop → 락 해제
         }));
     }
 
@@ -186,11 +191,11 @@ fn mutex_example() {
     println!("Counter: {}", counter.lock().unwrap()); // 10000
 }
 
-// --- Arc<RwLock<T>>: Multiple readers OR one writer ---
+// --- Arc<RwLock<T>>: 읽기 여러 개 또는 쓰기 하나 ---
 fn rwlock_example() {
     let config = Arc::new(RwLock::new(String::from("initial")));
 
-    // Many readers — don't block each other
+    // 읽기 여러 개 — 서로 막지 않음
     let readers: Vec<_> = (0..5).map(|id| {
         let config = Arc::clone(&config);
         thread::spawn(move || {
@@ -199,7 +204,7 @@ fn rwlock_example() {
         })
     }).collect();
 
-    // Writer — blocks and waits for all readers to finish
+    // 쓰기 — 모든 읽기가 끝날 때까지 대기
     {
         let mut guard = config.write().unwrap();
         *guard = "updated".to_string();
@@ -208,7 +213,7 @@ fn rwlock_example() {
     for r in readers { r.join().unwrap(); }
 }
 
-// --- Atomics: Lock-free for simple values ---
+// --- 원자 연산: 단순 값은 락 없이 ---
 fn atomic_example() {
     let counter = Arc::new(AtomicU64::new(0));
     let mut handles = vec![];
@@ -218,7 +223,7 @@ fn atomic_example() {
         handles.push(thread::spawn(move || {
             for _ in 0..1000 {
                 counter.fetch_add(1, Ordering::Relaxed);
-                // No lock, no mutex — hardware atomic instruction
+                // 락 없음 — 하드웨어 원자 명령
             }
         }));
     }
@@ -228,19 +233,20 @@ fn atomic_example() {
 }
 ```
 
-### Quick Comparison
+<a id="quick-comparison"></a>
+### 빠른 비교
 
-| Primitive | Use Case | Cost | Contention |
+| 원시 타입 | 사용 사례 | 비용 | 경합 |
 |-----------|----------|------|------------|
-| `Mutex<T>` | Short critical sections | Lock + unlock | Threads wait in line |
-| `RwLock<T>` | Read-heavy, rare writes | Reader-writer lock | Readers concurrent, writer exclusive |
-| `AtomicU64` etc. | Counters, flags | Hardware CAS | Lock-free — no waiting |
-| Channels | Message passing | Queue ops | Producer/consumer decouple |
+| `Mutex<T>` | 짧은 임계 구역 | 락 획득·해제 | 스레드가 줄 서서 대기 |
+| `RwLock<T>` | 읽기 많고 쓰기 드묾 | 읽기-쓰기 락 | 읽기는 동시, 쓰기는 배타 |
+| `AtomicU64` 등 | 카운터, 플래그 | 하드웨어 CAS | 락프리 — 대기 없음 |
+| 채널 | 메시지 전달 | 큐 연산 | 생산자/소비자 분리 |
 
-### Condition Variables (`Condvar`)
+<a id="condition-variables-condvar"></a>
+### 조건 변수(`Condvar`)
 
-A `Condvar` lets a thread **wait** until another thread signals that a condition is
-true, without busy-looping. It is always paired with a `Mutex`:
+`Condvar`는 다른 스레드가 조건이 참이라고 시그널할 때까지 **대기**하게 하며, busy-loop 없이 동작합니다. 항상 `Mutex`와 짝을 이룹니다:
 
 ```rust
 use std::sync::{Arc, Mutex, Condvar};
@@ -249,89 +255,89 @@ use std::thread;
 let pair = Arc::new((Mutex::new(false), Condvar::new()));
 let pair2 = Arc::clone(&pair);
 
-// Spawned thread: wait until ready == true
+// 스레드: ready == true가 될 때까지 대기
 let handle = thread::spawn(move || {
     let (lock, cvar) = &*pair2;
     let mut ready = lock.lock().unwrap();
     while !*ready {
-        ready = cvar.wait(ready).unwrap(); // atomically unlocks + sleeps
+        ready = cvar.wait(ready).unwrap(); // 원자적으로 unlock + sleep
     }
     println!("Worker: condition met, proceeding");
 });
 
-// Main thread: set ready = true, then signal
+// 메인: ready = true 설정 후 시그널
 {
     let (lock, cvar) = &*pair;
     let mut ready = lock.lock().unwrap();
     *ready = true;
-    cvar.notify_one(); // wake one waiting thread (use notify_all for many)
+    cvar.notify_one(); // 대기 스레드 하나 깨움(여러 개면 notify_all)
 }
 handle.join().unwrap();
 ```
 
-> **Pattern**: Always re-check the condition in a `while` loop after `wait()` returns
-> — spurious wakeups are allowed by the OS.
+> **패턴**: `wait()`가 돌아온 뒤에도 조건을 `while`로 **다시 확인**하세요 —
+> OS가 가짜 깨움(spurious wakeup)을 허용합니다.
 
-### Lazy Initialization: OnceLock and LazyLock
+<a id="lazy-initialization-oncelock-and-lazylock"></a>
+### 지연 초기화: OnceLock과 LazyLock
 
-Before Rust 1.80, initializing a global static that requires runtime computation
-(e.g., parsing a config, compiling a regex) needed the `lazy_static!` macro or the
-`once_cell` crate. The standard library now provides two types that cover these
-use cases natively:
+Rust 1.80 이전에는 런타임 계산이 필요한 전역 static(설정 파싱, 정규식 컴파일 등)에
+`lazy_static!` 매크로나 `once_cell` 크레이트가 필요했습니다. 표준 라이브러리에 이제 두 타입이 있습니다:
 
 ```rust
 use std::sync::{OnceLock, LazyLock};
 use std::collections::HashMap;
 
-// OnceLock — initialize on first use via `get_or_init`.
-// Useful when the init value depends on runtime arguments.
+// OnceLock — `get_or_init`로 첫 사용 시 초기화.
+// 인자에 따라 초기값이 달라질 때 유용.
 static CONFIG: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 fn get_config() -> &'static HashMap<String, String> {
     CONFIG.get_or_init(|| {
-        // Expensive: read & parse config file — happens exactly once.
+        // 비용 큼: 설정 파일 읽기·파싱 — 정확히 한 번만 실행.
         let mut m = HashMap::new();
         m.insert("log_level".into(), "info".into());
         m
     })
 }
 
-// LazyLock — initialize on first access, closure provided at definition site.
-// Equivalent to lazy_static! but without a macro.
+// LazyLock — 첫 접근 시 초기화, 정의 위치에 클로저.
+// lazy_static!과 동등하지만 매크로 없음.
 static REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
     regex::Regex::new(r"^[a-zA-Z0-9_]+$").unwrap()
 });
 
 fn is_valid_identifier(s: &str) -> bool {
-    REGEX.is_match(s) // First call compiles the regex; subsequent calls reuse it.
+    REGEX.is_match(s) // 첫 호출에서 정규식 컴파일; 이후 재사용
 }
 ```
 
-| Type | Stabilized | Init Timing | Use When |
+| 타입 | 안정화 | 초기화 시점 | 쓸 때 |
 |------|-----------|-------------|----------|
-| `OnceLock<T>` | Rust 1.70 | Call-site (`get_or_init`) | Init depends on runtime args |
-| `LazyLock<T>` | Rust 1.80 | Definition-site (closure) | Init is self-contained |
-| `lazy_static!` | — | Definition-site (macro) | Pre-1.80 codebases (migrate away) |
-| `const fn` + `static` | Always | Compile-time | Value is computable at compile time |
+| `OnceLock<T>` | Rust 1.70 | 호출 지점(`get_or_init`) | 인자에 따라 초기화가 달라질 때 |
+| `LazyLock<T>` | Rust 1.80 | 정의 지점(클로저) | 초기화가 자기 완결적일 때 |
+| `lazy_static!` | — | 정의 지점(매크로) | 1.80 이전 코드베이스(이전하세요) |
+| `const fn` + `static` | 항상 | 컴파일 타임 | 값이 컴파일 타임에 계산 가능할 때 |
 
-> **Migration tip**: Replace `lazy_static! { static ref X: T = expr; }` with
-> `static X: LazyLock<T> = LazyLock::new(|| expr);` — same semantics, no macro,
-> no external dependency.
+> **이전 팁**: `lazy_static! { static ref X: T = expr; }`를
+> `static X: LazyLock<T> = LazyLock::new(|| expr);`로 바꾸면 — 의미 동일, 매크로 없음,
+> 외부 의존성 없음.
 
-### Lock-Free Patterns
+<a id="lock-free-patterns"></a>
+### 락프리 패턴
 
-For high-performance code, avoid locks entirely:
+고성능 코드에서는 락을 아예 피합니다:
 
 ```rust
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
-// Pattern 1: Spin lock (educational — prefer std::sync::Mutex)
-// ⚠️ WARNING: This is a teaching example only. Real spinlocks need:
-//   - A RAII guard (so a panic while holding doesn't deadlock forever)
-//   - Fairness guarantees (this starves under contention)
-//   - Backoff strategies (exponential backoff, yield to OS)
-// Use std::sync::Mutex or parking_lot::Mutex in production.
+// 패턴 1: 스핀 락(교육용 — 실무에서는 std::sync::Mutex 선호)
+// ⚠️ 경고: 이건 교육 예제만. 진짜 스핀락에는:
+//   - RAII 가드(패닉 시에도 영원히 데드락 안 나게)
+//   - 공정성(경합 시 기아 방지)
+//   - 백오프(지수 백오프, OS에 yield)
+// 프로덕션에서는 std::sync::Mutex 또는 parking_lot::Mutex 사용.
 struct SpinLock {
     locked: AtomicBool,
 }
@@ -344,7 +350,7 @@ impl SpinLock {
             .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
         {
-            std::hint::spin_loop(); // CPU hint: we're spinning
+            std::hint::spin_loop(); // CPU 힌트: 스핀 중
         }
     }
 
@@ -353,12 +359,12 @@ impl SpinLock {
     }
 }
 
-// Pattern 2: Lock-free SPSC (single producer, single consumer)
-// Use crossbeam::queue::ArrayQueue or similar in production
-// roll-your-own only for learning.
+// 패턴 2: 락프리 SPSC(단일 생산자 단일 소비자)
+// 프로덕션에서는 crossbeam::queue::ArrayQueue 등 사용
+// 직접 구현은 학습용.
 
-// Pattern 3: Sequence counter for wait-free reads
-// ⚠️ Best for single-machine-word types (u64, f64); wider T may tear on read.
+// 패턴 3: 대기 없는 읽기용 시퀀스 카운터
+// ⚠️ 단일 머신 워드(u64, f64)에 최적; 더 넓은 T는 읽기에서 찢어질 수 있음.
 struct SeqLock<T: Copy> {
     seq: AtomicUsize,
     data: std::cell::UnsafeCell<T>,
@@ -377,80 +383,72 @@ impl<T: Copy> SeqLock<T> {
     fn read(&self) -> T {
         loop {
             let s1 = self.seq.load(Ordering::Acquire);
-            if s1 & 1 != 0 { continue; } // Writer in progress, retry
+            if s1 & 1 != 0 { continue; } // Writer 진행 중, 재시도
 
-            // SAFETY: We use ptr::read_volatile to prevent the compiler from
-            // reordering or caching the read. The SeqLock protocol (checking
-            // s1 == s2 after reading) ensures we retry if a writer was active.
-            // This mirrors the C SeqLock pattern where the data read must use
-            // volatile/relaxed semantics to avoid tearing under concurrency.
+            // SAFETY: ptr::read_volatile로 컴파일러의 재순서/캐시 방지.
+            // SeqLock 프로토콜(s1 == s2 재확인)으로 writer가 활성일 때 재시도.
+            // C 커널 SeqLock과 같이 동시성 아래 데이터 읽기에 volatile/relaxed 의미가 필요.
             let value = unsafe { core::ptr::read_volatile(self.data.get() as *const T) };
 
-            // Acquire fence: ensures the data read above is ordered before
-            // we re-check the sequence counter.
+            // Acquire 펜스: 시퀀스 카운터 재확인 전에 데이터 읽기가 정렬되도록.
             std::sync::atomic::fence(Ordering::Acquire);
             let s2 = self.seq.load(Ordering::Relaxed);
 
-            if s1 == s2 { return value; } // No writer intervened
-            // else retry
+            if s1 == s2 { return value; } // Writer 개입 없음
+            // else 재시도
         }
     }
 
     /// # Safety contract
-    /// Only ONE thread may call `write()` at a time. If multiple writers
-    /// are needed, wrap the `write()` call in an external `Mutex`.
+    /// `write()`는 한 번에 한 스레드만 호출해야 함. 여러 writer가 필요하면
+    /// 외부 `Mutex`로 `write()` 호출을 감쌀 것.
     fn write(&self, val: T) {
-        // Increment to odd (signals write in progress).
-        // AcqRel: the Acquire side prevents the subsequent data write
-        // from being reordered before this increment (readers must see
-        // odd before they could observe a partial write). The Release
-        // side is technically unnecessary for a single writer but
-        // harmless and consistent.
+        // 홀수로 증가(쓰기 진행 중 신호).
+        // AcqRel: Acquire 쪽은 이후 데이터 쓰기가 이 증가보다 앞으로 재배치되지 않게
+        // (reader가 홀수를 본 뒤에도 부분 쓰기를 볼 수 없게). Release 쪽은
+        // 단일 writer에는 기술적으로 불필요하지만 무해하고 일관됨.
         self.seq.fetch_add(1, Ordering::AcqRel);
         unsafe { *self.data.get() = val; }
-        // Increment to even (signals write complete).
-        // Release: ensure the data write is visible before readers see the even seq.
+        // 짝수로 증가(쓰기 완료).
+        // Release: reader가 짝수 seq를 보기 전에 데이터 쓰기가 보이게.
         self.seq.fetch_add(1, Ordering::Release);
     }
 }
 ```
 
-> **⚠️ Rust memory model caveat**: The non-atomic write through `UnsafeCell` in
-> `write()` concurrent with the non-atomic `ptr::read_volatile` in `read()` is
-> technically a data race under the Rust abstract machine — even though the
-> SeqLock protocol ensures readers always retry on stale data. This mirrors the
-> C kernel SeqLock pattern and is sound in practice on all modern hardware for
-> types `T` that fit in a single machine word (e.g., `u64`). For wider types,
-> consider using `AtomicU64` for the data field or wrapping access in a `Mutex`.
-> See [the Rust unsafe code guidelines](https://rust-lang.github.io/unsafe-code-guidelines/)
-> for the evolving story on `UnsafeCell` concurrency.
+> **⚠️ Rust 메모리 모델 주의**: `write()`의 `UnsafeCell` 비원자 쓰기와 `read()`의
+> `ptr::read_volatile` 비원자 읽기는 Rust 추상 기계 관점에서는 기술적으로 데이터 레이스입니다 —
+> SeqLock 프로토콜이 stale 데이터에서 항상 재시도하게 하더라도요. C 커널 SeqLock과 같이
+> 현대 하드웨어에서는 단일 머신 워드 `T`(예: `u64`)에 대해 실무적으로 건전합니다.
+> 더 넓은 타입은 데이터 필드에 `AtomicU64`를 쓰거나 `Mutex`로 감싸세요.
+> [Rust unsafe 코드 가이드라인](https://rust-lang.github.io/unsafe-code-guidelines/)에서
+> `UnsafeCell` 동시성에 대한 논의는 계속 발전 중입니다.
 
-> **Practical advice**: Lock-free code is hard to get right. Use `Mutex` or
-> `RwLock` unless profiling shows lock contention is your bottleneck. When you
-> do need lock-free, reach for proven crates (`crossbeam`, `arc-swap`, `dashmap`)
-> rather than rolling your own.
+> **실무 조언**: 락프리 코드는 맞추기 어렵습니다. 프로파일링으로 락 경합이 병목이 아니면
+> `Mutex`나 `RwLock`을 쓰세요. 락프리가 필요하면 검증된 크레이트(`crossbeam`, `arc-swap`, `dashmap`)를
+> 직접 구현보다 우선하세요.
 
-> **Key Takeaways — Concurrency**
-> - Scoped threads (`thread::scope`) let you borrow stack data without `Arc`
-> - `rayon::par_iter()` parallelizes iterators with one method call
-> - Use `OnceLock`/`LazyLock` instead of `lazy_static!`; use `Mutex` before reaching for atomics
-> - Lock-free code is hard — prefer proven crates over hand-rolled implementations
+> **핵심 정리 — 동시성**
+> - 스코프 스레드(`thread::scope`)는 `Arc` 없이 스택 데이터를 빌릴 수 있게 함
+> - `rayon::par_iter()`는 이터레이터를 한 메서드로 병렬화
+> - `lazy_static!` 대신 `OnceLock`/`LazyLock`; 원자 연산 전에는 `Mutex`
+> - 락프리는 어렵다 — 검증된 크레이트를 선호
 
-> **See also:** [Ch 5 — Channels](ch05-channels-and-message-passing.md) for message-passing concurrency. [Ch 8 — Smart Pointers](ch08-smart-pointers-and-interior-mutability.md) for Arc/Rc details.
+> **더 보기:** 메시지 전달 동시성은 [5장 — 채널](ch05-channels-and-message-passing.md). Arc/Rc 세부는 [8장 — 스마트 포인터](ch08-smart-pointers-and-interior-mutability.md).
 
 ```mermaid
 flowchart TD
-    A["Need shared<br>mutable state?"] -->|Yes| B{"How much<br>contention?"}
-    A -->|No| C["Use channels<br>(Ch 5)"]
+    A["공유 가변<br>상태가<br>필요한가?"] -->|예| B{"경합이<br>어느 정도?"}
+    A -->|아니오| C["채널 사용<br>(5장)"]
 
-    B -->|"Read-heavy"| D["RwLock"]
-    B -->|"Short critical<br>section"| E["Mutex"]
-    B -->|"Simple counter<br>or flag"| F["Atomics"]
-    B -->|"Complex state"| G["Actor + channels"]
+    B -->|"읽기 많음"| D["RwLock"]
+    B -->|"짧은 임계<br>구역"| E["Mutex"]
+    B -->|"단순 카운터<br>또는 플래그"| F["원자 연산"]
+    B -->|"복잡한 상태"| G["액터 + 채널"]
 
-    H["Need parallelism?"] -->|"Collection<br>processing"| I["rayon::par_iter"]
-    H -->|"Background task"| J["thread::spawn"]
-    H -->|"Borrow local data"| K["thread::scope"]
+    H["병렬성이<br>필요한가?"] -->|"컬렉션<br>처리"| I["rayon::par_iter"]
+    H -->|"백그라운드 작업"| J["thread::spawn"]
+    H -->|"지역 데이터<br>빌림"| K["thread::scope"]
 
     style A fill:#e8f4f8,stroke:#2980b9,color:#000
     style B fill:#fef9e7,stroke:#f1c40f,color:#000
@@ -467,12 +465,14 @@ flowchart TD
 
 ---
 
-### Exercise: Parallel Map with Scoped Threads ★★ (~25 min)
+<a id="exercise-parallel-map-with-scoped-threads"></a>
+### 연습: 스코프 스레드로 병렬 map ★★ (~25분)
 
-Write a function `parallel_map<T, R>(data: &[T], f: fn(&T) -> R, num_threads: usize) -> Vec<R>` that splits `data` into `num_threads` chunks and processes each in a scoped thread. Do not use `rayon` — use `std::thread::scope`.
+`parallel_map<T, R>(data: &[T], f: fn(&T) -> R, num_threads: usize) -> Vec<R>` 함수를 작성하세요.
+`data`를 `num_threads`개 청크로 나누고 각각 스코프 스레드에서 처리합니다. `rayon`은 쓰지 말고 `std::thread::scope`를 쓰세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 fn parallel_map<T: Sync, R: Send>(data: &[T], f: fn(&T) -> R, num_threads: usize) -> Vec<R> {
@@ -505,4 +505,3 @@ fn main() {
 </details>
 
 ***
-

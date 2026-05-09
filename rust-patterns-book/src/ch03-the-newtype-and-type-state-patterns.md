@@ -1,14 +1,15 @@
-# 3. The Newtype and Type-State Patterns 🟡
+# 3. 뉴타입과 타입 상태 패턴 🟡
 
-> **What you'll learn:**
-> - The newtype pattern for zero-cost compile-time type safety
-> - Type-state pattern: making illegal state transitions unrepresentable
-> - Builder pattern with type states for compile-time–enforced construction
-> - Config trait pattern for taming generic parameter explosion
+> **이 장에서 배울 내용:**
+> - 컴파일 타임 타입 안전을 주는 제로 코스트 뉴타입 패턴
+> - 타입 상태 패턴: 불가능한 상태 전이를 타입으로 표현하지 않게 하기
+> - 컴파일 타임에 순서를 강제하는 타입 상태 빌더 패턴
+> - 제네릭 매개변수 폭발을 다스리는 Config 트레잇 패턴
 
-## Newtype: Zero-Cost Type Safety
+<a id="newtype-zero-cost-type-safety"></a>
+## 뉴타입: 제로 코스트 타입 안전
 
-The newtype pattern wraps an existing type in a single-field tuple struct to create a distinct type with zero runtime overhead:
+뉴타입 패턴은 기존 타입을 한 필드 튜플 구조체로 감싸 런타임 오버헤드 없이 별개의 타입을 만듭니다:
 
 ```rust
 // Without newtypes — easy to mix up:
@@ -27,10 +28,11 @@ fn create_user(name: UserName, email: Email, age: Age, id: EmployeeId) { }
 // ❌ Compile error: expected Age, got EmployeeId
 ```
 
-### `impl Deref` for Newtypes — Power and Pitfalls
+<a id="impl-deref-for-newtypes-power-and-pitfalls"></a>
+### 뉴타입에 대한 `impl Deref` — 장점과 함정
 
-Implementing `Deref` on a newtype lets it auto-coerce to the inner type's
-reference, giving you all of the inner type's methods "for free":
+뉴타입에 `Deref`를 구현하면 내부 타입 참조로 자동 강제 변환되어
+내부 타입의 메서드를 거의 “공짜”로 쓸 수 있습니다:
 
 ```rust
 use std::ops::Deref;
@@ -57,35 +59,31 @@ let email = Email::new("user@example.com").unwrap();
 println!("Length: {}", email.len()); // Uses str::len via Deref
 ```
 
-This is convenient — but it effectively **punches a hole** through your
-newtype's abstraction boundary because *every* method on the target type
-becomes callable on your wrapper.
+편하지만 래퍼의 추상 경계에 **구멍을 뚫는** 셈입니다 — 대상 타입의 *모든* 메서드가
+호출 가능해집니다.
 
-#### When `Deref` IS appropriate
+#### `Deref`가 **적절한** 경우
 
-| Scenario | Example | Why it's fine |
+| 시나리오 | 예 | 괜찮은 이유 |
 |----------|---------|---------------|
-| Smart-pointer wrappers | `Box<T>`, `Arc<T>`, `MutexGuard<T>` | The wrapper's whole purpose is to behave like `T` |
-| Transparent "thin" wrappers | `String` → `str`, `PathBuf` → `Path`, `Vec<T>` → `[T]` | The wrapper IS-A superset of the target |
-| Your newtype genuinely IS the inner type | `struct Hostname(String)` where you always want full string ops | Restricting the API would add no value |
+| 스마트 포인터 래퍼 | `Box<T>`, `Arc<T>`, `MutexGuard<T>` | 래퍼의 목적 자체가 `T`처럼 동작하는 것 |
+| 투명한 “얇은” 래퍼 | `String` → `str`, `PathBuf` → `Path`, `Vec<T>` → `[T]` | 래퍼가 대상의 상위집합 |
+| 뉴타입이 정말 내부와 같을 때 | 전체 문자열 연산을 항상 원하는 `struct Hostname(String)` | API를 제한해도 이득이 없음 |
 
-#### When `Deref` is an anti-pattern
+#### `Deref`가 안티패턴인 경우
 
-| Scenario | Problem |
+| 시나리오 | 문제 |
 |----------|---------|
-| **Domain types with invariants** | `Email` derefs to `&str`, so callers can call `.split_at()`, `.trim()`, etc. — none of which preserve the "must contain @" invariant. If someone stores the trimmed `&str` and reconstructs, the invariant is lost. |
-| **Types where you want a restricted API** | `struct Password(String)` with `Deref<Target = str>` leaks `.as_bytes()`, `.chars()`, `Debug` output — exactly what you're trying to hide. |
-| **Fake inheritance** | Using `Deref` to make `ManagerWidget` auto-deref to `Widget` simulates OOP inheritance. This is explicitly discouraged — see the Rust API Guidelines (C-DEREF). |
+| **불변식이 있는 도메인 타입** | `Email`이 `&str`로 디레프되면 `.split_at()`, `.trim()` 등을 호출할 수 있음 — “@ 포함” 불변식을 지키지 않음. 잘린 `&str`을 저장해 재구성하면 불변식이 깨짐. |
+| **API를 제한하고 싶을 때** | `Deref<Target = str>`인 `Password(String)`은 `.as_bytes()`, `.chars()`, `Debug` 출력까지 새어 나옴 — 숨기려던 것. |
+| **가짜 상속** | `ManagerWidget`이 `Widget`으로 자동 디레프되게 하면 OOP 상속을 흉내 냄. Rust API 가이드라인(C-DEREF)에서 명시적으로 비권장. |
 
-> **Rule of thumb**: If your newtype exists to *add type safety* or *restrict
-> the API*, don't implement `Deref`. If it exists to *add capabilities* while
-> keeping the inner type's full surface (like a smart pointer), `Deref` is
-> the right choice.
+> **경험 법칙**: 뉴타입이 타입 안전을 *추가*하거나 API를 *제한*하려는 것이면 `Deref`를 구현하지 마세요.
+> 스마트 포인터처럼 내부 전체 표면을 유지하며 *능력을 추가*하려는 것이면 `Deref`가 맞습니다.
 
-#### `DerefMut` — doubles the risk
+#### `DerefMut` — 위험이 두 배
 
-If you also implement `DerefMut`, callers can *mutate* the inner value
-directly, bypassing any validation in your constructors:
+`DerefMut`까지 구현하면 호출자가 생성자의 검증을 건너뛰고 내부 값을 *직접* 바꿀 수 있습니다:
 
 ```rust
 use std::ops::{Deref, DerefMut};
@@ -105,11 +103,11 @@ let mut port = PortNumber(443);
 *port = 0; // Bypasses any validation — now an invalid port
 ```
 
-Only implement `DerefMut` when the inner type has no invariants to protect.
+내부 타입에 지킬 불변식이 없을 때만 `DerefMut`을 구현하세요.
 
-#### Prefer explicit delegation instead
+#### 대신 명시적 위임 선호
 
-When you want only *some* of the inner type's methods, delegate explicitly:
+내부 타입 메서드 중 *일부만* 노출하려면 명시적으로 위임합니다:
 
 ```rust
 struct Email(String);
@@ -130,31 +128,29 @@ impl Email {
 }
 ```
 
-#### Clippy and the ecosystem
+#### Clippy와 생태계
 
-- **`clippy::wrong_self_convention`** can fire when `Deref` coercion
-  makes method resolution surprising (e.g., `is_empty()` resolving to the
-  inner type's version instead of one you intended to shadow).
-- The **Rust API Guidelines** (C-DEREF) state: *"only smart pointers
-  should implement `Deref`."* Treat this as a strong default; deviate
-  only with clear justification.
-- If you need trait compatibility (e.g., passing `Email` to functions
-  expecting `&str`), consider implementing `AsRef<str>` and `Borrow<str>`
-  instead — they're explicit conversions without auto-coercion surprises.
+- **`clippy::wrong_self_convention`**: `Deref` 강제 변환이 메서드 해석을 이상하게 만들면
+  발동할 수 있음(예: `is_empty()`가 의도한 그림자가 아니라 내부 타입 버전으로 해석).
+- **Rust API 가이드라인**(C-DEREF): *“`Deref`는 스마트 포인터만 구현해야 한다.”* 강한 기본값으로 두고
+  명확한 이유가 있을 때만 벗어나세요.
+- 트레잇 호환(`Email`을 `&str`을 기대하는 함수에 넘기기 등)이 필요하면 `AsRef<str>`·`Borrow<str>`를
+  고려하세요 — 자동 강제 변환 없이 명시적입니다.
 
-#### Decision matrix
+#### 결정 행렬
 
 ```text
-Do you want ALL methods of the inner type to be callable?
-  ├─ YES → Does your type enforce invariants or restrict the API?
-  │    ├─ NO  → impl Deref ✅  (smart-pointer / transparent wrapper)
-  │    └─ YES → Don't impl Deref ❌ (invariant leaks)
-  └─ NO  → Don't impl Deref ❌  (use AsRef / explicit delegation)
+내부 타입의 모든 메서드를 호출 가능하게 할 것인가?
+  ├─ 예 → 타입이 불변식을 강제하거나 API를 제한하는가?
+  │    ├─ 아니오  → impl Deref ✅  (스마트 포인터 / 투명 래퍼)
+  │    └─ 예 → impl Deref 하지 않음 ❌ (불변식 새어 나옴)
+  └─ 아니오 → impl Deref 하지 않음 ❌  (AsRef / 명시적 위임)
 ```
 
-### Type-State: Compile-Time Protocol Enforcement
+<a id="type-state-compile-time-protocol-enforcement"></a>
+### 타입 상태: 컴파일 타임 프로토콜 강제
 
-The type-state pattern uses the type system to enforce that operations happen in the correct order. Invalid states become **unrepresentable**.
+타입 상태 패턴은 연산이 올바른 순서로만 일어나도록 타입 시스템을 씁니다. 잘못된 상태는 **표현 자체가 불가능**해집니다.
 
 ```mermaid
 stateDiagram-v2
@@ -164,11 +160,11 @@ stateDiagram-v2
     Authenticated --> Authenticated: request()
     Authenticated --> [*]: drop
 
-    Disconnected --> Disconnected: ❌ request() won't compile
-    Connected --> Connected: ❌ request() won't compile
+    Disconnected --> Disconnected: ❌ request() 컴파일 불가
+    Connected --> Connected: ❌ request() 컴파일 불가
 ```
 
-> Each transition *consumes* `self` and returns a new type — the compiler enforces valid ordering.
+> 각 전이는 `self`를 *소비*하고 새 타입을 반환합니다 — 컴파일러가 올바른 순서를 강제합니다.
 
 ```rust
 // Problem: A network connection that must be:
@@ -238,15 +234,17 @@ fn main() {
 }
 ```
 
-> **Key insight**: Each state transition *consumes* `self` and returns a new type.
-> You can't use the old state after transitioning — the compiler enforces it.
-> Zero runtime cost — `PhantomData` is zero-sized, states are erased at compile time.
+> **핵심**: 각 상태 전이는 `self`를 *소비*하고 새 타입을 반환합니다.
+> 전이 후에는 이전 상태를 쓸 수 없습니다 — 컴파일러가 강제합니다.
+> 런타임 비용 제로 — `PhantomData`는 제로 크기, 상태는 컴파일 타임에 지워집니다.
 
-**Comparison with C++/C#**: In C++ or C#, you'd enforce this with runtime checks (`if (!authenticated) throw ...`). The Rust type-state pattern moves these checks to compile time — invalid states are literally unrepresentable in the type system.
+**C++/C#와 비교**: C++나 C#에서는 런타임 검사(`if (!authenticated) throw ...`)로 강제합니다.
+Rust 타입 상태 패턴은 이를 컴파일 타임으로 옮깁니다 — 잘못된 상태는 타입 시스템에 말 그대로 표현할 수 없습니다.
 
-### Builder Pattern with Type States
+<a id="builder-pattern-with-type-states"></a>
+### 타입 상태를 쓰는 빌더 패턴
 
-A practical application — a builder that enforces required fields:
+실용 예 — 필수 필드 순서를 강제하는 빌더:
 
 ```rust
 use std::marker::PhantomData;
@@ -330,9 +328,11 @@ fn main() {
 
 ***
 
-## Case Study: Type-Safe Connection Pool
+<a id="case-study-type-safe-connection-pool"></a>
+## 사례 연구: 타입 안전 연결 풀
 
-Real-world systems need connection pools where connections move through well-defined states. Here's how the typestate pattern enforces correctness in a production pool:
+실제 시스템은 연결이 명확한 상태를 거쳐 움직이는 연결 풀이 필요합니다. 프로덕션 풀에서 타입 상태 패턴이
+올바름을 어떻게 강제하는지:
 
 ```mermaid
 stateDiagram-v2
@@ -342,7 +342,7 @@ stateDiagram-v2
     Active --> Idle: conn.commit() / conn.rollback()
     Idle --> [*]: pool.release(conn)
 
-    Active --> [*]: ❌ cannot release mid-transaction
+    Active --> [*]: ❌ 트랜잭션 중에 release 불가
 ```
 
 ```rust
@@ -413,18 +413,19 @@ fn main() {
 }
 ```
 
-**Why this matters in production**: A connection leaked mid-transaction holds database
-locks indefinitely. The typestate pattern makes this impossible — you literally cannot
-return a connection to the pool until the transaction is committed or rolled back.
+**프로덕션에서 왜 중요한가**: 트랜잭션 중에 새어 나간 연결은 DB 락을 무한히 잡습니다.
+타입 상태 패턴은 이를 불가능하게 만듭니다 — 커밋 또는 롤백 전까지 풀에 연결을 반납할 수 없습니다.
 
 ***
 
-## Config Trait Pattern — Taming Generic Parameter Explosion
+<a id="config-trait-pattern-taming-generic-parameter-explosion"></a>
 
-### The Problem
+## Config 트레잇 패턴 — 제네릭 매개변수 폭발 다루기
 
-As a struct takes on more responsibilities, each backed by a trait-constrained generic,
-the type signature grows unwieldy:
+### 문제
+
+구조체가 책임을 더 지며 트레잇으로 제약된 제네릭이 늘어날수록
+타입 시그니처가 다루기 힘들어집니다:
 
 ```rust
 trait SpiBus   { fn spi_transfer(&self, tx: &[u8], rx: &mut [u8]) -> Result<(), BusError>; }
@@ -445,14 +446,12 @@ struct DiagController<S: SpiBus, C: ComPort, I: I3cBus, M: SmBus, G: GpioBus> {
 // Adding a 6th bus means editing every mention of DiagController<S, C, I, M, G>.
 ```
 
-This is often called **"generic parameter explosion."** It compounds across `impl` blocks,
-function parameters, and downstream consumers — each of which must repeat the full
-parameter list.
+이를 **“제네릭 매개변수 폭발”**이라고 부릅니다. `impl` 블록, 함수 매개변수, 하위 소비자 전반에
+중복되며, 모두 전체 매개변수 목록을 반복해야 합니다.
 
-### The Solution: A Config Trait
+### 해결책: Config 트레잇
 
-Bundle all associated types into a single trait. The struct then has **one** generic
-parameter regardless of how many component types it contains:
+연관 타입을 하나의 트레잇에 묶습니다. 구조체는 구성요소가 몇 개든 **제네릭 매개변수는 하나**입니다:
 
 ```rust
 #[derive(Debug)]
@@ -493,11 +492,11 @@ struct DiagController<Cfg: BoardConfig> {
 }
 ```
 
-`DiagController<Cfg>` will never gain another generic parameter.
-Adding a 4th bus means adding one associated type to `BoardConfig` and one field
-to `DiagController` — no downstream signature changes.
+`DiagController<Cfg>`에 또 다른 제네릭 매개변수가 붙지는 않습니다.
+네 번째 버스를 추가하면 `BoardConfig`에 연관 타입 하나, `DiagController`에 필드 하나만 더하면 되고
+하위 시그니처는 바꿀 필요 없습니다.
 
-### Implementing the Controller
+### 컨트롤러 구현
 
 ```rust
 impl<Cfg: BoardConfig> DiagController<Cfg> {
@@ -550,9 +549,9 @@ struct DiagReport {
 }
 ```
 
-### Production Wiring
+### 프로덕션 연결
 
-One `impl BoardConfig` selects the concrete hardware drivers:
+`impl BoardConfig` 하나가 구체 하드웨어 드라이버를 고릅니다:
 
 ```rust
 struct PlatformSpi  { dev: String, speed_hz: u32 }
@@ -604,9 +603,9 @@ fn main() {
 }
 ```
 
-### Test Wiring with Mocks
+### 목으로 테스트 연결
 
-Swap the entire hardware layer by defining a different `BoardConfig`:
+다른 `BoardConfig`를 정의해 하드웨어 전체를 교체합니다:
 
 ```rust
 struct MockSpi  { flash_id: [u8; 4] }
@@ -687,10 +686,10 @@ mod tests {
 }
 ```
 
-### Adding a New Bus Later
+### 나중에 새 버스 추가
 
-When you need a 4th bus, only two things change — `BoardConfig` and `DiagController`.
-**No downstream signature changes.** The generic parameter count stays at one:
+네 번째 버스가 필요하면 바뀌는 것은 둘뿐 — `BoardConfig`와 `DiagController`.
+**하위 시그니처는 그대로.** 제네릭 매개변수 개수는 여전히 하나입니다:
 
 ```rust
 trait SmBus {
@@ -722,51 +721,50 @@ impl BoardConfig for ProductionBoard {
 }
 ```
 
-### When to Use This Pattern
+### 이 패턴을 쓸 때
 
-| Situation | Use Config Trait? | Alternative |
+| 상황 | Config 트레잇? | 대안 |
 |-----------|:-:|---|
-| 3+ trait-constrained generics on a struct | ✅ Yes | — |
-| Need to swap entire hardware/platform layer | ✅ Yes | — |
-| Only 1-2 generics | ❌ Overkill | Direct generics |
-| Need runtime polymorphism | ❌ | `dyn Trait` objects |
-| Open-ended plugin system | ❌ | Type-map / `Any` |
-| Component traits form a natural group (board, platform) | ✅ Yes | — |
+| 구조체에 트레잇 제약 제네릭 3개 이상 | ✅ 예 | — |
+| 하드웨어/플랫폼 전체를 통째로 바꿔야 함 | ✅ 예 | — |
+| 제네릭 1–2개뿐 | ❌ 과함 | 직접 제네릭 |
+| 런타임 다형성 필요 | ❌ | `dyn Trait` 객체 |
+| 끝이 없는 플러그인 시스템 | ❌ | Type-map / `Any` |
+| 구성 요소 트레잇이 자연스러운 그룹(보드, 플랫폼) | ✅ 예 | — |
 
-### Key Properties
+### 핵심 성질
 
-- **One generic parameter forever** — `DiagController<Cfg>` never gains more `<A, B, C, ...>`
-- **Fully static dispatch** — no vtables, no `dyn`, no heap allocation for trait objects
-- **Clean test swapping** — define `TestBoard` with mock impls, zero conditional compilation
-- **Compile-time safety** — forget an associated type → compile error, not runtime crash
-- **Battle-tested** — this is the pattern used by Substrate/Polkadot's frame system
-  to manage 20+ associated types through a single `Config` trait
+- **제네릭 매개변수는 영원히 하나** — `DiagController<Cfg>`에 `<A, B, C, ...>`가 늘지 않음
+- **완전 정적 디스패치** — vtable 없음, `dyn` 없음, 트레잇 객체용 힙 할당 없음
+- **깔끔한 테스트 교체** — 목 구현으로 `TestBoard` 정의, 조건부 컴파일 제로
+- **컴파일 타임 안전** — 연관 타입 누락 → 컴파일 에러, 런타임 크래시 아님
+- **실전 검증** — Substrate/Polkadot 프레임이 단일 `Config` 트레잇으로
+  20개 이상의 연관 타입을 관리하는 패턴
 
-> **Key Takeaways — Newtype & Type-State**
-> - Newtypes give compile-time type safety at zero runtime cost
-> - Type-state makes illegal state transitions a compile error, not a runtime bug
-> - Config traits tame generic parameter explosion in large systems
+> **핵심 정리 — 뉴타입·타입 상태**
+> - 뉴타입은 런타임 비용 없이 컴파일 타임 타입 안전을 준다
+> - 타입 상태는 불가능한 전이를 런타임 버그가 아니라 컴파일 에러로 만든다
+> - Config 트레잇은 큰 시스템에서 제네릭 매개변수 폭발을 다스린다
 
-> **See also:** [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for the zero-sized markers that power type-state. [Ch 2 — Traits In Depth](ch02-traits-in-depth.md) for associated types used in the config trait pattern.
+> **더 보기:** 타입 상태를 받치는 제로 크기 마커는 [4장 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md). Config 트레잇에 쓰는 연관 타입은 [2장 — 트레잇 심화](ch02-traits-in-depth.md).
 
 ---
 
-## Case Study: Dual-Axis Typestate — Vendor × Protocol State
+<a id="case-study-dual-axis-typestate-vendor-protocol-state"></a>
+## 사례 연구: 이중 축 타입 상태 — 벤더 × 프로토콜 상태
 
-The patterns above handle one axis at a time: typestate enforces *protocol order*,
-and trait abstraction handles *multiple vendors*. Real systems often need **both
-simultaneously**: a wrapper `Handle<Vendor, State>` where available methods depend
-on *which vendor* is plugged in **and** *which state* the handle is in.
+위 패턴은 한 축씩 다룹니다: 타입 상태는 *프로토콜 순서*를, 트레잇 추상화는 *여러 벤더*를.
+실제 시스템은 둘을 **동시에** 필요로 할 때가 많습니다: `Handle<Vendor, State>` 래퍼에서
+메서드 사용 가능 여부가 꽂힌 *벤더*와 핸들의 *상태* **둘 다**에 의존할 때입니다.
 
-This section shows the **dual-axis conditional `impl`** pattern — where `impl`
-blocks are gated on both a vendor trait bound and a state marker trait.
+이 절은 벤더 트레잇 바운드와 상태 마커 트레잇 **둘 다**로 `impl` 블록을 제한하는
+**이중 축 조건부 `impl`** 패턴을 보여줍니다.
 
-### The Two-Dimensional Problem
+### 이차원 문제
 
-Consider a debug probe interface (JTAG/SWD). Multiple vendors make probes, and
-every probe must be unlocked before registers become accessible. Some vendors
-additionally support direct memory reads — but only after an *extended unlock*
-that configures the memory access port:
+디버그 프로브 인터페이스(JTAG/SWD)를 생각해 보세요. 여러 벤더가 프로브를 만들고,
+모든 프로브는 레지스터에 접근하기 전에 잠금 해제가 필요합니다. 일부 벤더는
+메모리 접근 포트를 설정하는 *확장 잠금 해제* 이후에만 직접 메모리 읽기를 지원합니다:
 
 ```mermaid
 graph LR
@@ -786,8 +784,7 @@ graph LR
     style E fill:#eef,stroke:#33c
 ```
 
-The **capability matrix** — which methods exist for which (vendor, state)
-combination — is two-dimensional:
+**역량 행렬** — (벤더, 상태) 조합마다 어떤 메서드가 있는지 — 는 이차원입니다:
 
 ```mermaid
 block-beta
@@ -804,13 +801,12 @@ block-beta
     style m3 fill:#eef,stroke:#33c
 ```
 
-The challenge: express this matrix **entirely at compile time**, with static
-dispatch, so that calling `extended_unlock()` on a basic probe or
-`read_memory()` on an unlocked-but-not-extended handle is a compile error.
+과제: 이 행렬을 **전부 컴파일 타임**에, 정적 디스패치로 표현해 기본 프로브에
+`extended_unlock()`을 호출하거나 확장 잠금 없이 `read_memory()`를 호출하면 컴파일 에러가 나게 하는 것.
 
-### The Solution: `Jtag<V, S>` with Marker Traits
+### 해결책: 마커 트레잇이 있는 `Jtag<V, S>`
 
-**Step 1 — State tokens and capability markers:**
+**1단계 — 상태 토큰과 역량 마커:**
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -829,14 +825,13 @@ trait HasMemAccess {}
 impl HasMemAccess for ExtendedUnlocked {}
 ```
 
-> **Why marker traits, not just concrete states?**
-> Writing `impl<V, S: HasRegAccess> Jtag<V, S>` means `read_reg()` works in
-> *any* state with register access — today that's `Unlocked` and `ExtendedUnlocked`,
-> but if you add `DebugHalted` tomorrow, you just add one line:
-> `impl HasRegAccess for DebugHalted {}`. Every register function works with
-> it automatically — zero code changes.
+> **왜 구체 상태만이 아니라 마커 트레잇인가?**
+> `impl<V, S: HasRegAccess> Jtag<V, S>`를 쓰면 `read_reg()`는 레지스터 접근이 있는
+> *임의의* 상태에서 동작합니다 — 지금은 `Unlocked`와 `ExtendedUnlocked`지만,
+> 내일 `DebugHalted`를 추가하면 한 줄만 추가하면 됩니다:
+> `impl HasRegAccess for DebugHalted {}`. 레지스터 함수는 자동으로 모두 동작 — 코드 변경 제로.
 
-**Step 2 — Vendor traits (raw operations):**
+**2단계 — 벤더 트레잇(raw 연산):**
 
 ```rust,ignore
 // Every probe vendor implements these
@@ -854,7 +849,7 @@ trait JtagMemoryVendor: JtagVendor {
 }
 ```
 
-**Step 3 — The wrapper with conditional `impl` blocks:**
+**3단계 — 조건부 `impl` 블록이 있는 래퍼:**
 
 ```rust,ignore
 struct Jtag<V, S = Locked> {
@@ -903,13 +898,13 @@ impl<V: JtagMemoryVendor, S: HasMemAccess> Jtag<V, S> {
 }
 ```
 
-Each `impl` block encodes one cell (or row) of the capability matrix.
-The compiler enforces the matrix — no runtime checks anywhere.
+각 `impl` 블록이 역량 행렬의 한 칸(또는 행)을 인코딩합니다.
+컴파일러가 행렬을 강제합니다 — 런타임 검사 없음.
 
-### Vendor Implementations
+### 벤더 구현
 
-Adding a vendor means implementing raw methods on **one struct** — no
-per-state struct duplication, no delegation boilerplate:
+벤더 추가는 **한 구조체**에 raw 메서드만 구현하면 됩니다 — 상태별 구조체 중복 없음,
+위임 보일러플레이트 없음:
 
 ```rust,ignore
 // Vendor A: basic probe — register access only
@@ -939,20 +934,20 @@ impl JtagMemoryVendor for DapProbe {
 }
 ```
 
-### What the Compiler Prevents
+### 컴파일러가 막는 것
 
-| Attempt | Error | Why |
+| 시도 | 에러 | 이유 |
 |---------|-------|-----|
 | `Jtag<_, Locked>::read_reg()` | no method `read_reg` | `Locked` doesn't impl `HasRegAccess` |
 | `Jtag<BasicProbe, _>::extended_unlock()` | no method `extended_unlock` | `BasicProbe` doesn't impl `JtagMemoryVendor` |
 | `Jtag<_, Unlocked>::read_memory()` | no method `read_memory` | `Unlocked` doesn't impl `HasMemAccess` |
 | Calling `unlock()` twice | value used after move | `unlock()` consumes `self` |
 
-All four errors are caught **at compile time**. No panics, no `Option`, no runtime state enum.
+네 가지 에러는 모두 **컴파일 타임**에 잡힙니다. 패닉 없음, `Option` 없음, 런타임 상태 열거형 없음.
 
-### Writing Generic Functions
+### 제네릭 함수 작성
 
-Functions bind only the axes they care about:
+함수는 관심 있는 축만 묶습니다:
 
 ```rust,ignore
 /// Works with ANY vendor, ANY state that grants register access.
@@ -967,14 +962,13 @@ fn dump_firmware<V: JtagMemoryVendor, S: HasMemAccess>(jtag: &Jtag<V, S>) {
 }
 ```
 
-`read_idcode` doesn't care whether you're in `Unlocked` or `ExtendedUnlocked` —
-it only requires `HasRegAccess`. This is where marker traits pay off over
-hardcoding specific states in signatures.
+`read_idcode`는 `Unlocked`인지 `ExtendedUnlocked`인지 신경 쓰지 않습니다 —
+`HasRegAccess`만 필요합니다. 시그니처에 특정 상태를 박아 넣는 것보다 마커 트레잇이 이득인 지점입니다.
 
-### Same Pattern, Different Domain: Storage Backends
+### 같은 패턴, 다른 도메인: 스토리지 백엔드
 
-The dual-axis technique isn't hardware-specific. Here's the same structure
-for a storage layer where some backends support transactions:
+이중 축 기법은 하드웨어에만 쓰이지 않습니다. 일부 백엔드만 트랜잭션을 지원하는
+스토리지 레이어에 같은 구조를 쓸 수 있습니다:
 
 ```rust,ignore
 // States
@@ -1018,49 +1012,45 @@ impl<B: TransactionalBackend> Store<B, InTransaction> {
 }
 ```
 
-A flat-file backend implements `StorageBackend` only — `begin()` won't
-compile. A database backend adds `TransactionalBackend` — the full
-`Open → InTransaction → Open` cycle becomes available.
+플랫 파일 백엔드는 `StorageBackend`만 구현 — `begin()`은 컴파일되지 않습니다.
+DB 백엔드는 `TransactionalBackend`를 추가 — 전체 `Open → InTransaction → Open` 주기가 열립니다.
 
-### When to Reach for This Pattern
+### 이 패턴을 꺼내 쓸 때
 
-| Signal | Why dual-axis fits |
+| 신호 | 이중 축이 맞는 이유 |
 |--------|--------------------|
-| Two independent axes: "who provides it" and "what state is it in" | The `impl` block matrix directly encodes both |
-| Some providers have strictly more capabilities than others | Super-trait (`MemoryVendor: Vendor`) + conditional `impl` |
-| Misusing state or capability is a safety/correctness bug | Compile-time prevention > runtime checks |
-| You want static dispatch (no vtables) | `PhantomData` + generics = zero-cost |
+| “누가 제공하는가”와 “어떤 상태인가” 두 가지 독립 축 | `impl` 블록 행렬이 둘 다 직접 인코딩 |
+| 일부 제공자가 다른 이들보다 엄격히 더 많은 역량 | 슈퍼트레잇(`MemoryVendor: Vendor`) + 조건부 `impl` |
+| 상태·역량 오용이 안전/정확성 버그 | 컴파일 타임 예방 > 런타임 검사 |
+| 정적 디스패치를 원함(vtable 없음) | `PhantomData` + 제네릭 = 제로 코스트 |
 
-| Signal | Consider something simpler |
+| 신호 | 더 단순한 것을 고려 |
 |--------|---------------------------|
-| Only one axis varies (state OR vendor, not both) | Single-axis typestate or plain trait objects |
-| Three or more independent axes | Config Trait Pattern (above) bundles axes into associated types |
-| Runtime polymorphism is acceptable | `enum` state + `dyn` dispatch is simpler |
+| 한 축만 변함(상태 XOR 벤더) | 단일 축 타입 상태 또는 단순 트레잇 객체 |
+| 세 개 이상의 독립 축 | 위의 Config 트레잇 패턴이 축을 연관 타입으로 묶음 |
+| 런타임 다형성이 허용 가능 | `enum` 상태 + `dyn` 디스패치가 더 단순 |
 
-> **When two axes become three or more:**
-> If you find yourself writing `Handle<V, S, D, T>` — vendor, state, debug
-> level, transport — the generic parameter list is telling you something.
-> Consider collapsing the *vendor* axis into an associated-type config trait
-> (the [Config Trait Pattern](#config-trait-pattern--taming-generic-parameter-explosion)
-> from earlier in this chapter), keeping only the *state* axis as a generic
-> parameter: `Handle<Cfg, S>`. The config trait bundles `type Vendor`, `type Transport`, etc.
-> into one parameter, and the state axis retains its compile-time transition guarantees.
-> This is a natural evolution, not a rewrite — you lift vendor-related types
-> into `Cfg` and leave the typestate machinery untouched.
+> **두 축이 세 개 이상으로 늘 때:**
+> `Handle<V, S, D, T>` — 벤더, 상태, 디버그 레벨, 전송 — 처럼 쓰기 시작하면
+> 제네릭 목록이 무언가를 말해줍니다. *벤더* 축을 연관 타입 Config 트레잇으로 접고
+> ([Config 트레잇 패턴](#config-trait-pattern-taming-generic-parameter-explosion)),
+> *상태* 축만 제네릭 매개변수로 남기세요: `Handle<Cfg, S>`. Config 트레잇이 `type Vendor`, `type Transport` 등을
+> 한 매개변수에 묶고, 상태 축은 컴파일 타임 전이 보장을 유지합니다.
+> 자연스러운 진화이지 전면 재작성이 아닙니다 — 벤더 관련 타입을 `Cfg`로 올리고 타입 상태 장치는 그대로 둡니다.
 
-> **Key Takeaway:** The dual-axis pattern is the intersection of typestate and
-> trait-based abstraction. Each `impl` block maps to one cell of the
-> (vendor × state) matrix. The compiler enforces the entire matrix — no
-> runtime state checks, no impossible-state panics, no cost.
+> **핵심:** 이중 축 패턴은 타입 상태와 트레잇 기반 추상화의 교집합입니다. 각 `impl` 블록은
+> (벤더 × 상태) 행렬의 한 칸에 대응합니다. 컴파일러가 전체 행렬을 강제합니다 —
+> 런타임 상태 검사 없음, 불가능한 상태 패닉 없음, 비용 없음.
 
 ---
 
-### Exercise: Type-Safe State Machine ★★ (~30 min)
+<a id="exercise-type-safe-state-machine"></a>
+### 연습: 타입 안전 상태 머신 ★★ (~30분)
 
-Build a traffic light state machine using the type-state pattern. The light must transition `Red → Green → Yellow → Red` and no other order should be possible.
+타입 상태 패턴으로 신호등 상태 머신을 만드세요. `Red → Green → Yellow → Red`만 순환하고 다른 순서는 불가능해야 합니다.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::marker::PhantomData;
@@ -1110,7 +1100,7 @@ fn main() {
 }
 ```
 
-**Key takeaway**: Invalid transitions are compile errors, not runtime panics.
+**핵심**: 잘못된 전이는 런타임 패닉이 아니라 컴파일 에러입니다.
 
 </details>
 

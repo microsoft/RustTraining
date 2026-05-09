@@ -1,36 +1,36 @@
-## No GIL: True Parallelism
+<a id="no-gil-true-parallelism"></a>
+## GIL이 없다: 진짜 병렬성
 
-> **What you'll learn:** Why the GIL limits Python concurrency, Rust's `Send`/`Sync` traits for compile-time thread safety,
-> `Arc<Mutex<T>>` vs Python `threading.Lock`, channels vs `queue.Queue`, and async/await differences.
+> **이 장에서 배울 내용:** GIL이 Python 동시성에 어떤 제약을 주는지, Rust의 `Send`/`Sync` 트레잇이 컴파일 시점 스레드 안전성을 어떻게 보장하는지,
+> `Arc<Mutex<T>>`와 Python의 `threading.Lock`를 어떻게 비교할 수 있는지, 채널과 `queue.Queue`의 차이, 그리고 `async`/`await` 모델이 어떻게 다른지 살펴봅니다.
 >
-> **Difficulty:** 🔴 Advanced
+> **난이도:** 🔴 고급
 
-The GIL (Global Interpreter Lock) is Python's biggest limitation for CPU-bound work.
-Rust has no GIL — threads run truly in parallel, and the type system prevents data races
-at compile time.
+GIL(Global Interpreter Lock)은 CPU 바운드 작업에서 Python이 안고 있는 가장 큰 제약입니다.
+Rust에는 GIL이 없으므로 스레드가 실제로 병렬 실행되며, 타입 시스템이 데이터 레이스를 컴파일 시점에 막아줍니다.
 
 ```mermaid
 gantt
-    title CPU-bound Work: Python GIL vs Rust Threads
+    title CPU 바운드 작업: Python GIL vs Rust 스레드
     dateFormat X
     axisFormat %s
     section Python (GIL)
-        Thread 1 :a1, 0, 4
-        Thread 2 :a2, 4, 8
-        Thread 3 :a3, 8, 12
-        Thread 4 :a4, 12, 16
-    section Rust (no GIL)
-        Thread 1 :b1, 0, 4
-        Thread 2 :b2, 0, 4
-        Thread 3 :b3, 0, 4
-        Thread 4 :b4, 0, 4
+        스레드 1 :a1, 0, 4
+        스레드 2 :a2, 4, 8
+        스레드 3 :a3, 8, 12
+        스레드 4 :a4, 12, 16
+    section Rust (GIL 없음)
+        스레드 1 :b1, 0, 4
+        스레드 2 :b2, 0, 4
+        스레드 3 :b3, 0, 4
+        스레드 4 :b4, 0, 4
 ```
 
-> **Key insight**: Python threads run sequentially for CPU work (GIL serializes them). Rust threads run truly in parallel — 4 threads = ~4x speedup.
+> **핵심 통찰**: Python 스레드는 CPU 작업에서 순차적으로 실행됩니다(GIL이 이를 직렬화합니다). Rust 스레드는 실제 병렬로 실행되므로, 스레드 4개면 대략 4배 가까운 속도 향상을 기대할 수 있습니다.
 >
-> 📌 **Prerequisite**: Make sure you're comfortable with [Ch. 7 — Ownership and Borrowing](ch07-ownership-and-borrowing.md) before tackling this chapter. `Arc`, `Mutex`, and move closures all build on ownership concepts.
+> 📌 **선수 지식**: `Arc`, `Mutex`, move 클로저는 모두 소유권 개념 위에 서 있습니다. 이 장에 들어가기 전에 [7장 - 소유권과 대여](ch07-ownership-and-borrowing.md)를 충분히 익혀두세요.
 
-### Python's GIL Problem
+### Python의 GIL 문제
 ```python
 # Python — threads don't help for CPU-bound work
 import threading
@@ -60,7 +60,7 @@ with Pool(4) as pool:
     results = pool.map(cpu_work, data)  # Separate processes, pickle overhead
 ```
 
-### Rust — True Parallelism, Compile-Time Safety
+### Rust — 진짜 병렬성과 컴파일 시점 안전성
 ```rust
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
@@ -89,9 +89,10 @@ fn main() {
 
 ***
 
-## Thread Safety: Type System Guarantees
+<a id="thread-safety-type-system-guarantees"></a>
+## 스레드 안전성: 타입 시스템이 보장한다
 
-### Python — Runtime Errors
+### Python — 런타임에서 드러나는 문제
 ```python
 # Python — data races caught at runtime (or not at all)
 import threading
@@ -115,7 +116,7 @@ def safe_append(items):
 # Forgetting the lock? No compiler warning. Bug discovered in production.
 ```
 
-### Rust — Compile-Time Errors
+### Rust — 컴파일 시점 오류
 ```rust
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -147,7 +148,7 @@ fn main() {
 }
 ```
 
-### Send and Sync Traits
+### `Send`와 `Sync` 트레잇
 ```rust
 // Rust uses two marker traits to enforce thread safety:
 
@@ -167,23 +168,23 @@ fn main() {
 // Rust catches them at compile time. This is "fearless concurrency."
 ```
 
-### Concurrency Primitives Comparison
+### 동시성 프리미티브 비교
 
-| Python | Rust | Purpose |
-|--------|------|---------|
-| `threading.Lock()` | `Mutex<T>` | Mutual exclusion |
-| `threading.RLock()` | `Mutex<T>` (no reentrant) | Reentrant lock (use differently) |
-| `threading.RWLock` (N/A) | `RwLock<T>` | Multiple readers OR one writer |
-| `threading.Event()` | `Condvar` | Condition variable |
-| `queue.Queue()` | `mpsc::channel()` | Thread-safe channel |
-| `multiprocessing.Pool` | `rayon::ThreadPool` | Thread pool |
-| `concurrent.futures` | `rayon` / `tokio::spawn` | Task-based parallelism |
-| `threading.local()` | `thread_local!` | Thread-local storage |
-| N/A | `Atomic*` types | Lock-free counters and flags |
+| Python | Rust | 용도 |
+|--------|------|------|
+| `threading.Lock()` | `Mutex<T>` | 상호 배제 |
+| `threading.RLock()` | `Mutex<T>` (재진입 아님) | 재진입 락에 가까운 용도 |
+| `threading.RWLock` (해당 없음) | `RwLock<T>` | 여러 읽기 또는 하나의 쓰기 |
+| `threading.Event()` | `Condvar` | 조건 변수 |
+| `queue.Queue()` | `mpsc::channel()` | 스레드 안전 채널 |
+| `multiprocessing.Pool` | `rayon::ThreadPool` | 스레드 풀 |
+| `concurrent.futures` | `rayon` / `tokio::spawn` | 태스크 기반 병렬성 |
+| `threading.local()` | `thread_local!` | 스레드 로컬 저장소 |
+| 해당 없음 | `Atomic*` 타입 | 락 없는 카운터와 플래그 |
 
-### Mutex Poisoning
+### `Mutex` 포이즈닝
 
-If a thread **panics** while holding a `Mutex`, the lock becomes *poisoned*. Python has no equivalent — if a thread crashes holding a `threading.Lock()`, the lock stays stuck.
+어떤 스레드가 `Mutex`를 잡은 상태에서 **panic**을 일으키면 그 락은 *poisoned* 상태가 됩니다. Python에는 정확히 대응되는 개념이 없습니다. Python에서 `threading.Lock()`을 잡은 스레드가 비정상 종료되면, 락은 그냥 막힌 상태로 남습니다.
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -209,26 +210,26 @@ match data.lock() {
 }
 ```
 
-### Atomic Ordering (brief note)
+### 원자적 순서화(`Ordering`) 짧은 메모
 
-The `Ordering` parameter on atomic operations controls memory visibility guarantees:
+원자 연산의 `Ordering` 매개변수는 메모리 가시성 보장을 얼마나 강하게 줄지 결정합니다.
 
-| Ordering | When to use |
-|----------|-------------|
-| `Relaxed` | Simple counters where ordering doesn't matter |
-| `Acquire`/`Release` | Producer-consumer: writer uses `Release`, reader uses `Acquire` |
-| `SeqCst` | When in doubt — strictest ordering, most intuitive |
+| Ordering | 사용하는 시점 |
+|----------|---------------|
+| `Relaxed` | 연산 순서가 중요하지 않은 단순 카운터 |
+| `Acquire`/`Release` | 생산자-소비자 패턴: 쓰는 쪽은 `Release`, 읽는 쪽은 `Acquire` |
+| `SeqCst` | 애매하면 이것부터: 가장 엄격하고 가장 직관적인 순서 |
 
-Python's `threading` module hides these details behind the GIL. In Rust, you choose explicitly — use `SeqCst` until profiling shows you need something weaker.
+Python의 `threading` 모듈은 GIL 뒤에 이런 세부 사항을 숨깁니다. Rust에서는 직접 선택해야 하므로, 특별한 근거가 없으면 먼저 `SeqCst`로 시작하고 프로파일링이 필요성을 보여줄 때 더 약한 순서화를 고려하세요.
 
 ***
 
-## async/await Comparison
+<a id="asyncawait-comparison"></a>
+## `async`/`await` 비교
 
-Python and Rust both have `async`/`await` syntax, but they work very differently
-under the hood.
+Python과 Rust 모두 `async`/`await` 문법을 제공하지만, 내부 동작 방식은 꽤 다릅니다.
 
-### Python async/await
+### Python `async`/`await`
 ```python
 # Python — asyncio for concurrent I/O
 import asyncio
@@ -255,7 +256,7 @@ asyncio.run(main())
 # CPU-bound work in async still blocks the event loop.
 ```
 
-### Rust async/await
+### Rust `async`/`await`
 ```rust
 // Rust — tokio for concurrent I/O (and CPU parallelism!)
 use reqwest;
@@ -287,20 +288,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Key Differences
+### 핵심 차이
 
-| Aspect | Python asyncio | Rust tokio |
-|--------|---------------|------------|
-| GIL | Still applies | No GIL |
-| CPU parallelism | ❌ Single-threaded | ✅ Multi-threaded |
-| Runtime | Built-in (asyncio) | External crate (tokio) |
-| Ecosystem | aiohttp, asyncpg, etc. | reqwest, sqlx, etc. |
-| Performance | Good for I/O | Excellent for I/O AND CPU |
-| Error handling | Exceptions | `Result<T, E>` |
-| Cancellation | `task.cancel()` | Drop the future |
-| Color problem | Sync ↔ async boundary | Same issue exists |
+| 항목 | Python `asyncio` | Rust `tokio` |
+|------|------------------|--------------|
+| GIL | 여전히 적용됨 | GIL 없음 |
+| CPU 병렬성 | ❌ 단일 스레드 | ✅ 멀티스레드 |
+| 런타임 | 내장(`asyncio`) | 외부 크레이트(`tokio`) |
+| 생태계 | `aiohttp`, `asyncpg` 등 | `reqwest`, `sqlx` 등 |
+| 성능 | I/O에는 충분히 좋음 | I/O와 CPU 모두 뛰어남 |
+| 에러 처리 | 예외 | `Result<T, E>` |
+| 취소 | `task.cancel()` | future를 drop |
+| 컬러 문제 | 동기/비동기 경계가 있음 | 같은 문제가 존재 |
 
-### Simple Parallelism with Rayon
+### Rayon으로 간단하게 병렬화하기
 ```python
 # Python — multiprocessing for CPU parallelism
 from multiprocessing import Pool
@@ -328,9 +329,9 @@ let results: Vec<_> = items.par_iter().map(|item| heavy_computation(item)).colle
 
 ---
 
-## 💼 Case Study: Parallel Image Processing Pipeline
+## 💼 사례 연구: 병렬 이미지 처리 파이프라인
 
-A data science team processes 50,000 satellite images nightly. Their Python pipeline uses `multiprocessing.Pool`:
+한 데이터 과학 팀이 매일 밤 위성 이미지 50,000장을 처리합니다. 이 팀의 Python 파이프라인은 `multiprocessing.Pool`을 사용합니다.
 
 ```python
 # Python — multiprocessing for CPU-bound image work
@@ -353,7 +354,7 @@ with multiprocessing.Pool(16) as pool:
     results = pool.map(process_image, image_paths)  # ~4.5 hours for 50k images
 ```
 
-**Pain points**: 800MB memory overhead from forking, pickle serialization of arguments/results, GIL prevents using threads, error handling is opaque (exceptions in workers are hard to debug).
+**문제점**: 프로세스를 포크하면서 800MB의 메모리 오버헤드가 생기고, 인자/결과를 `pickle`로 직렬화해야 하며, GIL 때문에 스레드를 쓸 수도 없습니다. 에러 처리도 불투명해서 워커 안에서 던져진 예외를 추적하기가 어렵습니다.
 
 ```rust
 use rayon::prelude::*;
@@ -393,27 +394,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // Memory: ~50MB total (shared threads, no forking)
 ```
 
-**Results**:
-| Metric | Python (multiprocessing) | Rust (rayon) |
-|--------|------------------------|--------------|
-| Time (50k images) | ~4.5 hours | ~35 minutes |
-| Memory overhead | 800MB (16 workers) | ~50MB (shared) |
-| Error handling | Opaque pickle errors | `Result<T, E>` at every step |
-| Startup cost | 2–3s (fork + pickle) | None (threads) |
+**결과**:
+| 지표 | Python (`multiprocessing`) | Rust (`rayon`) |
+|------|---------------------------|----------------|
+| 시간(5만 장 이미지) | 약 4.5시간 | 약 35분 |
+| 메모리 오버헤드 | 800MB(워커 16개) | 약 50MB(공유) |
+| 에러 처리 | 불투명한 `pickle` 오류 | 모든 단계에서 `Result<T, E>` |
+| 시작 비용 | 2-3초(fork + pickle) | 없음(스레드) |
 
-> **Key lesson**: For CPU-bound parallel work, Rust's threads + rayon replace Python's `multiprocessing` with zero serialization overhead, shared memory, and compile-time safety.
+> **핵심 교훈**: CPU 바운드 병렬 작업에서는 Rust의 스레드와 `rayon`이 Python의 `multiprocessing`을 대체합니다. 직렬화 오버헤드는 없고, 메모리를 공유할 수 있으며, 안전성은 컴파일 시점에 보장됩니다.
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Thread-Safe Counter</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 스레드 안전 카운터</strong> (펼쳐서 보기)</summary>
 
-**Challenge**: In Python, you might use `threading.Lock` to protect a shared counter. Translate this to Rust: spawn 10 threads, each incrementing a shared counter 1000 times. Print the final value (should be 10000). Use `Arc<Mutex<u64>>`.
+**도전 과제**: Python에서는 공유 카운터를 보호하기 위해 `threading.Lock`를 사용했을 것입니다. 이를 Rust로 옮겨보세요. 스레드 10개를 만들고, 각 스레드가 공유 카운터를 1000번씩 증가시킵니다. 마지막 값을 출력하세요(정답은 10000). `Arc<Mutex<u64>>`를 사용하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -441,11 +442,9 @@ fn main() {
 }
 ```
 
-**Key takeaway**: `Arc<Mutex<T>>` is Rust's equivalent of Python's `lock = threading.Lock()` + shared variable — but Rust *won't compile* if you forget the `Arc` or `Mutex`. Python happily runs a racy program and gives you wrong answers silently.
+**핵심 정리**: `Arc<Mutex<T>>`는 Python의 `lock = threading.Lock()` + 공유 변수 조합에 해당합니다. 차이는 Rust에서는 `Arc`나 `Mutex`를 빼먹으면 아예 컴파일이 되지 않는다는 점입니다. Python은 경쟁 상태가 있는 프로그램도 그냥 실행해버리고, 조용히 잘못된 답을 내놓을 수 있습니다.
 
 </details>
 </details>
 
 ***
-
-

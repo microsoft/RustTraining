@@ -1,14 +1,15 @@
-# 5. Channels and Message Passing 🟢
+# 5. 채널과 메시지 전달 🟢
 
-> **What you'll learn:**
-> - `std::sync::mpsc` basics and when to upgrade to crossbeam-channel
-> - Channel selection with `select!` for multi-source message handling
-> - Bounded vs unbounded channels and backpressure strategies
-> - The actor pattern for encapsulating concurrent state
+> **이 장에서 배울 내용:**
+> - `std::sync::mpsc` 기본과 crossbeam-channel으로 올릴 때
+> - 여러 소스 메시지를 다루는 `select!` 채널 선택
+> - 유한·무한 채널과 백프레셔 전략
+> - 동시 상태를 캡슐화하는 액터 패턴
 
-## std::sync::mpsc — The Standard Channel
+<a id="stdsyncmpsc-the-standard-channel"></a>
+## std::sync::mpsc — 표준 채널
 
-Rust's standard library provides a multi-producer, single-consumer channel:
+Rust 표준 라이브러리는 다중 생산자·단일 소비자 채널을 제공합니다:
 
 ```rust
 use std::sync::mpsc;
@@ -16,11 +17,11 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    // Create a channel: tx (transmitter) and rx (receiver)
+    // 채널 생성: tx(송신), rx(수신)
     let (tx, rx) = mpsc::channel();
 
-    // Spawn a producer thread
-    let tx1 = tx.clone(); // Clone for multiple producers
+    // 생산자 스레드
+    let tx1 = tx.clone(); // 여러 생산자용 클론
     thread::spawn(move || {
         for i in 0..5 {
             tx1.send(format!("producer-1: msg {i}")).unwrap();
@@ -28,7 +29,7 @@ fn main() {
         }
     });
 
-    // Second producer
+    // 두 번째 생산자
     thread::spawn(move || {
         for i in 0..5 {
             tx.send(format!("producer-2: msg {i}")).unwrap();
@@ -36,36 +37,37 @@ fn main() {
         }
     });
 
-    // Consumer: receive all messages
+    // 소비자: 모든 메시지 수신
     for msg in rx {
-        // rx iterator ends when ALL senders are dropped
+        // 모든 송신자가 drop되면 rx 이터레이터 종료
         println!("Received: {msg}");
     }
     println!("All producers done.");
 }
 ```
 
-**Key properties**:
-- **Unbounded** by default (can fill memory if consumer is slow)
-- `mpsc::sync_channel(N)` creates a **bounded** channel with backpressure
-- `rx.recv()` blocks the current thread until a message arrives
-- `rx.try_recv()` returns immediately with `Err(TryRecvError::Empty)` if nothing is ready
-- The channel closes when all `Sender`s are dropped
+**주요 성질**:
+- 기본은 **무한 버퍼**(소비자가 느리면 메모리가 찰 수 있음)
+- `mpsc::sync_channel(N)`은 **유한** 채널과 백프레셔를 만듦
+- `rx.recv()`는 메시지가 올 때까지 현재 스레드를 블록
+- `rx.try_recv()`는 준비된 것이 없으면 즉시 `Err(TryRecvError::Empty)` 반환
+- 모든 `Sender`가 drop되면 채널이 닫힘
 
 ```rust
-// Bounded channel with backpressure:
-let (tx, rx) = mpsc::sync_channel(10); // Buffer of 10 messages
+// 백프레셔가 있는 유한 채널:
+let (tx, rx) = mpsc::sync_channel(10); // 메시지 10개 버퍼
 
 thread::spawn(move || {
     for i in 0..1000 {
-        tx.send(i).unwrap(); // BLOCKS if buffer is full — natural backpressure
+        tx.send(i).unwrap(); // 버퍼가 가득 차면 블록 — 자연스러운 백프레셔
     }
 });
 ```
 
-### crossbeam-channel — The Production Workhorse
+<a id="crossbeam-channel-the-production-workhorse"></a>
+### crossbeam-channel — 프로덕션 실무용
 
-`crossbeam-channel` is the de facto standard for production channel usage. It's faster than `std::sync::mpsc` and supports multi-consumer (`mpmc`):
+`crossbeam-channel`은 프로덕션에서 채널을 쓸 때 사실상 표준입니다. `std::sync::mpsc`보다 빠르고 다중 소비자(`mpmc`)를 지원합니다:
 
 ```rust,ignore
 // Cargo.toml:
@@ -76,10 +78,10 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    // Bounded MPMC channel
+    // 유한 MPMC 채널
     let (tx, rx) = bounded::<String>(100);
 
-    // Multiple producers
+    // 여러 생산자
     for id in 0..4 {
         let tx = tx.clone();
         thread::spawn(move || {
@@ -88,9 +90,9 @@ fn main() {
             }
         });
     }
-    drop(tx); // Drop the original sender so the channel can close
+    drop(tx); // 원본 송신자를 drop해야 채널이 닫힐 수 있음
 
-    // Multiple consumers (not possible with std::sync::mpsc!)
+    // 여러 소비자(std::sync::mpsc에서는 불가!)
     let rx2 = rx.clone();
     let consumer1 = thread::spawn(move || {
         while let Ok(msg) = rx.recv() {
@@ -108,9 +110,10 @@ fn main() {
 }
 ```
 
-### Channel Selection (select!)
+<a id="channel-selection-select"></a>
+### 채널 선택(select!)
 
-Listen on multiple channels simultaneously — like `select` in Go:
+여러 채널을 동시에 대기 — Go의 `select`와 같습니다:
 
 ```rust,ignore
 use crossbeam_channel::{bounded, tick, after, select};
@@ -118,10 +121,10 @@ use std::time::Duration;
 
 fn main() {
     let (work_tx, work_rx) = bounded::<String>(10);
-    let ticker = tick(Duration::from_secs(1));        // Periodic tick
-    let deadline = after(Duration::from_secs(10));     // One-shot timeout
+    let ticker = tick(Duration::from_secs(1));        // 주기적 틱
+    let deadline = after(Duration::from_secs(10));     // One-shot 타임아웃
 
-    // Producer
+    // 생산자
     let tx = work_tx.clone();
     std::thread::spawn(move || {
         for i in 0..100 {
@@ -154,40 +157,41 @@ fn main() {
 }
 ```
 
-> **Go comparison**: This is exactly like Go's `select` statement over channels.
-> crossbeam's `select!` macro randomizes order to prevent starvation, just like Go.
+> **Go 비교**: Go의 채널 위 `select` 문과 같습니다.
+> crossbeam의 `select!`는 기아를 막기 위해 순서를 무작위로 섞습니다(Go와 동일).
 
-### Bounded vs Unbounded and Backpressure
+<a id="bounded-vs-unbounded-and-backpressure"></a>
+### 유한 vs 무한과 백프레셔
 
-| Type | Behavior When Full | Memory | Use Case |
+| 타입 | 가득 찰 때 동작 | 메모리 | 사용 사례 |
 |------|-------------------|--------|----------|
-| **Unbounded** | Never blocks (grows heap) | Unbounded ⚠️ | Rare — only when producer is slower than consumer |
-| **Bounded** | `send()` blocks until space | Fixed | Production default — prevents OOM |
-| **Rendezvous** (bounded(0)) | `send()` blocks until receiver is ready | None | Synchronization / handoff |
+| **무한** | 블록 안 함(힙 증가) | 무한 경고 | 드묾 — 생산자가 소비자보다 느릴 때만 |
+| **유한** | `send()`가 공간 날 때까지 블록 | 고정 | 프로덕션 기본 — OOM 방지 |
+| **랑데부**(bounded(0)) | `send()`가 수신 준비될 때까지 블록 | 없음 | 동기화 / 직접 전달 |
 
 ```rust
-// Rendezvous channel — zero capacity, direct handoff
+// 랑데부 채널 — 용량 0, 직접 전달
 let (tx, rx) = crossbeam_channel::bounded(0);
-// tx.send(x) blocks until rx.recv() is called, and vice versa.
-// This synchronizes the two threads precisely.
+// tx.send(x)는 rx.recv()가 호출될 때까지 블록되고, 그 반대도 마찬가지.
+// 두 스레드를 정확히 맞춥니다.
 ```
 
-**Rule**: Always use bounded channels in production unless you can prove the
-producer will never outpace the consumer.
+**규칙**: 생산자가 소비자보다 빠를 수 없다고 증명할 수 없는 한 프로덕션에서는 항상 유한 채널을 쓰세요.
 
-### Actor Pattern with Channels
+<a id="actor-pattern-with-channels"></a>
+### 채널을 쓰는 액터 패턴
 
-The actor pattern uses channels to serialize access to mutable state — no mutexes needed:
+액터 패턴은 가변 상태 접근을 채널로 직렬화합니다 — 뮤텍스가 필요 없을 수 있습니다:
 
 ```rust
 use std::sync::mpsc;
 use std::thread;
 
-// Messages the actor can receive
+// 액터가 받을 수 있는 메시지
 enum CounterMsg {
     Increment,
     Decrement,
-    Get(mpsc::Sender<i64>), // Reply channel
+    Get(mpsc::Sender<i64>), // 응답 채널
 }
 
 struct CounterActor {
@@ -213,7 +217,7 @@ impl CounterActor {
     }
 }
 
-// Actor handle — cheap to clone, Send + Sync
+// 액터 핸들 — 클론이 싸고 Send + Sync
 #[derive(Clone)]
 struct Counter {
     tx: mpsc::Sender<CounterMsg>,
@@ -239,7 +243,7 @@ impl Counter {
 fn main() {
     let counter = Counter::spawn();
 
-    // Multiple threads can safely use the counter — no mutex!
+    // 여러 스레드가 카운터를 안전하게 사용 — 뮤텍스 없음!
     let handles: Vec<_> = (0..10).map(|_| {
         let counter = counter.clone();
         thread::spawn(move || {
@@ -254,28 +258,28 @@ fn main() {
 }
 ```
 
-> **When to use actors vs mutexes**: Actors are great when the state has complex
-> invariants, operations take a long time, or you want to serialize access
-> without thinking about lock ordering. Mutexes are simpler for short critical sections.
+> **액터 vs 뮤텍스**: 상태 불변식이 복잡하거나 연산이 길거나, 락 순서를 생각하지 않고
+> 접근을 직렬화하고 싶을 때 액터가 좋습니다. 짧은 임계 구역은 뮤텍스가 더 단순합니다.
 
-> **Key Takeaways — Channels**
-> - `crossbeam-channel` is the production workhorse — faster and more feature-rich than `std::sync::mpsc`
-> - `select!` replaces complex multi-source polling with declarative channel selection
-> - Bounded channels provide natural backpressure; unbounded channels risk OOM
+> **핵심 정리 — 채널**
+> - `crossbeam-channel`이 프로덕션 실무용 — `std::sync::mpsc`보다 빠르고 기능이 많음
+> - `select!`가 복잡한 다중 소스 폴링을 선언적 채널 선택으로 바꿈
+> - 유한 채널이 자연스러운 백프레셔; 무한 채널은 OOM 위험
 
-> **See also:** [Ch 6 — Concurrency](ch06-concurrency-vs-parallelism-vs-threads.md) for threads, Mutex, and shared state. [Ch 15 — Async](ch15-asyncawait-essentials.md) for async channels (`tokio::sync::mpsc`).
+> **더 보기:** 스레드, Mutex, 공유 상태는 [6장 — 동시성](ch06-concurrency-vs-parallelism-vs-threads.md). async 채널(`tokio::sync::mpsc`)은 [15장 — Async](ch15-asyncawait-essentials.md).
 
 ---
 
-### Exercise: Channel-Based Worker Pool ★★★ (~45 min)
+<a id="exercise-channel-based-worker-pool"></a>
+### 연습: 채널 기반 워커 풀 ★★★ (~45분)
 
-Build a worker pool using channels where:
-- A dispatcher sends `Job` structs through a channel
-- N workers consume jobs and send results back
-- Use `std::sync::mpsc` with `Arc<Mutex<Receiver>>` for work-stealing
+채널로 워커 풀을 만드세요:
+- 디스패처가 `Job` 구조체를 채널로 보냄
+- N개 워커가 작업을 소비하고 결과를 돌려보냄
+- `std::sync::mpsc`와 `Arc<Mutex<Receiver>>`로 작업 스틸링
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::sync::mpsc;
@@ -350,4 +354,3 @@ fn main() {
 </details>
 
 ***
-

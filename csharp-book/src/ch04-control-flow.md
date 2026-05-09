@@ -1,29 +1,29 @@
-## Functions vs Methods
+<a id="functions-vs-methods"></a>
+## 함수 vs 메서드
 
-> **What you'll learn:** Functions and methods in Rust vs C#, the critical distinction between
-> expressions and statements, `if`/`match`/`loop`/`while`/`for` syntax, and how Rust's
-> expression-oriented design eliminates the need for ternary operators.
+> **이 절에서 배울 내용:** Rust와 C#에서의 함수와 메서드, 표현식과 문장의 중요한 차이, `if`/`match`/`loop`/`while`/`for` 문법, 그리고 표현식 중심 설계 덕분에 Rust에서 삼항 연산자가 거의 필요 없다는 점을 배웁니다.
 >
-> **Difficulty:** 🟢 Beginner
+> **난이도:** 🟢 입문
 
-### C# Function Declaration
+<a id="c-function-declaration"></a>
+### C# 함수 선언
 ```csharp
-// C# - Methods in classes
+// C# - 클래스 내부의 메서드
 public class Calculator
 {
-    // Instance method
+    // 인스턴스 메서드
     public int Add(int a, int b)
     {
         return a + b;
     }
     
-    // Static method
+    // 정적 메서드
     public static int Multiply(int a, int b)
     {
         return a * b;
     }
     
-    // Method with ref parameter
+    // ref 파라미터를 받는 메서드
     public void Increment(ref int value)
     {
         value++;
@@ -31,18 +31,19 @@ public class Calculator
 }
 ```
 
-### Rust Function Declaration
+<a id="rust-function-declaration"></a>
+### Rust 함수 선언
 ```rust
-// Rust - Standalone functions
+// Rust - 독립 함수
 fn add(a: i32, b: i32) -> i32 {
-    a + b  // No 'return' needed for final expression
+    a + b  // 마지막 표현식에는 return이 필요 없다
 }
 
 fn multiply(a: i32, b: i32) -> i32 {
-    return a * b;  // Explicit return is also fine
+    return a * b;  // 명시적 return도 가능하다
 }
 
-// Function with mutable reference
+// 가변 참조를 받는 함수
 fn increment(value: &mut i32) {
     *value += 1;
 }
@@ -57,20 +58,21 @@ fn main() {
 }
 ```
 
-### Expression vs Statement (Important!)
+<a id="expression-vs-statement-important"></a>
+### 표현식 vs 문장 (중요!)
 
 ```mermaid
 graph LR
-    subgraph "C# — Statements"
+    subgraph "C# - 문장 중심"
         CS1["if (cond)"] --> CS2["return 42;"]
         CS1 --> CS3["return 0;"]
-        CS2 --> CS4["Value exits via return"]
+        CS2 --> CS4["값은 return을 통해 빠져나감"]
         CS3 --> CS4
     end
-    subgraph "Rust — Expressions"
-        RS1["if cond"] --> RS2["42  (no semicolon)"]
-        RS1 --> RS3["0  (no semicolon)"]
-        RS2 --> RS4["Block IS the value"]
+    subgraph "Rust - 표현식 중심"
+        RS1["if cond"] --> RS2["42  (세미콜론 없음)"]
+        RS1 --> RS3["0  (세미콜론 없음)"]
+        RS2 --> RS4["블록 자체가 값이다"]
         RS3 --> RS4
     end
 
@@ -79,47 +81,48 @@ graph LR
 ```
 
 ```csharp
-// C# - Statements vs expressions
+// C# - 문장과 표현식
 public int GetValue()
 {
     if (condition)
     {
-        return 42;  // Statement
+        return 42;  // 문장
     }
-    return 0;       // Statement
+    return 0;       // 문장
 }
 ```
 
 ```rust
-// Rust - Everything can be an expression
+// Rust - 거의 모든 것이 표현식이 될 수 있다
 fn get_value(condition: bool) -> i32 {
     if condition {
-        42  // Expression (no semicolon)
+        42  // 표현식 (세미콜론 없음)
     } else {
-        0   // Expression (no semicolon)
+        0   // 표현식 (세미콜론 없음)
     }
-    // The if-else block itself is an expression that returns a value
+    // if-else 블록 자체가 값을 돌려주는 표현식이다
 }
 
-// Or even simpler
+// 더 짧게도 쓸 수 있다
 fn get_value_ternary(condition: bool) -> i32 {
     if condition { 42 } else { 0 }
 }
 ```
 
-### Function Parameters and Return Types
+<a id="function-parameters-and-return-types"></a>
+### 함수 매개변수와 반환 타입
 ```rust
-// No parameters, no return value (returns unit type ())
+// 매개변수도 없고 반환값도 없음 (unit type () 반환)
 fn say_hello() {
     println!("Hello!");
 }
 
-// Multiple parameters
+// 여러 개의 매개변수
 fn greet(name: &str, age: u32) {
     println!("{} is {} years old", name, age);
 }
 
-// Multiple return values using tuple
+// tuple을 이용한 다중 반환
 fn divide_and_remainder(dividend: i32, divisor: i32) -> (i32, i32) {
     (dividend / divisor, dividend % divisor)
 }
@@ -132,11 +135,13 @@ fn main() {
 
 ***
 
-## Control Flow Basics
+<a id="control-flow-basics"></a>
+## 제어 흐름 기초
 
-### Conditional Statements
+<a id="conditional-statements"></a>
+### 조건문
 ```csharp
-// C# if statements
+// C# if 문
 int x = 5;
 if (x > 10)
 {
@@ -151,12 +156,12 @@ else
     Console.WriteLine("Small number");
 }
 
-// C# ternary operator
+// C# 삼항 연산자
 string message = x > 10 ? "Big" : "Small";
 ```
 
 ```rust
-// Rust if expressions
+// Rust if 표현식
 let x = 5;
 if x > 10 {
     println!("Big number");
@@ -166,10 +171,10 @@ if x > 10 {
     println!("Small number");
 }
 
-// Rust if as expression (like ternary)
+// Rust에서 if는 표현식으로도 사용된다 (삼항 연산자와 비슷)
 let message = if x > 10 { "Big" } else { "Small" };
 
-// Multiple conditions
+// 여러 조건도 자연스럽게 연결 가능
 let message = if x > 10 {
     "Big"
 } else if x > 5 {
@@ -179,23 +184,24 @@ let message = if x > 10 {
 };
 ```
 
-### Loops
+<a id="loops"></a>
+### 반복문과 순회
 ```csharp
-// C# loops
-// For loop
+// C# 반복문
+// for 루프
 for (int i = 0; i < 5; i++)
 {
     Console.WriteLine(i);
 }
 
-// Foreach loop
+// foreach 루프
 var numbers = new[] { 1, 2, 3, 4, 5 };
 foreach (var num in numbers)
 {
     Console.WriteLine(num);
 }
 
-// While loop
+// while 루프
 int count = 0;
 while (count < 3)
 {
@@ -205,32 +211,32 @@ while (count < 3)
 ```
 
 ```rust
-// Rust loops
-// Range-based for loop
-for i in 0..5 {  // 0 to 4 (exclusive end)
+// Rust 반복문
+// 범위 기반 for 루프
+for i in 0..5 {  // 0부터 4까지 (끝은 제외)
     println!("{}", i);
 }
 
-// Iterate over collection
+// 컬렉션 순회
 let numbers = vec![1, 2, 3, 4, 5];
-for num in numbers {  // Takes ownership
+for num in numbers {  // 소유권을 가져간다
     println!("{}", num);
 }
 
-// Iterate over references (more common)
+// 참조를 순회 (더 흔한 패턴)
 let numbers = vec![1, 2, 3, 4, 5];
-for num in &numbers {  // Borrows elements
+for num in &numbers {  // 요소를 빌린다
     println!("{}", num);
 }
 
-// While loop
+// while 루프
 let mut count = 0;
 while count < 3 {
     println!("{}", count);
     count += 1;
 }
 
-// Infinite loop with break
+// break를 쓰는 무한 루프
 let mut counter = 0;
 loop {
     if counter >= 3 {
@@ -241,9 +247,10 @@ loop {
 }
 ```
 
-### Loop Control
+<a id="loop-control"></a>
+### 반복 제어
 ```csharp
-// C# loop control
+// C# 반복 제어
 for (int i = 0; i < 10; i++)
 {
     if (i == 3) continue;
@@ -253,18 +260,18 @@ for (int i = 0; i < 10; i++)
 ```
 
 ```rust
-// Rust loop control
+// Rust 반복 제어
 for i in 0..10 {
     if i == 3 { continue; }
     if i == 7 { break; }
     println!("{}", i);
 }
 
-// Loop labels (for nested loops)
+// 루프 라벨 (중첩 루프에서 유용)
 'outer: for i in 0..3 {
     'inner: for j in 0..3 {
         if i == 1 && j == 1 {
-            break 'outer;  // Break out of outer loop
+            break 'outer;  // 바깥 루프까지 한 번에 탈출
         }
         println!("i: {}, j: {}", i, j);
     }
@@ -273,14 +280,14 @@ for i in 0..10 {
 
 ***
 
-
+<a id="exercises"></a>
 <details>
-<summary><strong>🏋️ Exercise: Temperature Converter</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 온도 변환기</strong> (클릭해서 펼치기)</summary>
 
-**Challenge**: Convert this C# program to idiomatic Rust. Use expressions, pattern matching, and proper error handling.
+**도전 과제**: 아래 C# 프로그램을 Rust다운 코드로 바꿔 보세요. 표현식, 패턴 매칭, 적절한 에러 처리를 활용해 보세요.
 
 ```csharp
-// C# — convert this to Rust
+// C# - 이것을 Rust로 옮겨 보자
 public static double Convert(double value, string from, string to)
 {
     double celsius = from switch
@@ -301,7 +308,7 @@ public static double Convert(double value, string from, string to)
 ```
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -337,12 +344,10 @@ fn main() -> Result<(), String> {
 }
 ```
 
-**Key takeaways**:
-- Enums replace magic strings — exhaustive matching catches missing units at compile time
-- `Result<T, E>` replaces exceptions — the caller sees possible failures in the signature
-- `match` is an expression that returns a value — no `return` statements needed
+**핵심 정리**
+- enum이 매직 문자열을 대체하므로, 누락된 단위를 컴파일 타임 완전 매칭으로 잡을 수 있습니다.
+- `Result<T, E>`가 예외를 대체하므로, 호출자는 시그니처만 봐도 실패 가능성을 알 수 있습니다.
+- `match`는 값을 반환하는 표현식이므로, 별도 `return` 문 없이도 자연스럽게 쓸 수 있습니다.
 
 </details>
 </details>
-
-

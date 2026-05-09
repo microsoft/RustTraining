@@ -1,7 +1,7 @@
 [book]
-title = "Rust Engineering Practices — Beyond cargo build"
+title = "Rust 엔지니어링 실무 — cargo build를 넘어서"
 authors = ["Rust Training Team"]
-language = "en"
+language = "ko"
 src = "src"
 
 [build]

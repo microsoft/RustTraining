@@ -9,19 +9,19 @@ use std::process::Command;
 const BOOKS: &[(&str, &str, &str, &str)] = &[
     (
         "c-cpp-book",
-        "Rust for C/C++ Programmers",
+        "C/C++ 개발자를 위한 Rust",
         "Move semantics, RAII, FFI, embedded, no_std",
         "bridge",
     ),
     (
         "csharp-book",
-        "Rust for C# Programmers",
+        "C# 개발자를 위한 Rust",
         "Best for Swift / C# / Java developers",
         "bridge",
     ),
     (
         "python-book",
-        "Rust for Python Programmers",
+        "Python 개발자를 위한 Rust",
         "Dynamic → static typing, GIL-free concurrency",
         "bridge",
     ),
@@ -39,13 +39,13 @@ const BOOKS: &[(&str, &str, &str, &str)] = &[
     ),
     (
         "type-driven-correctness-book",
-        "Type-Driven Correctness",
+        "타입 주도 정확성",
         "Type-state, phantom types, capability tokens",
         "expert",
     ),
     (
         "engineering-book",
-        "Rust Engineering Practices",
+        "Rust 엔지니어링 실무",
         "Build scripts, cross-compilation, coverage, CI/CD",
         "practices",
     ),
@@ -99,12 +99,30 @@ Commands:
 // ── build ────────────────────────────────────────────────────────────
 
 fn cmd_build() {
+    if !check_mdbook() {
+        eprintln!("Error: 'mdbook' not found in PATH. Please install it: https://rust-lang.github.io/mdbook/guide/installation.html");
+        std::process::exit(1);
+    }
     build_to("site");
 }
 
 fn cmd_deploy() {
+    if !check_mdbook() {
+        eprintln!("Error: 'mdbook' not found in PATH.");
+        std::process::exit(1);
+    }
     build_to("docs");
-    println!("\nTo publish, commit docs/ and enable GitHub Pages → \"Deploy from a branch\" → /docs.");
+    println!("\nTo publish, push main and let .github/workflows/pages.yml deploy the docs/ artifact.");
+}
+
+fn check_mdbook() -> bool {
+    Command::new("mdbook")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn build_to(dir_name: &str) {
@@ -143,7 +161,20 @@ fn build_to(dir_name: &str) {
     println!("\n  {ok}/{} books built", BOOKS.len());
 
     write_landing_page(&out);
+    copy_license_files(&root, &out);
+    fs::write(out.join(".nojekyll"), "").expect("failed to create .nojekyll");
     println!("\nDone! Output in {dir_name}/");
+}
+
+fn copy_license_files(root: &Path, out: &Path) {
+    for file in ["LICENSE", "LICENSE-DOCS"] {
+        let src = root.join(file);
+        if src.is_file() {
+            fs::copy(&src, out.join(file)).unwrap_or_else(|err| {
+                panic!("failed to copy {file}: {err}");
+            });
+        }
+    }
 }
 
 fn category_label(cat: &str) -> &str {
@@ -174,11 +205,11 @@ fn write_landing_page(site: &Path) {
 
     let html = format!(
         r##"<!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rust Training Books</title>
+  <title>Rust 학습서 모음</title>
   <style>
     :root {{
       --bg: #1a1a2e;
@@ -264,11 +295,11 @@ fn write_landing_page(site: &Path) {
   </style>
 </head>
 <body>
-  <h1>🦀 <span>Rust</span> Training Books</h1>
-  <p class="subtitle">Pick the guide that matches your background</p>
+  <h1>🦀 <span>Rust</span> 학습서 모음</h1>
+  <p class="subtitle">배경에 맞는 가이드를 선택하세요</p>
 
   <div class="legend">
-    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-bridge)"></span> Bridge &mdash; learn Rust from another language</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--clr-bridge)"></span> Bridge &mdash; 다른 언어에서 Rust로 전환</span>
     <span class="legend-item"><span class="legend-dot" style="background:var(--clr-deep-dive)"></span> Deep Dive</span>
     <span class="legend-item"><span class="legend-dot" style="background:var(--clr-advanced)"></span> Advanced</span>
     <span class="legend-item"><span class="legend-dot" style="background:var(--clr-expert)"></span> Expert</span>
@@ -278,7 +309,11 @@ fn write_landing_page(site: &Path) {
   <div class="grid">
 {cards}
   </div>
-  <footer>Built with <a href="https://rust-lang.github.io/mdBook/" style="color:var(--accent)">mdBook</a></footer>
+  <footer>
+    <p><a href="https://rust-lang.github.io/mdBook/" style="color:var(--accent)">mdBook</a>로 빌드되었습니다.</p>
+    <p><a href="https://github.com/microsoft/RustTraining" style="color:var(--accent)">microsoft/RustTraining</a>을 기반으로 한 비공식 한국어 번역본입니다.</p>
+    <p>코드는 <a href="LICENSE" style="color:var(--accent)">MIT</a>, 문서와 번역은 <a href="LICENSE-DOCS" style="color:var(--accent)">CC-BY-4.0</a> 라이선스를 따릅니다.</p>
+  </footer>
 </body>
 </html>
 "##
@@ -289,17 +324,98 @@ fn write_landing_page(site: &Path) {
     println!("  ✓ index.html");
 }
 
+enum ResolveResult {
+    File(PathBuf),
+    Redirect(String),
+    NotFound,
+}
+
+fn resolve_site_file(site_canon: &Path, request_target: &str) -> ResolveResult {
+    let path_only = match request_target
+        .split('?')
+        .next()
+        .and_then(|s| s.split('#').next())
+    {
+        Some(p) => p,
+        None => return ResolveResult::NotFound,
+    };
+
+    let decoded = percent_decode_path(path_only);
+    if decoded.as_bytes().contains(&0) {
+        return ResolveResult::NotFound;
+    }
+
+    let rel = decoded.trim_start_matches('/');
+    let mut file_path = site_canon.to_path_buf();
+    if !rel.is_empty() {
+        for seg in rel.split('/').filter(|s| !s.is_empty()) {
+            if seg == ".." {
+                return ResolveResult::NotFound;
+            }
+            file_path.push(seg);
+        }
+    }
+
+    if file_path.is_dir() {
+        if !path_only.ends_with('/') && !path_only.is_empty() {
+            return ResolveResult::Redirect(format!("{path_only}/"));
+        }
+        file_path.push("index.html");
+    }
+
+    let real = match fs::canonicalize(&file_path) {
+        Ok(r) => r,
+        Err(_) => return ResolveResult::NotFound,
+    };
+
+    if !real.starts_with(site_canon) || !real.is_file() {
+        return ResolveResult::NotFound;
+    }
+
+    ResolveResult::File(real)
+}
+
+fn hex_val(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn percent_decode_path(input: &str) -> String {
+    let mut decoded = Vec::with_capacity(input.len());
+    let b = input.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let (Some(hi), Some(lo)) = (hex_val(b[i + 1]), hex_val(b[i + 2])) {
+                decoded.push(hi << 4 | lo);
+                i += 3;
+                continue;
+            }
+        }
+        decoded.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
 // ── serve ────────────────────────────────────────────────────────────
 
 fn cmd_serve() {
     let site = project_root().join("site");
+    let site_canon = fs::canonicalize(&site).expect(
+        "site/ not found — run `cargo xtask build` first (e.g. `cargo xtask serve` runs build automatically)",
+    );
     let addr = "127.0.0.1:3000";
     let listener = TcpListener::bind(addr).expect("failed to bind port 3000");
 
     // Handle Ctrl+C gracefully so cargo doesn't report an error
     ctrlc_exit();
 
-    println!("\nServing at http://{addr}  (Ctrl+C to stop)");
+    println!("\nServing at http://localhost:3000  (Ctrl+C to stop)");
 
     for stream in listener.incoming() {
         let Ok(mut stream) = stream else { continue };
@@ -313,28 +429,32 @@ fn cmd_serve() {
             .and_then(|line| line.split_whitespace().nth(1))
             .unwrap_or("/");
 
-        let mut file_path = site.join(path.trim_start_matches('/'));
-        if file_path.is_dir() {
-            file_path = file_path.join("index.html");
-        }
-
-        if file_path.is_file() {
-            let body = fs::read(&file_path).unwrap_or_default();
-            let mime = guess_mime(&file_path);
-            let header = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(&body);
-        } else {
-            let body = b"404 Not Found";
-            let header = format!(
-                "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            let _ = stream.write_all(header.as_bytes());
-            let _ = stream.write_all(body);
+        match resolve_site_file(&site_canon, path) {
+            ResolveResult::File(file_path) => {
+                let body = fs::read(&file_path).unwrap_or_default();
+                let mime = guess_mime(&file_path);
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(&body);
+            }
+            ResolveResult::Redirect(new_path) => {
+                let header = format!(
+                    "HTTP/1.1 301 Moved Permanently\r\nLocation: {new_path}\r\nContent-Length: 0\r\n\r\n"
+                );
+                let _ = stream.write_all(header.as_bytes());
+            }
+            ResolveResult::NotFound => {
+                let body = b"404 Not Found";
+                let header = format!(
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(body);
+            }
         }
     }
 }

@@ -1,12 +1,13 @@
-# Rust enum types
+<a id="rust-enum-types"></a>
+# Rust enum 타입
 
-> **What you'll learn:** Rust enums as discriminated unions (tagged unions done right), `match` for exhaustive pattern matching, and how enums replace C++ class hierarchies and C tagged unions with compiler-enforced safety.
+> **이 장에서 배우는 것:** Rust의 enum을 discriminated union, 즉 "제대로 된 tagged union"으로 이해하고, `match`를 통한 완전한 패턴 매칭, 그리고 enum이 어떻게 C++ 클래스 계층이나 C의 tagged union을 더 안전하게 대체하는지 배웁니다.
 
-- Enum types are discriminated unions, i.e., they are a sum type of several possible different types with a tag that identifies the specific variant
-    - For C developers: enums in Rust can carry data (tagged unions done right — the compiler tracks which variant is active)
-    - For C++ developers: Rust enums are like `std::variant` but with exhaustive pattern matching, no `std::get` exceptions, and no `std::visit` boilerplate
-    - The size of the `enum` is that of the largest possible type. The individual variants are not related to one another and can have completely different types
-    - `enum` types are one of the most powerful features of the language — they replace entire class hierarchies in C++ (more on this in the Case Studies)
+- enum 타입은 discriminated union입니다. 즉 여러 가능한 타입 중 하나를 담는 합 타입(sum type)이며, 현재 어떤 variant인지 나타내는 태그를 함께 가집니다.
+    - C 개발자 관점: Rust enum은 데이터를 담을 수 있습니다. 즉 "제대로 된 tagged union"이며, 어떤 variant가 활성 상태인지 컴파일러가 추적합니다.
+    - C++ 개발자 관점: Rust enum은 `std::variant`와 비슷하지만, 완전한 패턴 매칭이 있고 `std::get` 예외도 없으며 `std::visit` 보일러플레이트도 없습니다.
+    - enum의 크기는 가장 큰 variant의 크기에 맞춰집니다. 각 variant는 서로 상속 관계가 없으며 완전히 다른 타입을 담을 수 있습니다.
+    - enum은 Rust에서 가장 강력한 기능 중 하나이며, C++의 클래스 계층 전체를 대체하기도 합니다.
 ```rust
 fn main() {
     enum Numbers {
@@ -17,38 +18,39 @@ fn main() {
     }
     let a = Numbers::Zero;
     let b = Numbers::SmallNumber(42);
-    let c : Numbers = a; // Ok -- the type of a is Numbers
-    let d : Numbers = b; // Ok -- the type of b is Numbers
+    let c: Numbers = a; // OK -- a의 타입은 Numbers
+    let d: Numbers = b; // OK -- b의 타입도 Numbers
 }
 ```
 ----
-# Rust match statement
-- The Rust ```match``` is the equivalent of the C "switch" on steroids
-    - ```match``` can be used for pattern matching on simple data types, ```struct```, ```enum```
-    - The ```match``` statement must be exhaustive, i.e., they must cover all possible cases for a given ```type```. The ```_``` can be used a wildcard for the "all else" case
-    - ```match``` can yield a value, but all arms (```=>```) of must return a value of the same type
+<a id="rust-match-statement"></a>
+# Rust match 문
+- Rust의 `match`는 C의 `switch`를 훨씬 강력하게 만든 것이라 볼 수 있습니다.
+    - `match`는 단순한 값뿐 아니라 `struct`, `enum`에도 패턴 매칭할 수 있습니다.
+    - `match`는 반드시 완전해야 합니다. 즉 해당 `type`의 가능한 모든 경우를 다뤄야 합니다. `_`는 "그 외 모든 경우"를 의미하는 와일드카드입니다.
+    - `match`는 값을 반환할 수 있지만, 모든 arm(`=>`)은 같은 타입의 값을 반환해야 합니다.
 
 ```rust
 fn main() {
     let x = 42;
-    // In this case, the _ covers all numbers except the ones explicitly listed
+    // 이 경우 _는 명시된 값 외의 모든 수를 포괄한다
     let is_secret_of_life = match x {
-        42 => true, // return type is boolean value
-        _ => false, // return type boolean value
-        // This won't compile because return type isn't boolean
-        // _ => 0  
+        42 => true,  // bool 반환
+        _ => false,  // bool 반환
+        // 아래는 반환 타입이 bool이 아니므로 컴파일되지 않음
+        // _ => 0
     };
     println!("{is_secret_of_life}");
 }
 ```
 
-# Rust match statement
-- ```match``` supports ranges, boolean filters, and ```if``` guard statements
+# Rust match 문
+- `match`는 범위, 불리언 조건, `if` 가드도 지원합니다.
 ```rust
 fn main() {
     let x = 42;
     match x {
-        // Note that the =41 ensures the inclusive range
+        // =41 이므로 끝값 포함 범위
         0..=41 => println!("Less than the secret of life"),
         42 => println!("Secret of life"),
         _ => println!("More than the secret of life"),
@@ -57,15 +59,15 @@ fn main() {
     match y {
         100 if x == 43 => println!("y is 100% not secret of life"),
         100 if x == 42 => println!("y is 100% secret of life"),
-        _ => (),    // Do nothing
+        _ => (), // 아무것도 하지 않음
     }
 }
 ```
 
-# Rust match statement
-- ```match``` and ```enums``` are often combined together
-    - The match statement can "bind" the contained value to a variable. Use ```_``` if the value is a don't care
-    - The ```matches!``` macro can be used to match to specific variant
+# Rust match 문
+- `match`와 `enum`은 자주 함께 사용됩니다.
+    - `match`는 variant 안의 값을 변수로 바인딩할 수 있습니다. 값이 중요하지 않다면 `_`를 사용하면 됩니다.
+    - `matches!` 매크로를 쓰면 특정 variant인지 불리언으로 검사할 수 있습니다.
 ```rust
 fn main() {
     enum Numbers {
@@ -78,18 +80,20 @@ fn main() {
     match b {
         Numbers::Zero => println!("Zero"),
         Numbers::SmallNumber(value) => println!("Small number {value}"),
-        Numbers::BiggerNumber(_) | Numbers::EvenBiggerNumber(_) => println!("Some BiggerNumber or EvenBiggerNumber"),
+        Numbers::BiggerNumber(_) | Numbers::EvenBiggerNumber(_) => {
+            println!("Some BiggerNumber or EvenBiggerNumber")
+        }
     }
     
-    // Boolean test for specific variants
+    // 특정 variant인지 불리언 테스트
     if matches!(b, Numbers::Zero | Numbers::SmallNumber(_)) {
         println!("Matched Zero or small number");
     }
 }
 ```
 
-# Rust match statement
-- ```match``` can also perform matches using destructuring and slices
+# Rust match 문
+- `match`는 구조 분해와 슬라이스 패턴도 지원합니다.
 ```rust
 fn main() {
     struct Foo {
@@ -98,44 +102,45 @@ fn main() {
     }
     let f = Foo {x: (42, true), y: 100};
     match f {
-        // Capture the value of x into a variable called tuple
-        Foo{y: 100, x : tuple} => println!("Matched x: {tuple:?}"),
+        // x의 값을 tuple 변수로 바인딩
+        Foo { y: 100, x: tuple } => println!("Matched x: {tuple:?}"),
         _ => ()
     }
     let a = [40, 41, 42];
     match a {
-        // Last element of slice must be 42. @ is used to bind the match
+        // 슬라이스의 마지막 원소가 42여야 한다. @로 패턴 결과를 바인딩
         [rest @ .., 42] => println!("{rest:?}"),
-        // First element of the slice must be 42. @ is used to bind the match
+        // 슬라이스의 첫 원소가 42여야 한다
         [42, rest @ ..] => println!("{rest:?}"),
         _ => (),
     }
 }
 ```
 
-# Exercise: Implement add and subtract using match and enum
+<a id="exercise-implement-add-and-subtract-using-match-and-enum"></a>
+# 연습문제: match와 enum으로 덧셈/뺄셈 구현하기
 
 🟢 **Starter**
 
-- Write a function that implements arithmetic operations on unsigned 64-bit numbers
-- **Step 1**: Define an enum for operations:
+- 부호 없는 64비트 정수에 대한 산술 연산 함수를 작성하세요.
+- **1단계**: 연산용 enum 정의
 ```rust
 enum Operation {
     Add(u64, u64),
     Subtract(u64, u64),
 }
 ```
-- **Step 2**: Define a result enum:
+- **2단계**: 결과용 enum 정의
 ```rust
 enum CalcResult {
-    Ok(u64),                    // Successful result
-    Invalid(String),            // Error message for invalid operations
+    Ok(u64),                    // 성공 결과
+    Invalid(String),            // 잘못된 연산에 대한 에러 메시지
 }
 ```
-- **Step 3**: Implement `calculate(op: Operation) -> CalcResult`
-    - For Add: return Ok(sum)
-    - For Subtract: return Ok(difference) if first >= second, otherwise Invalid("Underflow")
-- **Hint**: Use pattern matching in your function:
+- **3단계**: `calculate(op: Operation) -> CalcResult` 구현
+    - Add는 `Ok(sum)` 반환
+    - Subtract는 첫 번째 값이 두 번째 값보다 크거나 같으면 `Ok(difference)`, 아니면 `Invalid("Underflow")`
+- **힌트**: 함수 안에서 패턴 매칭을 사용하세요.
 ```rust
 match op {
     Operation::Add(a, b) => { /* your code */ },
@@ -143,7 +148,7 @@ match op {
 }
 ```
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 enum Operation {
@@ -186,16 +191,16 @@ fn main() {
 
 </details>
 
-# Rust associated methods
-- ```impl``` can define methods associated for types like ```struct```, ```enum```, etc
-    - The methods may optionally take ```self``` as a parameter. ```self``` is conceptually similar to passing a pointer to the struct as the first parameter in C, or ```this``` in C++
-    - The reference to ```self``` can be immutable (default: ```&self```), mutable (```&mut self```), or ```self``` (transferring ownership)
-    - The ```Self``` keyword can be used a shortcut to imply the type
+# Rust 연관 메서드
+- `impl`은 `struct`, `enum` 같은 타입에 연관 메서드를 정의할 수 있습니다.
+    - 메서드는 선택적으로 `self`를 받을 수 있습니다. `self`는 개념적으로 C에서 구조체 포인터를 첫 번째 인자로 넘기는 것, 혹은 C++의 `this`와 비슷합니다.
+    - `self` 참조는 불변(`&self`), 가변(`&mut self`), 소유권 이전(`self`) 중 하나일 수 있습니다.
+    - `Self` 키워드는 현재 타입을 가리키는 축약 표기입니다.
 ```rust
-struct Point {x: u32, y: u32}
+struct Point { x: u32, y: u32 }
 impl Point {
     fn new(x: u32, y: u32) -> Self {
-        Point {x, y}
+        Point { x, y }
     }
     fn increment_x(&mut self) {
         self.x += 1;
@@ -207,14 +212,14 @@ fn main() {
 }
 ```
 
-# Exercise: Point add and transform
+# 연습문제: Point add와 transform
 
-🟡 **Intermediate** — requires understanding move vs borrow from method signatures
-- Implement the following associated methods for ```Point```
-    - ```add()``` will take another ```Point``` and will increment the x and y values in place (hint: use ```&mut self```)
-    - ```transform()``` will consume an existing ```Point``` (hint: use ```self```) and return a new ```Point``` by squaring the x and y
+🟡 **Intermediate** - 메서드 시그니처에서 move와 borrow 차이를 이해해야 합니다.
+- `Point`에 다음 연관 메서드를 구현하세요.
+    - `add()`는 다른 `Point`를 받아 x와 y를 제자리에서 증가시킵니다. 힌트: `&mut self`
+    - `transform()`은 기존 `Point`를 소비합니다. 힌트: `self`를 사용하고, x와 y를 제곱한 새 `Point`를 반환하세요.
 
-<details><summary>Solution (click to expand)</summary>
+<details><summary>해답 (클릭하여 펼치기)</summary>
 
 ```rust
 struct Point { x: u32, y: u32 }
@@ -236,14 +241,13 @@ fn main() {
     let mut p1 = Point::new(2, 3);
     let p2 = Point::new(10, 20);
     p1.add(&p2);
-    println!("After add: x={}, y={}", p1.x, p1.y);           // x=12, y=23
+    println!("After add: x={}, y={}", p1.x, p1.y);       // x=12, y=23
     let p3 = p1.transform();
-    println!("After transform: x={}, y={}", p3.x, p3.y);     // x=144, y=529
-    // p1 is no longer accessible — transform() consumed it
+    println!("After transform: x={}, y={}", p3.x, p3.y); // x=144, y=529
+    // p1은 더 이상 접근할 수 없음 - transform()이 소비했기 때문
 }
 ```
 
 </details>
 
 ----
-

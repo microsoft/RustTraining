@@ -1,42 +1,43 @@
-# 8. Smart Pointers and Interior Mutability 🟡
+<a id="smart-pointers-and-interior-mutability"></a>
+# 9. 스마트 포인터와 내부 가변성 🟡
 
-> **What you'll learn:**
-> - Box, Rc, Arc for heap allocation and shared ownership
-> - Weak references for breaking Rc/Arc reference cycles
-> - Cell, RefCell, and Cow for interior mutability patterns
-> - Pin for self-referential types and ManuallyDrop for lifecycle control
+> **이 장에서 배울 내용:**
+> - 힙 할당·공유 소유권을 위한 Box, Rc, Arc
+> - Rc/Arc 순환 참조를 끊기 위한 Weak 참조
+> - 내부 가변성 패턴을 위한 Cell, RefCell, Cow
+> - 자기 참조 타입을 위한 Pin과 수명 주기 제어를 위한 ManuallyDrop
 
-## Box, Rc, Arc — Heap Allocation and Sharing
+<a id="box-rc-arc--heap-allocation-and-sharing"></a>
+## Box, Rc, Arc — 힙 할당과 공유
 
 ```rust
-// --- Box<T>: Single owner, heap allocation ---
-// Use when: recursive types, large values, trait objects
+// --- Box<T>: 단일 소유자, 힙 할당 ---
+// 사용: 재귀 타입, 큰 값, 트레잇 객체
 let boxed: Box<i32> = Box::new(42);
-println!("{}", *boxed); // Deref to i32
+println!("{}", *boxed); // i32로 Deref
 
-// Recursive type requires Box (otherwise infinite size):
+// 재귀 타입에는 Box 필요(그렇지 않으면 크기가 무한):
 enum List<T> {
     Cons(T, Box<List<T>>),
     Nil,
 }
 
-// Trait object (dynamic dispatch):
+// 트레잇 객체(동적 디스패치):
 let writer: Box<dyn std::io::Write> = Box::new(std::io::stdout());
 
-// --- Rc<T>: Multiple owners, single-threaded ---
-// Use when: shared ownership within one thread (no Send/Sync)
+// --- Rc<T>: 다중 소유자, 단일 스레드 ---
+// 사용: 한 스레드 안에서 공유 소유권(Send/Sync 없음)
 use std::rc::Rc;
 
 let a = Rc::new(vec![1, 2, 3]);
-let b = Rc::clone(&a); // Increments reference count (NOT deep clone)
+let b = Rc::clone(&a); // 참조 카운트 증가(깊은 복제 아님)
 let c = Rc::clone(&a);
 println!("Ref count: {}", Rc::strong_count(&a)); // 3
 
-// All three point to the same Vec. When the last Rc is dropped,
-// the Vec is deallocated.
+// 셋이 같은 Vec을 가리킴. 마지막 Rc가 드롭되면 Vec이 해제됨.
 
-// --- Arc<T>: Multiple owners, thread-safe ---
-// Use when: shared ownership across threads
+// --- Arc<T>: 다중 소유자, 스레드 안전 ---
+// 사용: 스레드 간 공유 소유권
 use std::sync::Arc;
 
 let shared = Arc::new(String::from("shared data"));
@@ -47,10 +48,11 @@ let handles: Vec<_> = (0..5).map(|_| {
 for h in handles { h.join().unwrap(); }
 ```
 
-### Weak References — Breaking Reference Cycles
+<a id="weak-references--breaking-reference-cycles"></a>
+### Weak 참조 — 순환 참조 끊기
 
-`Rc` and `Arc` use reference counting, which cannot free cycles (A → B → A).
-`Weak<T>` is a non-owning handle that does **not** increment the strong count:
+`Rc`와 `Arc`는 참조 카운트를 쓰므로 순환(A → B → A)을 해제할 수 없습니다.
+`Weak<T>`는 **강한 카운트를 올리지 않는** 비소유 핸들입니다.
 
 ```rust
 use std::rc::{Rc, Weak};
@@ -58,7 +60,7 @@ use std::cell::RefCell;
 
 struct Node {
     value: i32,
-    parent: RefCell<Weak<Node>>,   // does NOT keep parent alive
+    parent: RefCell<Weak<Node>>,   // 부모를 살려 두지 않음
     children: RefCell<Vec<Rc<Node>>>,
 }
 
@@ -70,26 +72,26 @@ let child = Rc::new(Node {
 });
 parent.children.borrow_mut().push(Rc::clone(&child));
 
-// Access parent from child — returns Option<Rc<Node>>:
+// 자식에서 부모 접근 — Option<Rc<Node>> 반환:
 if let Some(p) = child.parent.borrow().upgrade() {
     println!("Child's parent value: {}", p.value); // 0
 }
-// When `parent` is dropped, strong_count → 0, memory is freed.
-// `child.parent.upgrade()` would then return `None`.
+// `parent`가 드롭되면 strong_count → 0, 메모리 해제.
+// 그 후 `child.parent.upgrade()`는 `None`.
 ```
 
-**Rule of thumb**: Use `Rc`/`Arc` for ownership edges, `Weak` for back-references
-and caches. For thread-safe code, use `Arc<T>` with `sync::Weak<T>`.
+**경험칙**: 소유권 방향에는 `Rc`/`Arc`, 역참조·캐시에는 `Weak`. 스레드 안전 코드에는 `Arc<T>`와 `sync::Weak<T>`.
 
-### Cell and RefCell — Interior Mutability
+<a id="cell-and-refcell--interior-mutability"></a>
+### Cell과 RefCell — 내부 가변성
 
-Sometimes you need to mutate data behind a shared (`&`) reference. Rust provides *interior mutability* with runtime borrow checking:
+공유(`&`) 참조 뒤에서 데이터를 바꿔야 할 때가 있습니다. Rust는 **내부 가변성**을 런타임 빌림 검사로 제공합니다.
 
 ```rust
 use std::cell::{Cell, RefCell};
 
-// --- Cell<T>: Copy-based interior mutability ---
-// Only for Copy types (or types you swap in/out)
+// --- Cell<T>: Copy 기반 내부 가변성 ---
+// Copy 타입에만(또는 swap으로 교체)
 struct Counter {
     count: Cell<u32>,
 }
@@ -97,15 +99,15 @@ struct Counter {
 impl Counter {
     fn new() -> Self { Counter { count: Cell::new(0) } }
 
-    fn increment(&self) { // &self, not &mut self!
+    fn increment(&self) { // &self, &mut self 아님!
         self.count.set(self.count.get() + 1);
     }
 
     fn value(&self) -> u32 { self.count.get() }
 }
 
-// --- RefCell<T>: Runtime borrow checking ---
-// Panics if you violate borrow rules at runtime
+// --- RefCell<T>: 런타임 빌림 검사 ---
+// 빌림 규칙을 런타임에 위반하면 패닉
 struct Cache {
     data: RefCell<Vec<String>>,
 }
@@ -113,41 +115,39 @@ struct Cache {
 impl Cache {
     fn new() -> Self { Cache { data: RefCell::new(Vec::new()) } }
 
-    fn add(&self, item: String) { // &self — looks immutable from outside
-        self.data.borrow_mut().push(item); // Runtime-checked &mut
+    fn add(&self, item: String) { // 밖에서는 불변처럼 보임
+        self.data.borrow_mut().push(item); // 런타임 검사 &mut
     }
 
     fn get_all(&self) -> Vec<String> {
-        self.data.borrow().clone() // Runtime-checked &
+        self.data.borrow().clone() // 런타임 검사 &
     }
 
     fn bad_example(&self) {
         let _guard1 = self.data.borrow();
         // let _guard2 = self.data.borrow_mut();
-        // ❌ PANICS at runtime — can't have &mut while & exists
+        // ❌ 런타임 패닉 — &가 있는 동안 &mut 불가
     }
 }
 ```
 
-> **Cell vs RefCell**: `Cell` never panics (it copies/swaps values) but only
-> works with `Copy` types or via `swap()`/`replace()`. `RefCell` works with any
-> type but panics on double-mutable-borrow. Neither is `Sync` — for multithreaded
-> use, see `Mutex`/`RwLock`.
+> **Cell vs RefCell**: `Cell`은 가져오기/설정하기로 복사·스왑하므로 패닉이 없지만 `Copy`에만 해당하거나 `swap()`/`replace()`로 처리합니다. `RefCell`은 모든 타입에 쓸 수 있으나 가변 이중 빌림에서 패닉합니다. 둘 다 `Sync`가 아님 — 멀티스레드는 `Mutex`/`RwLock`을 보세요.
 
-### Cow — Clone on Write
+<a id="cow--clone-on-write"></a>
+### Cow — 필요할 때만 복제
 
-`Cow` (Clone on Write) holds either a borrowed or owned value. It clones *only* when mutation is needed:
+`Cow`(Clone on Write)는 빌려 온 값 또는 소유한 값을 담습니다. **변경이 필요할 때만** 복제합니다.
 
 ```rust
 use std::borrow::Cow;
 
-// Avoids allocating when no modification is needed:
+// 수정이 없으면 할당을 피함:
 fn normalize(input: &str) -> Cow<'_, str> {
     if input.contains('\t') {
-        // Only allocate if tabs need replacing
+        // 탭을 바꿀 때만 할당
         Cow::Owned(input.replace('\t', "    "))
     } else {
-        // No allocation — just return a reference
+        // 할당 없음 — 참조만 반환
         Cow::Borrowed(input)
     }
 }
@@ -156,76 +156,74 @@ fn main() {
     let clean = "no tabs here";
     let dirty = "tabs\there";
 
-    let r1 = normalize(clean); // Cow::Borrowed — zero allocation
-    let r2 = normalize(dirty); // Cow::Owned — allocated new String
+    let r1 = normalize(clean); // Cow::Borrowed — 할당 0
+    let r2 = normalize(dirty); // Cow::Owned — 새 String 할당
 
     println!("{r1}");
     println!("{r2}");
 }
 
-// Also useful for function parameters that MIGHT need ownership:
+// 소유권이 필요할 수도 있는 매개변수에도 유용:
 fn process(data: Cow<'_, [u8]>) {
-    // Can read data without copying
+    // 복사 없이 읽을 수 있음
     println!("Length: {}", data.len());
-    // If we need to mutate, Cow auto-clones:
-    let mut owned = data.into_owned(); // Clone only if Borrowed
+    // 변경이 필요하면 Cow가 자동으로 복제:
+    let mut owned = data.into_owned(); // Borrowed일 때만 복제
     owned.push(0xFF);
 }
 ```
 
-#### `Cow<'_, [u8]>` for Binary Data
+<a id="cow-u8-for-binary-data"></a>
+#### 바이너리 데이터용 `Cow<'_, [u8]>`
 
-`Cow` is especially useful for byte-oriented APIs where data may or may not
-need transformation (checksum insertion, padding, escaping). This avoids
-allocating a `Vec<u8>` on the common fast path:
+`Cow`는 체크섬 삽입·패딩·이스케이프 등 변환이 필요할 수도 있는 바이트 API에 특히 유용합니다. 흔한 빠른 경로에서 `Vec<u8>` 할당을 피합니다.
 
 ```rust
 use std::borrow::Cow;
 
-/// Pads a frame to a minimum length, borrowing when no padding is needed.
+/// 프레임을 최소 길이까지 패딩. 패딩이 없으면 빌림.
 fn pad_frame(frame: &[u8], min_len: usize) -> Cow<'_, [u8]> {
     if frame.len() >= min_len {
-        Cow::Borrowed(frame)  // Already long enough — zero allocation
+        Cow::Borrowed(frame)  // 이미 충분히 김 — 할당 0
     } else {
         let mut padded = frame.to_vec();
         padded.resize(min_len, 0x00);
-        Cow::Owned(padded)    // Allocate only when padding is required
+        Cow::Owned(padded)    // 패딩이 필요할 때만 할당
     }
 }
 
-let short = pad_frame(&[0xDE, 0xAD], 8);    // Owned — padded to 8 bytes
-let long  = pad_frame(&[0; 64], 8);          // Borrowed — already ≥ 8
+let short = pad_frame(&[0xDE, 0xAD], 8);    // 소유 — 8바이트로 패딩
+let long  = pad_frame(&[0; 64], 8);          // 빌림 — 이미 ≥ 8
 ```
 
-> **Tip**: Combine `Cow<[u8]>` with `bytes::Bytes` (Ch10) when you need
-> reference-counted sharing of potentially-transformed buffers.
+> **팁**: 변환된 버퍼를 참조 카운트로 공유해야 하면 `Cow<[u8]>`와 `bytes::Bytes`(10장)를 함께 쓰세요.
 
-### When to Use Which Pointer
+<a id="when-to-use-which-pointer"></a>
+### 어떤 포인터를 쓸지
 
-| Pointer | Owner Count | Thread-Safe | Mutability | Use When |
+| 포인터 | 소유자 수 | 스레드 안전 | 가변성 | 쓸 때 |
 |---------|:-----------:|:-----------:|:----------:|----------|
-| `Box<T>` | 1 | ✅ (if T: Send) | Via `&mut` | Heap allocation, trait objects, recursive types |
-| `Rc<T>` | N | ❌ | None (wrap in Cell/RefCell) | Shared ownership, single thread, graphs/trees |
-| `Arc<T>` | N | ✅ | None (wrap in Mutex/RwLock) | Shared ownership across threads |
-| `Cell<T>` | — | ❌ | `.get()` / `.set()` | Interior mutability for Copy types |
-| `RefCell<T>` | — | ❌ | `.borrow()` / `.borrow_mut()` | Interior mutability for any type, single thread |
-| `Cow<'_, T>` | 0 or 1 | ✅ (if T: Send) | Clone on write | Avoid allocation when data is often unchanged |
+| `Box<T>` | 1 | ✅ (T: Send이면) | `&mut`로 | 힙, 트레잇 객체, 재귀 타입 |
+| `Rc<T>` | N | ❌ | 없음(Cell/RefCell로 감쌈) | 단일 스레드 공유, 그래프/트리 |
+| `Arc<T>` | N | ✅ | 없음(Mutex/RwLock로 감쌈) | 스레드 간 공유 |
+| `Cell<T>` | — | ❌ | `.get()` / `.set()` | Copy 타입 내부 가변성 |
+| `RefCell<T>` | — | ❌ | `.borrow()` / `.borrow_mut()` | 임의 타입, 단일 스레드 |
+| `Cow<'_, T>` | 0 또는 1 | ✅ (T: Send이면) | 쓸 때 복제 | 자주 바뀌지 않을 때 할당 회피 |
 
-### Pin and Self-Referential Types
+<a id="pin-and-self-referential-types"></a>
+### Pin과 자기 참조 타입
 
-`Pin<P>` prevents a value from being moved in memory. This is essential for
-**self-referential types** — structs that contain a pointer to their own data —
-and for `Future`s, which may hold references across `.await` points.
+`Pin<P>`는 값이 메모리에서 **이동하지 않도록** 막습니다. **자기 참조 타입** — 자기 데이터를 가리키는 포인터를 품은 구조체 — 과 `.await` 지점에 참조를 걸 수 있는 `Future`에 필수입니다.
 
 ```rust
 use std::pin::Pin;
 use std::marker::PhantomPinned;
 
-// A self-referential struct (simplified):
+// 자기 참조 구조체(단순화):
 struct SelfRef {
     data: String,
-    ptr: *const String, // Points to `data` above
-    _pin: PhantomPinned, // Opts out of Unpin — can't be moved
+    ptr: *const String, // 위 `data`를 가리킴
+    _pin: PhantomPinned, // Unpin 해제 — 이동 불가
 }
 
 impl SelfRef {
@@ -237,7 +235,7 @@ impl SelfRef {
         };
         let mut boxed = Box::pin(val);
 
-        // SAFETY: we don't move the data after setting the pointer
+        // SAFETY: 포인터를 설정한 뒤 데이터를 이동하지 않음
         let self_ptr: *const String = &boxed.data;
         unsafe {
             let mut_ref = Pin::as_mut(&mut boxed);
@@ -251,109 +249,103 @@ impl SelfRef {
     }
 
     fn ptr_data(&self) -> &str {
-        // SAFETY: ptr was set to point to self.data while pinned
+        // SAFETY: ptr은 고정된 동안 self.data를 가리키도록 설정됨
         unsafe { &*self.ptr }
     }
 }
 
 fn main() {
     let pinned = SelfRef::new("hello");
-    assert_eq!(pinned.data(), pinned.ptr_data()); // Both "hello"
-    // std::mem::swap would invalidate ptr — but Pin prevents it
+    assert_eq!(pinned.data(), pinned.ptr_data()); // 둘 다 "hello"
+    // std::mem::swap은 ptr을 무효화할 수 있음 — Pin이 막음
 }
 ```
 
-**Key concepts**:
+**개념 요약**:
 
-| Concept | Meaning |
+| 개념 | 의미 |
 |---------|--------|
-| `Unpin` (auto-trait) | "Moving this type is safe." Most types are `Unpin` by default. |
-| `!Unpin` / `PhantomPinned` | "I have internal pointers — don't move me." |
-| `Pin<&mut T>` | A mutable reference that guarantees `T` won't move |
-| `Pin<Box<T>>` | An owned, heap-pinned value |
+| `Unpin`(자동 트레잇) | "이 타입은 이동해도 안전." 대부분 기본이 `Unpin`. |
+| `!Unpin` / `PhantomPinned` | "내부 포인터가 있음 — 이동하지 마." |
+| `Pin<&mut T>` | `T`가 움직이지 않을 것이라는 보장이 있는 가변 참조 |
+| `Pin<Box<T>>` | 소유·힙에 고정된 값 |
 
-**Why this matters for async**: Every `async fn` desugars to a `Future` that may
-hold references across `.await` points — making it self-referential. The async
-runtime uses `Pin<&mut Future>` to guarantee the future isn't moved once polled.
+**async와의 관계**: 모든 `async fn`은 `.await` 지점에 참조를 걸 수 있는 `Future`로 역설어 **자기 참조**가 될 수 있습니다. 런타임은 `Future::poll`을 호출하기 전에 `Pin<&mut Future>`로 future를 고정합니다.
 
 ```rust
-// When you write:
+// 이렇게 쓰면:
 async fn fetch(url: &str) -> String {
-    let response = http_get(url).await; // reference held across await
+    let response = http_get(url).await; // await에 걸친 참조
     response.text().await
 }
 
-// The compiler generates a state machine struct that is !Unpin,
-// and the runtime pins it before calling Future::poll().
+// 컴파일러는 상태 머신 구조체를 생성하고 !Unpin이며,
+// 런타임은 poll 전에 Pin으로 고정합니다.
 ```
 
-> **When to care about Pin**: (1) Implementing `Future` manually, (2) writing
-> async runtimes or combinators, (3) any struct with self-referential pointers.
-> For normal application code, `async/await` handles pinning transparently.
-> See the companion *Async Rust Training* for deeper coverage.
+> **Pin을 언제 신경 쓸지**: (1) `Future`를 직접 구현할 때, (2) async 런타임이나 컴비네이터를 쓸 때, (3) 자기 참조 포인터가 있는 타입. 일반 애플리케이션 코드에서는 `async/await`가 Pin을 투명하게 처리합니다. 심화는 동반서 *Async Rust Training*을 보세요.
 >
-> **Crate alternatives**: For self-referential structs without manual `Pin`,
-> consider [`ouroboros`](https://crates.io/crates/ouroboros) or
-> [`self_cell`](https://crates.io/crates/self_cell) — they generate safe
-> wrappers with correct pinning and drop semantics.
+> **크레이트 대안**: 수동 `Pin` 없이 자기 참조 구조체를 쓰려면 [`ouroboros`](https://crates.io/crates/ouroboros)나 [`self_cell`](https://crates.io/crates/self_cell)을 고려하세요 — 고정과 드롭 의미가 맞는 안전한 래퍼를 생성합니다.
 
-### Pin Projections — Structural Pinning
+<a id="pin-projections--structural-pinning"></a>
+### Pin 프로젝션 — 구조적 고정
 
-When you have a `Pin<&mut MyStruct>`, you often need to access individual fields.
-**Pin projection** is the pattern for safely going from `Pin<&mut Struct>` to
-`Pin<&mut Field>` (for pinned fields) or `&mut Field` (for unpinned fields).
+`Pin<&mut MyStruct>`가 있을 때 필드에 접근해야 합니다.
+**Pin 프로젝션**은 `Pin<&mut Struct>`에서 `Pin<&mut Field>`(고정된 필드) 또는 `&mut Field`(고정되지 않은 필드)로 가는 패턴입니다.
 
-#### The Problem: Field Access on Pinned Types
+<a id="the-problem-field-access-on-pinned-types"></a>
+#### 문제: 고정된 타입의 필드 접근
 
 ```rust
 use std::pin::Pin;
 use std::marker::PhantomPinned;
 
 struct MyFuture {
-    data: String,              // Regular field — safe to move
-    state: InternalState,      // Self-referential — must stay pinned
+    data: String,              // 일반 필드 — 이동해도 됨
+    state: InternalState,      // 자기 참조 — 고정해야 함
     _pin: PhantomPinned,
 }
 
 enum InternalState {
-    Waiting { ptr: *const String }, // Points to `data` — self-referential
+    Waiting { ptr: *const String }, // `data`를 가리킴 — 자기 참조
     Done,
 }
 
-// Given `Pin<&mut MyFuture>`, how do you access `data` and `state`?
-// You CAN'T just do `pinned.data` — the compiler won't let you
-// get a &mut to a field of a pinned value without unsafe.
+// `Pin<&mut MyFuture>`가 있을 때 `data`와 `state`에 어떻게 접근?
+// 그냥 `pinned.data`는 안 됨 — 컴파일러가 고정된 값의 필드에
+// &mut을 얻기 위해 unsafe 없이는 막음.
 ```
 
-#### Manual Pin Projection (unsafe)
+<a id="manual-pin-projection-unsafe"></a>
+#### 수동 Pin 프로젝션(unsafe)
 
 ```rust
 impl MyFuture {
-    // Project to `data` — this field is structurally unpinned (safe to move)
+    // `data`로 프로젝션 — 구조적으로 고정되지 않음(이동해도 안전)
     fn data(self: Pin<&mut Self>) -> &mut String {
-        // SAFETY: `data` is not structurally pinned. Moving `data` alone
-        // doesn't move the whole struct, so Pin's guarantee is preserved.
+        // SAFETY: `data`만 구조적으로 고정되지 않음. `data`만 옮겨도
+        // 전체 구조체가 옮겨진 것은 아니므로 Pin 보장이 유지됨.
         unsafe { &mut self.get_unchecked_mut().data }
     }
 
-    // Project to `state` — this field IS structurally pinned
+    // `state`로 프로젝션 — 이 필드는 구조적으로 고정됨
     fn state(self: Pin<&mut Self>) -> Pin<&mut InternalState> {
-        // SAFETY: `state` is structurally pinned — we maintain the
-        // pin invariant by returning Pin<&mut InternalState>.
+        // SAFETY: `state`는 구조적으로 고정 — Pin<&mut InternalState>를 반환해
+        // pin 불변식을 유지함.
         unsafe { Pin::new_unchecked(&mut self.get_unchecked_mut().state) }
     }
 }
 ```
 
-**Structural pinning rules** — a field is "structurally pinned" if:
-1. Moving/swapping that field alone could invalidate a self-reference
-2. The struct's `Drop` impl must not move the field
-3. The struct must be `!Unpin` (enforced by `PhantomPinned` or a `!Unpin` field)
+**구조적 고정 규칙** — 필드가 "구조적으로 고정"된다는 것은:
+1. 그 필드만 옮기거나 스왑하면 자기 참조가 무효화될 수 있음
+2. 구조체의 `Drop` 구현이 그 필드를 옮기면 안 됨
+3. 구조체는 `!Unpin`이어야 함(`PhantomPinned`나 `!Unpin` 필드로 강제)
 
-#### `pin-project` — Safe Pin Projections (Zero Unsafe)
+<a id="pin-project--safe-pin-projections-zero-unsafe"></a>
+#### `pin-project` — 안전한 Pin 프로젝션(unsafe 없음)
 
-The `pin-project` crate generates provably correct projections at compile time,
-eliminating the need for manual `unsafe`:
+`pin-project` 크레이트는 컴파일 타임에 올바른 프로젝션을 생성해 수동 `unsafe`를 없앱니다.
 
 ```rust
 use pin_project::pin_project;
@@ -361,20 +353,20 @@ use std::pin::Pin;
 use std::future::Future;
 use std::task::{Context, Poll};
 
-#[pin_project]                   // <-- Generates projection methods
+#[pin_project]                   // <-- 프로젝션 메서드 생성
 struct TimedFuture<F: Future> {
-    #[pin]                       // <-- Structurally pinned (it's a Future)
+    #[pin]                       // <-- 구조적으로 고정(Future)
     inner: F,
-    started_at: std::time::Instant, // NOT pinned — plain data
+    started_at: std::time::Instant, // 고정 아님 — 일반 데이터
 }
 
 impl<F: Future> Future for TimedFuture<F> {
     type Output = (F::Output, std::time::Duration);
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();  // Safe! Generated by pin_project
-        //   this.inner   : Pin<&mut F>              — pinned field
-        //   this.started_at : &mut std::time::Instant — unpinned field
+        let this = self.project();  // 안전! pin_project가 생성
+        //   this.inner   : Pin<&mut F>              — 고정 필드
+        //   this.started_at : &mut std::time::Instant — 비고정 필드
 
         match this.inner.poll(cx) {
             Poll::Ready(output) => {
@@ -387,20 +379,21 @@ impl<F: Future> Future for TimedFuture<F> {
 }
 ```
 
-#### `pin-project` vs Manual Projection
+<a id="pin-project-vs-manual-projection"></a>
+#### `pin-project` vs 수동 프로젝션
 
-| Aspect | Manual (`unsafe`) | `pin-project` |
+| 측면 | 수동(`unsafe`) | `pin-project` |
 |--------|-------------------|---------------|
-| Safety | You prove invariants | Compiler-verified |
-| Boilerplate | Low (but error-prone) | Zero — derive macro |
-| `Drop` interaction | Must not move pinned fields | Enforced: `#[pinned_drop]` |
-| Compile-time cost | None | Proc-macro expansion |
-| Use case | Primitives, `no_std` | Application / library code |
+| 안전성 | 불변식을 직접 증명 | 컴파일러가 검증 |
+| 보일러플레이트 | 적지만 실수하기 쉬움 | 없음 — derive 매크로 |
+| `Drop` 상호작용 | 고정 필드를 옮기면 안 됨 | 강제: `#[pinned_drop]` |
+| 컴파일 비용 | 없음 | 프로시 매크로 확장 |
+| 사용처 | 저수준, `no_std` | 애플리케이션·라이브러리 코드 |
 
-#### `#[pinned_drop]` — Drop for Pinned Types
+<a id="pinned-drop--drop-for-pinned-types"></a>
+#### `#[pinned_drop]` — 고정된 타입의 Drop
 
-When a type has `#[pin]` fields, `pin-project` requires `#[pinned_drop]`
-instead of a regular `Drop` impl to prevent accidentally moving pinned fields:
+`#[pin]` 필드가 있으면 `pin-project`는 일반 `Drop` 대신 `#[pinned_drop]`을 요구해 고정 필드를 실수로 옮기지 않게 합니다.
 
 ```rust
 use pin_project::{pin_project, pinned_drop};
@@ -410,34 +403,33 @@ use std::pin::Pin;
 struct Connection<F> {
     #[pin]
     future: F,
-    buffer: Vec<u8>,  // Not pinned — can be moved in drop
+    buffer: Vec<u8>,  // 고정 아님 — drop에서 이동 가능
 }
 
 #[pinned_drop]
 impl<F> PinnedDrop for Connection<F> {
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
-        // `this.future` is Pin<&mut F> — can't be moved, only dropped in place
-        // `this.buffer` is &mut Vec<u8> — can be drained, cleared, etc.
+        // `this.future`는 Pin<&mut F> — 옮길 수 없고 제자리에서만 드롭
+        // `this.buffer`는 &mut Vec<u8> — drain, clear 등 가능
         this.buffer.clear();
         println!("Connection dropped, buffer cleared");
     }
 }
 ```
 
-#### When Pin Projections Matter in Practice
+<a id="when-pin-projections-matter-in-practice"></a>
+#### 실무에서 Pin 프로젝션이 중요할 때
 
-> **Note**: The diagram below uses Mermaid syntax. It renders on GitHub and in
-> tools that support Mermaid (mdBook with `mermaid` plugin, VS Code with
-> Mermaid extension). In plain Markdown viewers, you'll see the raw source.
+> **참고**: 아래 다이어그램은 Mermaid 문법입니다. GitHub와 Mermaid를 지원하는 도구(mdBook + mermaid 플러그인, VS Code Mermaid 확장)에서 렌더됩니다. 일반 Markdown 뷰어에서는 원문 그대로 보입니다.
 
 ```mermaid
 graph TD
-    A["Do you implement Future manually?"] -->|Yes| B["Does the future hold references<br/>across .await points?"]
-    A -->|No| C["async/await handles Pin for you<br/>✅ No projections needed"]
-    B -->|Yes| D["Use #[pin_project] on your<br/>future struct"]
-    B -->|No| E["Your future is Unpin<br/>✅ No projections needed"]
-    D --> F["Mark futures/streams as #[pin]<br/>Leave data fields unpinned"]
+    A["Future를 직접 구현하나?"] -->|Yes| B["Future가 .await 지점에 걸친<br/>참조를 가지나?"]
+    A -->|No| C["async/await가 Pin을 처리<br/>✅ 프로젝션 불필요"]
+    B -->|Yes| D["future 구조체에 #[pin_project] 사용"]
+    B -->|No| E["Future가 Unpin<br/>✅ 프로젝션 불필요"]
+    D --> F["Future/스트림은 #[pin]<br/>데이터 필드는 비고정"]
     
     style C fill:#91e5a3,color:#000
     style E fill:#91e5a3,color:#000
@@ -445,16 +437,15 @@ graph TD
     style F fill:#ffa07a,color:#000
 ```
 
-> **Rule of thumb**: If you're wrapping another `Future` or `Stream`, use
-> `pin-project`. If you're writing application code with `async/await`, you'll
-> never need pin projections directly. See the companion
-> *Async Rust Training* for async combinator patterns that use pin projections.
+> **경험칙**: 다른 `Future`나 `Stream`을 감싸면 `pin-project`를 쓰세요. 애플리케이션에서 `async/await`만 쓰면 Pin 프로젝션은 직접 필요 없습니다. Pin 프로젝션을 쓰는 async 컴비네이터는 동반서 *Async Rust Training*을 보세요.
 
-### Drop Ordering and ManuallyDrop
+<a id="drop-ordering-and-manuallydrop"></a>
+### 드롭 순서와 ManuallyDrop
 
-Rust's drop order is deterministic but has rules worth knowing:
+Rust의 드롭 순서는 결정적이지만 알아둘 규칙이 있습니다.
 
-#### Drop Order Rules
+<a id="drop-order-rules"></a>
+#### 드롭 순서 규칙
 
 ```rust
 struct Label(&'static str);
@@ -464,51 +455,47 @@ impl Drop for Label {
 }
 
 fn main() {
-    let a = Label("first");   // Declared first
-    let b = Label("second");  // Declared second
-    let c = Label("third");   // Declared third
+    let a = Label("first");   // 먼저 선언
+    let b = Label("second");  // 다음
+    let c = Label("third");   // 마지막
 }
-// Output:
-//   Dropping third    ← locals drop in REVERSE declaration order
+// 출력:
+//   Dropping third    ← 지역 변수는 선언의 **역순**으로 드롭
 //   Dropping second
 //   Dropping first
 ```
 
-**The three rules**:
+**세 가지 규칙**:
 
-| What | Drop Order | Rationale |
+| 대상 | 드롭 순서 | 이유 |
 |------|-----------|----------|
-| **Local variables** | Reverse declaration order | Later variables might reference earlier ones |
-| **Struct fields** | Declaration order (top to bottom) | Matches construction order (stable since Rust 1.0, guaranteed by [RFC 1857](https://rust-lang.github.io/rfcs/1857-stabilize-drop-order.html)) |
-| **Tuple elements** | Declaration order (left to right) | `(a, b, c)` → drop `a`, then `b`, then `c` |
+| **지역 변수** | 선언 역순 | 나중 변수가 앞을 참조할 수 있음 |
+| **구조체 필드** | 선언 순서(위→아래) | 생성 순서와 일치(Rust 1.0 이후 안정, [RFC 1857](https://rust-lang.github.io/rfcs/1857-stabilize-drop-order.html) 보장) |
+| **튜플 원소** | 선언 순서(왼→오) | `(a, b, c)` → `a`, 그다음 `b`, 그다음 `c` 드롭 |
 
 ```rust
 struct Server {
-    listener: Label,  // Dropped 1st
-    handler: Label,   // Dropped 2nd
-    logger: Label,    // Dropped 3rd
+    listener: Label,  // 1번째 드롭
+    handler: Label,   // 2번째
+    logger: Label,    // 3번째
 }
-// Fields drop top-to-bottom (declaration order).
-// This matters when fields reference each other or hold resources.
+// 필드는 위에서 아래로 드롭.
+// 필드가 서로 참조하거나 리소스를 쥘 때 중요합니다.
 ```
 
-> **Practical impact**: If your struct has a `JoinHandle` and a `Sender`,
-> field order determines which drops first. If the thread reads from the
-> channel, drop the `Sender` first (close the channel) so the thread exits,
-> then join the handle. Put `Sender` above `JoinHandle` in the struct.
+> **실무 영향**: 구조체에 `JoinHandle`과 `Sender`가 있으면 필드 순서가 먼저 드롭되는 쪽을 바꿉니다. 스레드가 채널에서 읽으면 `Sender`를 먼저 드롭(채널 닫기)해 스레드가 끝나게 한 뒤 핸들을 조인하세요. 구조체에서 `JoinHandle`보다 위에 `Sender`를 두세요.
 
-#### `ManuallyDrop<T>` — Suppressing Automatic Drop
+<a id="manuallydropt--suppressing-automatic-drop"></a>
+#### `ManuallyDrop<T>` — 자동 Drop 억제
 
-`ManuallyDrop<T>` wraps a value and prevents its destructor from running
-automatically. You take responsibility for dropping it (or intentionally
-leaking it):
+`ManuallyDrop<T>`는 값을 감싸고 소멸자가 **자동으로** 돌지 않게 합니다. 직접 드롭 책임을 지거나(또는 의도적 누수):
 
 ```rust
 use std::mem::ManuallyDrop;
 
-// Use case 1: Prevent double-free in unsafe code
+// Use case 1: unsafe 코드에서 이중 해제 방지
 struct TwoPhaseBuffer {
-    // We need to drop the Vec ourselves to control timing
+    // Vec을 직접 드롭해 타이밍을 제어해야 함
     data: ManuallyDrop<Vec<u8>>,
     committed: bool,
 }
@@ -536,84 +523,81 @@ impl Drop for TwoPhaseBuffer {
         if !self.committed {
             println!("Rolling back — dropping uncommitted data");
         }
-        // SAFETY: data is always valid here; we only drop it once.
+        // SAFETY: data는 여기서 항상 유효; 한 번만 드롭
         unsafe { ManuallyDrop::drop(&mut self.data); }
     }
 }
 ```
 
 ```rust
-// Use case 2: Intentional leak (e.g., global singletons)
+// Use case 2: 의도적 누수(예: 전역 싱글톤)
 fn leaked_string() -> &'static str {
-    // Box::leak() is the idiomatic way to create a &'static reference:
+    // Box::leak()이 &'static을 만드는 관용적 방법:
     let s = String::from("lives forever");
     Box::leak(s.into_boxed_str())
-    // ⚠️ This is a controlled memory leak. The String's heap allocation
-    // is never freed. Only use for long-lived singletons.
+    // ⚠️ 통제된 메모리 누수. String 힙 할당이 영원히 해제되지 않음.
+    // 오래 사는 싱글톤에만 사용.
 }
 
-// ManuallyDrop alternative (requires unsafe):
-// ⚠️ Prefer Box::leak() above — this is shown only to illustrate
-// ManuallyDrop semantics (suppressing Drop while the heap data survives).
+// ManuallyDrop 대안(unsafe):
+// ⚠️ 위 Box::leak()을 선호 — ManuallyDrop 의미만 설명
 fn leaked_string_manual() -> &'static str {
     use std::mem::ManuallyDrop;
     let md = ManuallyDrop::new(String::from("lives forever"));
-    // SAFETY: ManuallyDrop prevents deallocation; the heap data lives
-    // forever, so a 'static reference is valid.
+    // SAFETY: ManuallyDrop이 해제를 막음; 힙 데이터는 영구히 살아 있으므로
+    // 'static 참조가 유효함.
     unsafe { &*(md.as_str() as *const str) }
 }
 ```
 
 ```rust
-// Use case 3: Union fields (only one variant is valid at a time)
+// Use case 3: union 필드(한 번에 하나의 변형만 유효)
 use std::mem::ManuallyDrop;
 
 union IntOrString {
     i: u64,
     s: ManuallyDrop<String>,
-    // String has a Drop impl, so it MUST be wrapped in ManuallyDrop
-    // inside a union — the compiler can't know which field is active.
+    // String에 Drop이 있으므로 union 안에서는 **반드시** ManuallyDrop으로 감쌈
+    // — 컴파일러는 어떤 필드가 활성인지 모름.
 }
 
-// No automatic Drop — the code that constructs IntOrString must also
-// handle cleanup. If the String variant is active, call:
+// 자동 Drop 없음 — IntOrString을 만든 코드가 정리도 담당.
+// String 변형이 활성이면:
 //   unsafe { ManuallyDrop::drop(&mut value.s); }
-// without a Drop impl, the union is simply leaked (no UB, just a leak).
+// Drop impl 없이 union은 그냥 누수(UB는 아님, 누수만).
 ```
 
 **ManuallyDrop vs `mem::forget`**:
 
 | | `ManuallyDrop<T>` | `mem::forget(value)` |
 |---|---|---|
-| When | Wrap at construction | Consume later |
-| Access inner | `&*md` / `&mut *md` | Value is gone |
-| Drop later | `ManuallyDrop::drop(&mut md)` | Not possible |
-| Use case | Fine-grained lifecycle control | Fire-and-forget leak |
+| 언제 | 생성 시 감쌈 | 나중에 소비할 때 |
+| 내부 접근 | `&*md` / `&mut *md` | 값은 사라짐 |
+| 나중 드롭 | `ManuallyDrop::drop(&mut md)` | 불가 |
+| 사용처 | 세밀한 수명 주기 제어 | 일회성 누수
 
-> **Rule**: Use `ManuallyDrop` in unsafe abstractions where you need to control
-> *exactly* when a destructor runs. In safe application code, you almost never
-> need it — Rust's automatic drop ordering handles things correctly.
+> **규칙**: 소멸자가 **정확히 언제** 실행되어야 하는지 제어해야 하는 unsafe 추상화에 `ManuallyDrop`을 쓰세요. 안전한 애플리케이션 코드에서는 거의 필요 없습니다 — 자동 드롭 순서가 맞습니다.
 
-> **Key Takeaways — Smart Pointers**
-> - `Box` for single ownership on heap; `Rc`/`Arc` for shared ownership (single-/multi-threaded)
-> - `Cell`/`RefCell` provide interior mutability; `RefCell` panics on violations at runtime
-> - `Cow` avoids allocation on the common path; `Pin` prevents moves for self-referential types
-> - Drop order: fields drop in declaration order (RFC 1857); locals drop in reverse declaration order
+> **핵심 정리 — 스마트 포인터**
+> - 힙 단일 소유는 `Box`; `Rc`/`Arc`는 공유 소유(단일/다중 스레드)
+> - `Cell`/`RefCell`은 내부 가변성; `RefCell`은 위반 시 런타임 패닉
+> - `Cow`는 흔한 경로에서 할당 회피; `Pin`은 자기 참조 타입의 이동 방지
+> - 드롭 순서: 필드는 선언 순서(RFC 1857); 지역은 선언 역순
 
-> **See also:** [Ch 6 — Concurrency](ch06-concurrency-vs-parallelism-vs-threads.md) for Arc + Mutex patterns. [Ch 4 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md) for PhantomData used with smart pointers.
+> **함께 보기:** `Arc` + `Mutex` 패턴은 [6장 — 동시성](ch06-concurrency-vs-parallelism-vs-threads.md). 스마트 포인터와 함께 쓰는 `PhantomData`는 [4장 — PhantomData](ch04-phantomdata-types-that-carry-no-data.md).
 
 ```mermaid
 graph TD
-    Box["Box&lt;T&gt;<br>Single owner, heap"] --> Heap["Heap allocation"]
-    Rc["Rc&lt;T&gt;<br>Shared, single-thread"] --> Heap
-    Arc["Arc&lt;T&gt;<br>Shared, multi-thread"] --> Heap
+    Box["Box&lt;T&gt;<br>단일 소유, 힙"] --> Heap["힙 할당"]
+    Rc["Rc&lt;T&gt;<br>공유, 단일 스레드"] --> Heap
+    Arc["Arc&lt;T&gt;<br>공유, 다중 스레드"] --> Heap
 
-    Rc --> Weak1["Weak&lt;T&gt;<br>Non-owning"]
-    Arc --> Weak2["Weak&lt;T&gt;<br>Non-owning"]
+    Rc --> Weak1["Weak&lt;T&gt;<br>비소유"]
+    Arc --> Weak2["Weak&lt;T&gt;<br>비소유"]
 
-    Cell["Cell&lt;T&gt;<br>Copy interior mut"] --> Stack["Stack / interior"]
-    RefCell["RefCell&lt;T&gt;<br>Runtime borrow check"] --> Stack
-    Cow["Cow&lt;T&gt;<br>Clone on write"] --> Stack
+    Cell["Cell&lt;T&gt;<br>Copy 내부 가변"] --> Stack["스택 / 내부"]
+    RefCell["RefCell&lt;T&gt;<br>런타임 빌림 검사"] --> Stack
+    Cow["Cow&lt;T&gt;<br>쓸 때 복제"] --> Stack
 
     style Box fill:#d4efdf,stroke:#27ae60,color:#000
     style Rc fill:#e8f4f8,stroke:#2980b9,color:#000
@@ -629,12 +613,13 @@ graph TD
 
 ---
 
-### Exercise: Reference-Counted Graph ★★ (~30 min)
+<a id="exercise-reference-counted-graph"></a>
+### 연습: 참조 카운트 그래프 ★★ (~30분)
 
-Build a directed graph using `Rc<RefCell<Node>>` where each node has a name and a list of children. Create a cycle (A → B → C → A) using `Weak` to break the back-edge. Verify no memory leak with `Rc::strong_count`.
+`Rc<RefCell<Node>>`로 방향 그래프를 만드세요. 각 노드는 이름과 자식 목록을 가집니다. `Weak`로 역간을 끊어 순환(A → B → C → A)을 만드세요. `Rc::strong_count`로 메모리 누수가 없음을 확인하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 use std::cell::RefCell;
@@ -667,23 +652,23 @@ fn main() {
     let b = Node::new("B");
     let c = Node::new("C");
 
-    // A → B → C, with C back-referencing A via Weak
+    // A → B → C, C가 Weak로 A를 역참조
     a.borrow_mut().children.push(Rc::clone(&b));
     b.borrow_mut().children.push(Rc::clone(&c));
-    c.borrow_mut().back_ref = Some(Rc::downgrade(&a)); // Weak ref!
+    c.borrow_mut().back_ref = Some(Rc::downgrade(&a)); // Weak!
 
-    println!("A strong count: {}", Rc::strong_count(&a)); // 1 (only `a` binding)
-    println!("B strong count: {}", Rc::strong_count(&b)); // 2 (b + A's child)
-    println!("C strong count: {}", Rc::strong_count(&c)); // 2 (c + B's child)
+    println!("A strong count: {}", Rc::strong_count(&a)); // 1 (`a`만)
+    println!("B strong count: {}", Rc::strong_count(&b)); // 2 (b + A의 자식)
+    println!("C strong count: {}", Rc::strong_count(&c)); // 2 (c + B의 자식)
 
-    // Upgrade the weak ref to prove it works:
+    // Weak를 실제로 올려 동작 확인:
     let c_ref = c.borrow();
     if let Some(back) = &c_ref.back_ref {
         if let Some(a_ref) = back.upgrade() {
             println!("C points back to: {}", a_ref.borrow().name);
         }
     }
-    // When a, b, c go out of scope, all Nodes drop (no cycle leak!)
+    // a, b, c가 스코프를 벗어나면 모든 노드 드롭(순환 누수 없음!)
 }
 ```
 

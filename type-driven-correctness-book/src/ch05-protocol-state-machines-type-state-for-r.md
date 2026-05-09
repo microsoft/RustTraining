@@ -1,17 +1,18 @@
-# Protocol State Machines — Type-State for Real Hardware 🔴
+# 프로토콜 상태 머신 — 실제 하드웨어를 위한 타입 상태 🔴
 
-> **What you'll learn:** How type-state encoding makes protocol violations (wrong-order commands, use-after-close) into compile errors, applied to IPMI session lifecycles and PCIe link training.
+> **이 장에서 배울 내용:** 타입 상태 인코딩이 프로토콜 위반(잘못된 순서의 명령, close 이후 사용)을 컴파일 에러로 만드는 방법, IPMI 세션 수명과 PCIe 링크 학습에 적용합니다.
 >
-> **Cross-references:** [ch01](ch01-the-philosophy-why-types-beat-tests.md) (level 2 — state correctness), [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md) (tokens), [ch09](ch09-phantom-types-for-resource-tracking.md) (phantom types), [ch11](ch11-fourteen-tricks-from-the-trenches.md) (trick 4 — typestate builder, trick 8 — async type-state)
+> **교차 참조:** [ch01](ch01-the-philosophy-why-types-beat-tests.md)(수준 2 — 상태 정확성), [ch04](ch04-capability-tokens-zero-cost-proof-of-aut.md)(토큰), [ch09](ch09-phantom-types-for-resource-tracking.md)(팬텀 타입), [ch11](ch11-fourteen-tricks-from-the-trenches.md)(요령 4 — 타입 상태 빌더, 요령 8 — async 타입 상태)
 
-## The Problem: Protocol Violations
+<a id="the-problem-protocol-violations"></a>
+## 문제: 프로토콜 위반
 
-Hardware protocols have **strict state machines**. An IPMI session has states:
-Unauthenticated → Authenticated → Active → Closed. PCIe link training goes through
-Detect → Polling → Configuration → L0. Sending a command in the wrong state
-corrupts the session or hangs the bus.
+하드웨어 프로토콜에는 **엄격한 상태 머신**이 있습니다. IPMI 세션은
+미인증 → 인증됨 → 활성 → 닫힘 상태를 가집니다. PCIe 링크 학습은
+Detect → Polling → Configuration → L0를 거칩니다. 잘못된 상태에서 명령을 보내면
+세션이 깨지거나 버스가 멈출 수 있습니다.
 
-**IPMI session state machine:**
+**IPMI 세션 상태 머신:**
 
 ```mermaid
 stateDiagram-v2
@@ -22,11 +23,11 @@ stateDiagram-v2
     Active --> Closed : close()
     Closed --> [*]
 
-    note right of Active : send_command() only exists here
-    note right of Idle : send_command() → compile error
+    note right of Active : send_command()는 여기서만 존재
+    note right of Idle : send_command() → 컴파일 에러
 ```
 
-**PCIe Link Training State Machine (LTSSM):**
+**PCIe 링크 학습 상태 머신(LTSSM):**
 
 ```mermaid
 stateDiagram-v2
@@ -42,7 +43,7 @@ stateDiagram-v2
     note right of L0 : TLP transmit only in L0
 ```
 
-In C/C++, state is tracked with an enum and runtime checks:
+C/C++에서는 상태를 enum과 런타임 검사로 추적합니다.
 
 ```c
 typedef enum { IDLE, AUTHENTICATED, ACTIVE, CLOSED } session_state_t;
@@ -54,7 +55,7 @@ typedef struct {
 } ipmi_session_t;
 
 int ipmi_send_command(ipmi_session_t *s, uint8_t cmd, uint8_t *data, int len) {
-    if (s->state != ACTIVE) {        // runtime check — easy to forget
+    if (s->state != ACTIVE) {        // 런타임 검사 — 빠뜨리기 쉬움
         return -EINVAL;
     }
     // ... send command ...
@@ -62,25 +63,27 @@ int ipmi_send_command(ipmi_session_t *s, uint8_t cmd, uint8_t *data, int len) {
 }
 ```
 
-## Type-State Pattern
+<a id="type-state-pattern"></a>
+## 타입 상태 패턴
 
-With type-state, each protocol state is a **distinct type**. Transitions are methods
-that consume one state and return another. The compiler prevents calling methods in
-the wrong state because **those methods don't exist on that type**.
+타입 상태에서는 각 프로토콜 상태가 **별도의 타입**입니다. 전이는 한 상태를 소비하고
+다른 상태를 반환하는 메서드입니다. **그 타입에는 해당 메서드가 없기 때문에**
+잘못된 상태에서 메서드를 호출할 수 없습니다.
+
+<a id="case-study-ipmi-session-lifecycle"></a>
+## 사례 연구: IPMI 세션 수명 주기
 
 ```rust,ignore
 use std::marker::PhantomData;
 
 // States — zero-sized marker types
 pub struct Idle;
-## Case Study: IPMI Session Lifecycle
-
 pub struct Authenticated;
 pub struct Active;
 pub struct Closed;
 
-/// IPMI session parameterised by its current state.
-/// The state exists ONLY in the type system (PhantomData is zero-sized).
+/// 현재 상태로 매개변수화된 IPMI 세션.
+/// 상태는 타입 시스템에만 존재(PhantomData는 제로 크기).
 pub struct IpmiSession<State> {
     transport: String,     // e.g., "192.168.1.100"
     session_id: Option<u32>,
@@ -98,7 +101,7 @@ impl IpmiSession<Idle> {
     }
 
     pub fn authenticate(
-        self,              // ← consumes Idle session
+        self,              // ← Idle 세션 소비
         user: &str,
         pass: &str,
     ) -> Result<IpmiSession<Authenticated>, String> {
@@ -153,7 +156,7 @@ fn ipmi_workflow() -> Result<(), String> {
 
     let mut session = session.activate()?;
 
-    // ✅ NOW send_command exists:
+    // ✅ 이제 send_command 존재:
     let response = session.send_command(0x04, 0x2D, &[1]);
 
     let _closed = session.close();
@@ -165,15 +168,16 @@ fn ipmi_workflow() -> Result<(), String> {
 }
 ```
 
-**No runtime state checks anywhere.** The compiler enforces:
-- Authentication before activation
-- Activation before sending commands
-- No commands after close
+**런타임 상태 검사는 어디에도 없습니다.** 컴파일러가 다음을 강제합니다.
+- 활성화 전 인증
+- 명령 전송 전 활성화
+- 닫은 뒤 명령 없음
 
-## PCIe Link Training State Machine
+<a id="pcie-link-training-state-machine"></a>
+## PCIe 링크 학습 상태 머신
 
-PCIe link training is a multi-phase protocol defined in the PCIe specification.
-Type-state prevents sending data before the link is ready:
+PCIe 링크 학습은 PCIe 규격에 정의된 다단계 프로토콜입니다.
+타입 상태는 링크가 준비되기 전에 데이터를 보내는 일을 막습니다.
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -230,13 +234,13 @@ impl PcieLink<Configuration> {
 }
 
 impl PcieLink<L0> {
-    /// Send a TLP — only possible when the link is fully trained (L0).
+    /// TLP 전송 — 링크가 완전히 학습된(L0) 경우에만 가능.
     pub fn send_tlp(&mut self, tlp: &[u8]) -> Vec<u8> {
         println!("Slot {}: sending {} byte TLP", self.slot, tlp.len());
         vec![0x00] // stub
     }
 
-    /// Enter recovery — returns to Recovery state.
+    /// Recovery 진입 — Recovery 상태로 돌아감.
     pub fn enter_recovery(self) -> PcieLink<Recovery> {
         PcieLink {
             slot: self.slot, width: self.width, speed: self.speed,
@@ -268,23 +272,24 @@ fn pcie_workflow() -> Result<(), String> {
     let link = link.poll_compliance()?;
     let mut link = link.negotiate(16, 5)?; // x16 Gen5
 
-    // ✅ NOW we can send TLPs:
+    // ✅ 이제 TLP 전송 가능:
     let _resp = link.send_tlp(&[0x00, 0x01, 0x02]);
     println!("Link: {}", link.link_info());
 
-    // Recovery and retrain:
+    // Recovery 및 재학습:
     let recovery = link.enter_recovery();
-    let mut link = recovery.retrain(4)?;  // downgrade to Gen4
+    let mut link = recovery.retrain(4)?;  // Gen4로 다운그레이드
     let _resp = link.send_tlp(&[0x03]);
 
     Ok(())
 }
 ```
 
-## Combining Type-State with Capability Tokens
+<a id="combining-type-state-with-capability-tokens"></a>
+## 타입 상태와 capability token 결합
 
-Type-state and capability tokens compose naturally. A diagnostic that requires
-an active IPMI session AND admin privileges:
+타입 상태와 capability token은 자연스럽게 조합됩니다. 활성 IPMI 세션과
+관리자 권한이 모두 필요한 진단 예:
 
 ```rust,ignore
 # use std::marker::PhantomData;
@@ -295,35 +300,35 @@ an active IPMI session AND admin privileges:
 #     pub fn send_command(&mut self, _nf: u8, _cmd: u8, _d: &[u8]) -> Vec<u8> { vec![] }
 # }
 
-/// Run a firmware update — requires:
-/// 1. Active IPMI session (type-state)
-/// 2. Admin privileges (capability token)
+/// 펌웨어 업데이트 실행 — 필요한 것:
+/// 1. 활성 IPMI 세션(타입 상태)
+/// 2. 관리자 권한(capability token)
 pub fn firmware_update(
-    session: &mut IpmiSession<Active>,   // proves session is active
-    _admin: &AdminToken,                 // proves caller is admin
+    session: &mut IpmiSession<Active>,   // 세션이 활성임을 증명
+    _admin: &AdminToken,                 // 호출자가 관리자임을 증명
     image: &[u8],
 ) -> Result<(), String> {
-    // No runtime checks needed — the signature IS the check
+    // 런타임 검사 불필요 — 시그니처 자체가 검사
     session.send_command(0x2C, 0x01, image);
     Ok(())
 }
 ```
 
-The caller must:
-1. Create a session (`Idle`)
-2. Authenticate it (`Authenticated`)
-3. Activate it (`Active`)
-4. Obtain an `AdminToken`
-5. Then and only then call `firmware_update()`
+호출자는 다음을 해야 합니다.
+1. 세션 생성(`Idle`)
+2. 인증(`Authenticated`)
+3. 활성화(`Active`)
+4. `AdminToken` 획득
+5. 그때만 `firmware_update()` 호출
 
-All enforced at compile time, zero runtime cost.
+모두 컴파일 타임에, 런타임 비용 없이 강제됩니다.
 
-## Beat 3: Firmware Update — Multi-Phase FSM with Composition
+<a id="beat-3-firmware-update-multi-phase-fsm-with-composition"></a>
+## 비트 3: 펌웨어 업데이트 — 합성이 있는 다단계 FSM
 
-A firmware update lifecycle has more states than a session and composition with
-both capability tokens AND single-use types (ch03). This is the most complex
-type-state example in the book — if you're comfortable with it, you've mastered
-the pattern.
+펌웨어 업데이트 수명은 세션보다 상태가 많고, capability token과
+단일 사용 타입(ch03)까지 합성합니다. 이 책에서 가장 복잡한 타입 상태 예입니다 —
+여기까지 이해하면 패턴을 마스터한 것입니다.
 
 ```mermaid
 stateDiagram-v2
@@ -337,8 +342,8 @@ stateDiagram-v2
     Applying --> WaitingReboot : apply_complete()
     WaitingReboot --> [*] : reboot()
 
-    note right of Verified : VerifiedImage token consumed by apply()
-    note right of Uploading : abort() returns to Idle (safe)
+    note right of Verified : apply()가 VerifiedImage 토큰 소비
+    note right of Uploading : abort()는 Idle로 복귀(안전)
 ```
 
 ```rust,ignore
@@ -371,7 +376,7 @@ impl FwUpdate<Idle> {
         FwUpdate { version: String::new(), _state: PhantomData }
     }
 
-    /// Begin upload — requires admin privilege.
+    /// 업로드 시작 — 관리자 권한 필요.
     pub fn begin_upload(
         self,
         _admin: &FirmwareAdminToken,
@@ -388,7 +393,7 @@ impl FwUpdate<Uploading> {
         FwUpdate { version: self.version, _state: PhantomData }
     }
 
-    /// Abort returns to Idle — safe at any point during upload.
+    /// 업로드 중 언제든 중단 — Idle로 안전하게 복귀.
     pub fn abort(self) -> FwUpdate<Idle> {
         println!("Upload aborted.");
         FwUpdate { version: String::new(), _state: PhantomData }
@@ -396,7 +401,7 @@ impl FwUpdate<Uploading> {
 }
 
 impl FwUpdate<Verifying> {
-    /// On success, produces a single-use VerifiedImage token.
+    /// 성공 시 단일 사용 VerifiedImage 토큰 생성.
     pub fn verify_ok(self, digest: [u8; 32]) -> (FwUpdate<Verified>, VerifiedImage) {
         println!("Verification passed for v{}", self.version);
         (
@@ -412,10 +417,10 @@ impl FwUpdate<Verifying> {
 }
 
 impl FwUpdate<Verified> {
-    /// Apply CONSUMES the VerifiedImage token — can't apply twice.
+    /// apply는 VerifiedImage 토큰을 소비 — 두 번 적용 불가.
     pub fn apply(self, proof: VerifiedImage) -> FwUpdate<Applying> {
         println!("Applying v{} (digest: {:02x?})", self.version, &proof.digest[..4]);
-        // proof is moved — can't be reused
+        // proof는 이동 — 재사용 불가
         FwUpdate { version: self.version, _state: PhantomData }
     }
 }
@@ -455,35 +460,36 @@ fn firmware_workflow() {
 }
 ```
 
-**What the three beats illustrate together:**
+**세 비트가 함께 보여 주는 것:**
 
-| Beat | Protocol | States | Composition |
+| 비트 | 프로토콜 | 상태 | 합성 |
 |:----:|----------|:------:|-------------|
-| 1 | IPMI session | 4 | Pure type-state |
-| 2 | PCIe LTSSM | 5 | Type-state + recovery branch |
-| 3 | Firmware update | 6 | Type-state + capability tokens (ch04) + single-use proof (ch03) |
+| 1 | IPMI 세션 | 4 | 순수 타입 상태 |
+| 2 | PCIe LTSSM | 5 | 타입 상태 + recovery 분기 |
+| 3 | 펌웨어 업데이트 | 6 | 타입 상태 + capability token(ch04) + 단일 사용 증명(ch03) |
 
-Each beat adds a layer of complexity. By beat 3, the compiler enforces state
-ordering, admin privilege, AND one-time application — three bug classes
-eliminated in a single FSM.
+비트마다 복잡도가 한 겹씌워집니다. 비트 3까지 오면 컴파일러가 상태 순서,
+관리자 권한, **일회 적용**까지 한 FSM에서 세 가지 버그 클래스를 제거합니다.
 
-### When to Use Type-State
+<a id="when-to-use-type-state"></a>
+### 타입 상태를 쓸 때
 
-| Protocol | Type-State worthwhile? |
+| 프로토콜 | 타입 상태 가치 있음? |
 |----------|:------:|
-| IPMI session lifecycle | ✅ Yes — authenticate → activate → command → close |
-| PCIe link training | ✅ Yes — detect → poll → configure → L0 |
-| TLS handshake | ✅ Yes — ClientHello → ServerHello → Finished |
-| USB enumeration | ✅ Yes — Attached → Powered → Default → Addressed → Configured |
-| Simple request/response | ⚠️ Probably not — only 2 states |
-| Fire-and-forget messages | ❌ No — no state to track |
+| IPMI 세션 수명 | ✅ 예 — 인증 → 활성 → 명령 → 닫기 |
+| PCIe 링크 학습 | ✅ 예 — detect → poll → configure → L0 |
+| TLS 핸드셰이크 | ✅ 예 — ClientHello → ServerHello → Finished |
+| USB 열거 | ✅ 예 — Attached → Powered → Default → Addressed → Configured |
+| 단순 요청/응답 | ⚠️ 아마 아님 — 상태가 2개뿐 |
+| 발사 후 잊기 메시지 | ❌ 아니오 — 추적할 상태 없음 |
 
-## Exercise: USB Device Enumeration Type-State
+<a id="exercise-usb-device-enumeration-type-state"></a>
+## 연습문제: USB 장치 열거 타입 상태
 
-Model a USB device that must go through: `Attached` → `Powered` → `Default` → `Addressed` → `Configured`. Each transition should consume the previous state and produce the next. `send_data()` should only be available in `Configured`.
+`Attached` → `Powered` → `Default` → `Addressed` → `Configured`를 거쳐야 하는 USB 장치를 모델링하세요. 각 전이는 이전 상태를 소비하고 다음을 생산해야 합니다. `send_data()`는 `Configured`에서만 사용 가능해야 합니다.
 
 <details>
-<summary>Solution</summary>
+<summary>해답</summary>
 
 ```rust,ignore
 use std::marker::PhantomData;
@@ -535,14 +541,15 @@ impl UsbDevice<Configured> {
 
 </details>
 
-## Key Takeaways
+<a id="key-takeaways"></a>
+## 핵심 정리
 
-1. **Type-state makes wrong-order calls impossible** — methods only exist on the state where they're valid.
-2. **Each transition consumes `self`** — you can't hold onto an old state after transitioning.
-3. **Combine with capability tokens** — `firmware_update()` requires *both* `Session<Active>` and `AdminToken`.
-4. **Three beats, increasing complexity** — IPMI (pure FSM), PCIe LTSSM (recovery branches), and firmware update (FSM + tokens + single-use proofs) show the pattern scales from simple to richly composed.
-5. **Don't over-apply** — two-state request/response protocols are simpler without type-state.
-6. **The pattern extends to full Redfish workflows** — ch17 applies type-state to Redfish session lifecycles, and ch18 uses builder type-state for response construction.
+1. **타입 상태가 잘못된 순서 호출을 불가능하게** — 메서드는 유효한 상태에만 존재합니다.
+2. **각 전이가 `self`를 소비** — 전이한 뒤 옛 상태를 붙잡고 있을 수 없습니다.
+3. **capability token과 결합** — `firmware_update()`는 `Session<Active>`와 `AdminToken` **둘 다** 필요.
+4. **세 비트, 증가하는 복잡도** — IPMI(순수 FSM), PCIe LTSSM(recovery 분기), 펌웨어 업데이트(FSM + 토큰 + 단일 사용 증명)가 단순에서 풍부한 합성까지 패턴이 확장됨을 보여 줍니다.
+5. **과용하지 말 것** — 두 상태의 요청/응답 프로토콜은 타입 상태 없이도 더 단순합니다.
+6. **패턴은 전체 Redfish 워크플로로 확장** — ch17은 Redfish 세션 수명에 타입 상태를, ch18은 응답 생성에 빌더 타입 상태를 씁니다.
 
 ---
 

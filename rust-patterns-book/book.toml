@@ -1,7 +1,7 @@
 [book]
-title = "Rust Patterns & Engineering How-Tos"
+title = "Rust 패턴과 엔지니어링 활용 가이드"
 authors = ["Rust Training Team"]
-language = "en"
+language = "ko"
 src = "src"
 
 [build]

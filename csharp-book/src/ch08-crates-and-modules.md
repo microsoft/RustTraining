@@ -1,17 +1,18 @@
-## Modules and Crates: Code Organization
+## 모듈과 크레이트: 코드 구성
 
-> **What you'll learn:** Rust's module system vs C# namespaces and assemblies, `pub`/`pub(crate)`/`pub(super)` visibility,
-> file-based module organization, and how crates map to .NET assemblies.
+> **이 장에서 배울 내용:** Rust의 모듈 시스템과 C# 네임스페이스/어셈블리의 차이, `pub`/`pub(crate)`/`pub(super)` 가시성,
+> 파일 기반 모듈 구성, 그리고 크레이트가 .NET 어셈블리에 어떻게 대응되는지.
 >
-> **Difficulty:** 🟢 Beginner
+> **난이도:** 🟢 초급
 
-Understanding Rust's module system is essential for organizing code and managing dependencies. For C# developers, this is analogous to understanding namespaces, assemblies, and NuGet packages.
+코드를 체계적으로 나누고 의존성을 관리하려면 Rust의 모듈 시스템을 이해하는 것이 중요합니다. C# 개발자에게는 네임스페이스, 어셈블리, NuGet 패키지를 이해하는 것과 비슷한 주제입니다.
 
-### Rust Modules vs C# Namespaces
+<a id="rust-modules-vs-c-namespaces"></a>
+### Rust 모듈 vs C# 네임스페이스
 
-#### C# Namespace Organization
+#### C# 네임스페이스 구성
 ```csharp
-// File: Models/User.cs
+// 파일: Models/User.cs
 namespace MyApp.Models
 {
     public class User
@@ -21,7 +22,7 @@ namespace MyApp.Models
     }
 }
 
-// File: Services/UserService.cs
+// 파일: Services/UserService.cs
 using MyApp.Models;
 
 namespace MyApp.Services
@@ -35,7 +36,7 @@ namespace MyApp.Services
     }
 }
 
-// File: Program.cs
+// 파일: Program.cs
 using MyApp.Models;
 using MyApp.Services;
 
@@ -52,9 +53,9 @@ namespace MyApp
 }
 ```
 
-#### Rust Module Organization
+#### Rust 모듈 구성
 ```rust
-// File: src/models.rs
+// 파일: src/models.rs
 pub struct User {
     pub name: String,
     pub age: u32,
@@ -66,7 +67,7 @@ impl User {
     }
 }
 
-// File: src/services.rs
+// 파일: src/services.rs
 use crate::models::User;
 
 pub struct UserService;
@@ -77,7 +78,7 @@ impl UserService {
     }
 }
 
-// File: src/lib.rs (or main.rs)
+// 파일: src/lib.rs (또는 main.rs)
 pub mod models;
 pub mod services;
 
@@ -90,14 +91,14 @@ fn main() {
 }
 ```
 
-### Module Hierarchy and Visibility
+### 모듈 계층과 가시성
 
 ```mermaid
 graph TD
-    Crate["crate (root)"] --> ModA["mod data"]
+    Crate["crate (루트)"] --> ModA["mod data"]
     Crate --> ModB["mod api"]
     ModA --> SubA1["pub struct Repo"]
-    ModA --> SubA2["fn helper  (private)"]
+    ModA --> SubA2["fn helper (비공개)"]
     ModB --> SubB1["pub fn handle()"]
     ModB --> SubB2["pub(crate) fn internal()"]
     ModB --> SubB3["pub(super) fn parent_only()"]
@@ -109,71 +110,71 @@ graph TD
     style SubB3 fill:#fff9c4,color:#000
 ```
 
-> 🟢 Green = public everywhere &nbsp;|&nbsp; 🟡 Yellow = restricted visibility &nbsp;|&nbsp; 🔴 Red = private
+> 🟢 초록 = 어디서나 public &nbsp;|&nbsp; 🟡 노랑 = 제한된 가시성 &nbsp;|&nbsp; 🔴 빨강 = private
 
-#### C# Visibility Modifiers
+#### C# 가시성 한정자
 ```csharp
 namespace MyApp.Data
 {
-    // public - accessible from anywhere
+    // public - 어디서나 접근 가능
     public class Repository
     {
-        // private - only within this class
+        // private - 이 클래스 안에서만 접근 가능
         private string connectionString;
         
-        // internal - within this assembly
+        // internal - 이 어셈블리 내부에서만 접근 가능
         internal void Connect() { }
         
-        // protected - this class and subclasses
+        // protected - 이 클래스와 하위 클래스에서 접근 가능
         protected virtual void Initialize() { }
         
-        // public - accessible from anywhere
+        // public - 어디서나 접근 가능
         public void Save(object data) { }
     }
 }
 ```
 
-#### Rust Visibility Rules
+#### Rust 가시성 규칙
 ```rust
-// Everything is private by default in Rust
+// Rust에서는 기본적으로 모든 것이 private이다
 mod data {
-    struct Repository {  // Private struct
-        connection_string: String,  // Private field
+    struct Repository {  // private 구조체
+        connection_string: String,  // private 필드
     }
     
     impl Repository {
-        fn new() -> Repository {  // Private function
+        fn new() -> Repository {  // private 함수
             Repository {
                 connection_string: "localhost".to_string(),
             }
         }
         
-        pub fn connect(&self) {  // Public method
-            // Only accessible within this module and its children
+        pub fn connect(&self) {  // public 메서드
+            // 이 모듈과 하위 모듈에서 접근할 수 있다
         }
         
-        pub(crate) fn initialize(&self) {  // Crate-level public
-            // Accessible anywhere in this crate
+        pub(crate) fn initialize(&self) {  // 크레이트 수준 공개
+            // 이 크레이트 어디서나 접근할 수 있다
         }
         
-        pub(super) fn internal_method(&self) {  // Parent module public
-            // Accessible in parent module
+        pub(super) fn internal_method(&self) {  // 부모 모듈에 공개
+            // 부모 모듈에서 접근할 수 있다
         }
     }
     
-    // Public struct - accessible from outside the module
+    // public 구조체 - 모듈 밖에서도 접근 가능
     pub struct PublicRepository {
-        pub data: String,  // Public field
-        private_data: String,  // Private field (no pub)
+        pub data: String,       // public 필드
+        private_data: String,   // private 필드(pub 없음)
     }
 }
 
-pub use data::PublicRepository;  // Re-export for external use
+pub use data::PublicRepository;  // 외부 사용을 위해 재노출
 ```
 
-### Module File Organization
+### 모듈 파일 구성
 
-#### C# Project Structure
+#### C# 프로젝트 구조
 ```text
 MyApp/
 ├── MyApp.csproj
@@ -188,18 +189,18 @@ MyApp/
 └── Program.cs
 ```
 
-#### Rust Module File Structure
+#### Rust 모듈 파일 구조
 ```text
 my_app/
 ├── Cargo.toml
 └── src/
-    ├── main.rs (or lib.rs)
+    ├── main.rs (또는 lib.rs)
     ├── models/
-    │   ├── mod.rs        // Module declaration
+    │   ├── mod.rs        // 모듈 선언
     │   ├── user.rs
     │   └── product.rs
     ├── services/
-    │   ├── mod.rs        // Module declaration
+    │   ├── mod.rs        // 모듈 선언
     │   ├── user_service.rs
     │   └── product_service.rs
     └── controllers/
@@ -207,38 +208,39 @@ my_app/
         └── api_controller.rs
 ```
 
-#### Module Declaration Patterns
+#### 모듈 선언 패턴
 ```rust
 // src/models/mod.rs
-pub mod user;      // Declares user.rs as a submodule
-pub mod product;   // Declares product.rs as a submodule
+pub mod user;      // user.rs를 하위 모듈로 선언
+pub mod product;   // product.rs를 하위 모듈로 선언
 
-// Re-export commonly used types
+// 자주 쓰는 타입은 재노출한다
 pub use user::User;
 pub use product::Product;
 
 // src/main.rs
-mod models;     // Declares models/ as a module
-mod services;   // Declares services/ as a module
+mod models;     // models/를 모듈로 선언
+mod services;   // services/를 모듈로 선언
 
-// Import specific items
+// 필요한 항목만 가져오기
 use models::{User, Product};
 use services::UserService;
 
-// Or import the entire module
-use models::user::*;  // Import all public items from user module
+// 또는 모듈 전체 가져오기
+use models::user::*;  // user 모듈의 public 항목 전부 가져오기
 ```
 
 ***
 
-## Crates vs .NET Assemblies
+<a id="crates-vs-net-assemblies"></a>
+## 크레이트 vs .NET 어셈블리
 
-### Understanding Crates
-In Rust, a **crate** is the fundamental unit of compilation and code distribution, similar to how an **assembly** works in .NET.
+### 크레이트 이해하기
+Rust에서 **크레이트(crate)**는 컴파일과 코드 배포의 기본 단위입니다. .NET에서의 **어셈블리(assembly)**와 비슷한 역할을 합니다.
 
-#### C# Assembly Model
+#### C# 어셈블리 모델
 ```csharp
-// MyLibrary.dll - Compiled assembly
+// MyLibrary.dll - 컴파일된 어셈블리
 namespace MyLibrary
 {
     public class Calculator
@@ -247,7 +249,7 @@ namespace MyLibrary
     }
 }
 
-// MyApp.exe - Executable assembly that references MyLibrary.dll
+// MyApp.exe - MyLibrary.dll을 참조하는 실행 어셈블리
 using MyLibrary;
 
 class Program
@@ -260,9 +262,9 @@ class Program
 }
 ```
 
-#### Rust Crate Model
+#### Rust 크레이트 모델
 ```toml
-# Cargo.toml for library crate
+# 라이브러리 크레이트용 Cargo.toml
 [package]
 name = "my_calculator"
 version = "0.1.0"
@@ -273,7 +275,7 @@ name = "my_calculator"
 ```
 
 ```rust
-// src/lib.rs - Library crate
+// src/lib.rs - 라이브러리 크레이트
 pub struct Calculator;
 
 impl Calculator {
@@ -284,7 +286,7 @@ impl Calculator {
 ```
 
 ```toml
-# Cargo.toml for binary crate that uses the library
+# 라이브러리를 사용하는 바이너리 크레이트용 Cargo.toml
 [package]
 name = "my_app"
 version = "0.1.0"
@@ -295,7 +297,7 @@ my_calculator = { path = "../my_calculator" }
 ```
 
 ```rust
-// src/main.rs - Binary crate
+// src/main.rs - 바이너리 크레이트
 use my_calculator::Calculator;
 
 fn main() {
@@ -304,21 +306,21 @@ fn main() {
 }
 ```
 
-### Crate Types Comparison
+### 크레이트 종류 비교
 
-| C# Concept | Rust Equivalent | Purpose |
-|------------|----------------|---------|
-| Class Library (.dll) | Library crate | Reusable code |
-| Console App (.exe) | Binary crate | Executable program |
-| NuGet Package | Published crate | Distribution unit |
-| Assembly (.dll/.exe) | Compiled crate | Compilation unit |
-| Solution (.sln) | Workspace | Multi-project organization |
+| C# 개념 | Rust 대응 개념 | 용도 |
+|---------|----------------|------|
+| 클래스 라이브러리 (`.dll`) | 라이브러리 크레이트 | 재사용 가능한 코드 |
+| 콘솔 앱 (`.exe`) | 바이너리 크레이트 | 실행 가능한 프로그램 |
+| NuGet 패키지 | 배포된 크레이트 | 배포 단위 |
+| 어셈블리 (`.dll`/`.exe`) | 컴파일된 크레이트 | 컴파일 단위 |
+| 솔루션 (`.sln`) | 워크스페이스 | 다중 프로젝트 구성 |
 
-### Workspace vs Solution
+### 워크스페이스 vs 솔루션
 
-#### C# Solution Structure
+#### C# 솔루션 구조
 ```xml
-<!-- MySolution.sln structure -->
+<!-- MySolution.sln 구조 -->
 <Solution>
     <Project Include="WebApi/WebApi.csproj" />
     <Project Include="Business/Business.csproj" />
@@ -327,9 +329,9 @@ fn main() {
 </Solution>
 ```
 
-#### Rust Workspace Structure
+#### Rust 워크스페이스 구조
 ```toml
-# Cargo.toml at workspace root
+# 워크스페이스 루트의 Cargo.toml
 [workspace]
 members = [
     "web_api",
@@ -339,7 +341,7 @@ members = [
 ]
 
 [workspace.dependencies]
-serde = "1.0"           # Shared dependency versions
+serde = "1.0"           # 공통 의존성 버전
 tokio = "1.0"
 ```
 
@@ -352,18 +354,18 @@ edition = "2021"
 
 [dependencies]
 business = { path = "../business" }
-serde = { workspace = true }    # Use workspace version
+serde = { workspace = true }    # 워크스페이스 버전 사용
 tokio = { workspace = true }
 ```
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Design a Module Tree</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 모듈 트리 설계하기</strong> (펼쳐서 보기)</summary>
 
-Given this C# project layout, design the equivalent Rust module tree:
+다음 C# 프로젝트 레이아웃에 대응되는 Rust 모듈 트리를 설계해 보세요.
 
 ```csharp
 // C#
@@ -373,15 +375,15 @@ namespace MyApp.Models { public class User { } }
 namespace MyApp.Models { public class Session { } }
 ```
 
-Requirements:
-1. `AuthService` and both models must be public
-2. `TokenStore` must be private to the `services` module
-3. Provide the file layout **and** the `mod` / `pub` declarations in `lib.rs`
+요구사항:
+1. `AuthService`와 두 모델은 모두 public이어야 한다
+2. `TokenStore`는 `services` 모듈 내부에서만 private이어야 한다
+3. 파일 배치와 함께, `lib.rs`의 `mod` / `pub` 선언도 작성하라
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해설</summary>
 
-File layout:
+파일 배치:
 ```
 src/
 ├── lib.rs
@@ -401,20 +403,20 @@ pub mod services;
 pub mod models;
 
 // src/services/mod.rs
-mod token_store;          // private — like C# internal
+mod token_store;          // private - C#의 internal과 유사
 pub mod auth_service;     // public
 
 // src/services/auth_service.rs
-use super::token_store::TokenStore; // visible within the module
+use super::token_store::TokenStore; // 같은 모듈 안에서는 보인다
 
 pub struct AuthService;
 
 impl AuthService {
-    pub fn login(&self) { /* uses TokenStore internally */ }
+    pub fn login(&self) { /* 내부적으로 TokenStore 사용 */ }
 }
 
 // src/services/token_store.rs
-pub(super) struct TokenStore; // visible to parent (services) only
+pub(super) struct TokenStore; // 부모(services)에서만 보인다
 
 // src/models/mod.rs
 pub mod user;
@@ -435,5 +437,3 @@ pub struct Session {
 </details>
 
 ***
-
-

@@ -1,12 +1,13 @@
-## Inheritance vs Composition
+<a id="inheritance-vs-composition"></a>
+## 상속 vs 조합
 
-> **What you'll learn:** Why Rust has no class inheritance, how traits + structs replace deep
-> class hierarchies, and practical patterns for achieving polymorphism through composition.
+> **학습할 내용:** Rust에 클래스 상속이 없는 이유, 트레잇과 구조체가 깊은 클래스 계층을 어떻게 대체하는지,
+> 그리고 조합으로 다형성을 구현하는 실전 패턴을 살펴봅니다.
 >
-> **Difficulty:** 🟡 Intermediate
+> **난이도:** 🟡 중급
 
 ```csharp
-// C# - Class-based inheritance
+// C# - 클래스 기반 상속
 public abstract class Animal
 {
     public string Name { get; protected set; }
@@ -33,7 +34,7 @@ public class Dog : Animal
     }
 }
 
-// Interface-based contracts
+// 인터페이스 기반 계약
 public interface IFlyable
 {
     void Fly();
@@ -55,14 +56,14 @@ public class Bird : Animal, IFlyable
 }
 ```
 
-### Rust Composition Model
+### Rust의 조합 모델
 ```rust
-// Rust - Composition over inheritance with traits
+// Rust - 트레잇을 이용한 상속보다 조합
 pub trait Animal {
     fn name(&self) -> &str;
     fn make_sound(&self);
     
-    // Default implementation (like C# virtual methods)
+    // 기본 구현(C#의 virtual 메서드와 비슷함)
     fn sleep(&self) {
         println!("{} is sleeping", self.name());
     }
@@ -72,7 +73,7 @@ pub trait Flyable {
     fn fly(&self);
 }
 
-// Separate data from behavior
+// 데이터와 동작을 분리
 #[derive(Debug)]
 pub struct Dog {
     name: String,
@@ -84,7 +85,7 @@ pub struct Bird {
     wingspan: f64,
 }
 
-// Implement behaviors for types
+// 타입에 동작을 구현
 impl Animal for Dog {
     fn name(&self) -> &str {
         &self.name
@@ -121,7 +122,7 @@ impl Flyable for Bird {
     }
 }
 
-// Multiple trait bounds (like multiple interfaces)
+// 여러 트레잇 바운드(여러 인터페이스와 비슷함)
 fn make_flying_animal_sound<T>(animal: &T) 
 where 
     T: Animal + Flyable,
@@ -133,12 +134,12 @@ where
 
 ```mermaid
 graph TD
-    subgraph "C# Inheritance Hierarchy"
-        CS_ANIMAL["Animal (abstract class)"]
+    subgraph "C# 상속 계층"
+        CS_ANIMAL["Animal (추상 클래스)"]
         CS_DOG["Dog : Animal"]
         CS_BIRD["Bird : Animal, IFlyable"]
-        CS_VTABLE["Virtual method dispatch<br/>Runtime cost"]
-        CS_COUPLING["[ERROR] Tight coupling<br/>[ERROR] Diamond problem<br/>[ERROR] Deep hierarchies"]
+        CS_VTABLE["가상 메서드 디스패치<br/>런타임 비용"]
+        CS_COUPLING["[주의] 강한 결합<br/>[주의] diamond problem<br/>[주의] 깊은 계층 구조"]
         
         CS_ANIMAL --> CS_DOG
         CS_ANIMAL --> CS_BIRD
@@ -147,7 +148,7 @@ graph TD
         CS_ANIMAL --> CS_COUPLING
     end
     
-    subgraph "Rust Composition Model"
+    subgraph "Rust 조합 모델"
         RUST_ANIMAL["trait Animal"]
         RUST_FLYABLE["trait Flyable"]
         RUST_DOG["struct Dog"]
@@ -155,8 +156,8 @@ graph TD
         RUST_IMPL1["impl Animal for Dog"]
         RUST_IMPL2["impl Animal for Bird"]
         RUST_IMPL3["impl Flyable for Bird"]
-        RUST_STATIC["Static dispatch<br/>Zero cost"]
-        RUST_FLEXIBLE["[OK] Flexible composition<br/>[OK] No hierarchy limits<br/>[OK] Mix and match traits"]
+        RUST_STATIC["정적 디스패치<br/>zero cost"]
+        RUST_FLEXIBLE["[장점] 유연한 조합<br/>[장점] 계층 깊이 제한 없음<br/>[장점] 트레잇을 자유롭게 조합 가능"]
         
         RUST_DOG --> RUST_IMPL1
         RUST_BIRD --> RUST_IMPL2
@@ -179,12 +180,12 @@ graph TD
 
 ---
 
-## Exercises
+## 연습문제
 
 <details>
-<summary><strong>🏋️ Exercise: Replace Inheritance with Traits</strong> (click to expand)</summary>
+<summary><strong>🏋️ 연습문제: 상속을 트레잇으로 바꾸기</strong> (펼쳐서 보기)</summary>
 
-This C# code uses inheritance. Rewrite it in Rust using trait composition:
+다음 C# 코드는 상속을 사용합니다. 이를 Rust에서 트레잇 조합으로 다시 작성해 보세요.
 
 ```csharp
 public abstract class Shape { public abstract double Area(); }
@@ -199,14 +200,14 @@ public class Cylinder : Shape3D
 }
 ```
 
-Requirements:
-1. `HasArea` trait with `fn area(&self) -> f64`
-2. `HasVolume` trait with `fn volume(&self) -> f64`
-3. `Cylinder` struct implementing both
-4. A function `fn print_shape_info(shape: &(impl HasArea + HasVolume))` — note the trait bound composition (no inheritance needed)
+요구사항:
+1. `fn area(&self) -> f64`를 가진 `HasArea` 트레잇
+2. `fn volume(&self) -> f64`를 가진 `HasVolume` 트레잇
+3. 두 트레잇을 모두 구현하는 `Cylinder` 구조체
+4. `fn print_shape_info(shape: &(impl HasArea + HasVolume))` 함수 작성 - 상속 없이 트레잇 바운드 조합만으로 표현합니다.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해설</summary>
 
 ```rust
 use std::f64::consts::PI;
@@ -247,7 +248,7 @@ fn main() {
 }
 ```
 
-**Key insight**: C# needs a 3-level hierarchy (Shape → Shape3D → Cylinder). Rust uses flat trait composition — `impl HasArea + HasVolume` combines capabilities without inheritance depth.
+**핵심 통찰:** C#에서는 `Shape -> Shape3D -> Cylinder`처럼 3단계 계층이 필요하지만, Rust는 평평한 트레잇 조합을 사용합니다. `impl HasArea + HasVolume`처럼 상속 깊이 없이 필요한 능력만 합칠 수 있습니다.
 
 </details>
 </details>

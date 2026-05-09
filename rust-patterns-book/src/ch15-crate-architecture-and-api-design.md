@@ -1,71 +1,77 @@
-# 14. Crate Architecture and API Design 🟡
+<a id="crate-architecture-and-api-design"></a>
 
-> **What you'll learn:**
-> - Module layout conventions and re-export strategies
-> - The public API design checklist for polished crates
-> - Ergonomic parameter patterns: `impl Into`, `AsRef`, `Cow`
-> - "Parse, don't validate" with `TryFrom` and validated types
-> - Feature flags, conditional compilation, and workspace organization
+# 15. 크레이트 아키텍처와 API 설계 🟡
 
-## Module Layout Conventions
+> **이 장에서 배울 내용:**
+> - 모듈 배치 관례와 재수출(re-export) 전략
+> - 다듬어진 크레이트를 위한 공개 API 설계 체크리스트
+> - 인체공학적 매개변수 패턴: `impl Into`, `AsRef`, `Cow`
+> - `TryFrom`과 검증된 타입으로 하는 “파싱하고 검증하지 말 것”
+> - 기능 플래그, 조건부 컴파일, 워크스페이스 구성
+
+<a id="module-layout-conventions"></a>
+
+## 모듈 배치 관례
 
 ```text
 my_crate/
 ├── Cargo.toml
 ├── src/
-│   ├── lib.rs          # Crate root — re-exports and public API
-│   ├── config.rs       # Feature module
-│   ├── parser/         # Complex module with sub-modules
-│   │   ├── mod.rs      # or parser.rs at parent level (Rust 2018+)
+│   ├── lib.rs          # 크레이트 루트 — 재수출과 공개 API
+│   ├── config.rs       # 기능 모듈
+│   ├── parser/         # 하위 모듈이 있는 복잡한 모듈
+│   │   ├── mod.rs      # 또는 부모에 parser.rs (Rust 2018+)
 │   │   ├── lexer.rs
 │   │   └── ast.rs
-│   ├── error.rs        # Error types
-│   └── utils.rs        # Internal helpers (pub(crate))
+│   ├── error.rs        # 에러 타입
+│   └── utils.rs        # 내부 헬퍼 (pub(crate))
 ├── tests/
-│   └── integration.rs  # Integration tests
+│   └── integration.rs  # 통합 테스트
 ├── benches/
-│   └── perf.rs         # Benchmarks
+│   └── perf.rs         # 벤치마크
 └── examples/
     └── basic.rs        # cargo run --example basic
 ```
 
 ```rust
-// lib.rs — curate your public API with re-exports:
+// lib.rs — 재수출로 공개 API를 구성합니다
 mod config;
 mod error;
 mod parser;
 mod utils;
 
-// Re-export what users need:
+// 사용자에게 필요한 것만 재수출:
 pub use config::Config;
 pub use error::Error;
 pub use parser::Parser;
 
-// Public types are at the crate root — users write:
+// 공개 타입은 크레이트 루트에 — 사용자는 이렇게 씁니다:
 // use my_crate::Config;
-// NOT: use my_crate::config::Config;
+// use my_crate::config::Config; 가 아님
 ```
 
-**Visibility modifiers**:
+**가시성 한정자**:
 
-| Modifier | Visible To |
+| 한정자 | 보이는 범위 |
 |----------|-----------|
-| `pub` | Everyone |
-| `pub(crate)` | This crate only |
-| `pub(super)` | Parent module |
-| `pub(in path)` | Specific ancestor module |
-| (none) | Current module and its children |
+| `pub` | 모두 |
+| `pub(crate)` | 이 크레이트만 |
+| `pub(super)` | 부모 모듈 |
+| `pub(in path)` | 특정 조상 모듈 |
+| (없음) | 현재 모듈과 자식 |
 
-### Public API Design Checklist
+<a id="public-api-design-checklist"></a>
 
-1. **Accept references, return owned** — `fn process(input: &str) -> String`
-2. **Use `impl Trait` for parameters** — `fn read(r: impl Read)` instead of `fn read<R: Read>(r: R)` for cleaner signatures
-3. **Return `Result`, not `panic!`** — let callers decide how to handle errors
-4. **Implement standard traits** — `Debug`, `Display`, `Clone`, `Default`, `From`/`Into`
-5. **Make invalid states unrepresentable** — use type states and newtypes
-6. **Follow the builder pattern for complex configuration** — with type-state if fields are required
-7. **Seal traits you don't want users to implement** — `pub trait Sealed: private::Sealed {}`
-8. **Mark types and functions `#[must_use]`** — prevents silent discard of important `Result`s, guards, or values. Apply to any type where ignoring the return value is almost certainly a bug:
+### 공개 API 설계 체크리스트
+
+1. **참조를 받고 소유권을 반환** — `fn process(input: &str) -> String`
+2. **매개변수에 `impl Trait` 사용** — 서명을 깔끔하게 하려면 `fn read(r: impl Read)`가 `fn read<R: Read>(r: R)`보다 낫습니다
+3. **`Result`를 반환하고 `panic!`은 피하기** — 호출자가 에러 처리 방식을 정하도록
+4. **표준 트레잇 구현** — `Debug`, `Display`, `Clone`, `Default`, `From`/`Into`
+5. **잘못된 상태를 표현 불가능하게** — 타입 상태와 뉴타입 활용
+6. **복잡한 설정은 빌더 패턴** — 필수 필드가 있으면 타입 상태 빌더
+7. **사용자 구현을 막을 트레잇은 봉인(seal)** — `pub trait Sealed: private::Sealed {}`
+8. **타입·함수에 `#[must_use]`** — 중요한 `Result`, 가드, 값을 조용히 버리는 실수 방지. 반환을 무시하면 거의 항상 버그인 타입에 적용합니다:
    ```rust
    #[must_use = "dropping the guard immediately releases the lock"]
    pub struct LockGuard<'a, T> { /* ... */ }
@@ -75,7 +81,7 @@ pub use parser::Parser;
    ```
 
 ```rust
-// Sealed trait pattern — users can use but not implement:
+// 봉인 트레잇 패턴 — 사용은 가능, 구현은 불가:
 mod private {
     pub trait Sealed {}
 }
@@ -84,7 +90,7 @@ pub trait DatabaseDriver: private::Sealed {
     fn connect(&self, url: &str) -> Connection;
 }
 
-// Only types in THIS crate can implement Sealed → only we can implement DatabaseDriver
+// 이 크레이트의 타입만 Sealed를 구현할 수 있음 → DatabaseDriver도 우리만 구현
 pub struct PostgresDriver;
 impl private::Sealed for PostgresDriver {}
 impl DatabaseDriver for PostgresDriver {
@@ -92,64 +98,62 @@ impl DatabaseDriver for PostgresDriver {
 }
 ```
 
-> **`#[non_exhaustive]`** — mark public enums and structs so that adding variants
-> or fields is not a breaking change. Downstream crates must use a wildcard arm
-> (`_ =>`) in match statements, and cannot construct the type with struct literal
-> syntax:
+> **`#[non_exhaustive]`** — 공개 enum·구조체에 붙이면 변형·필드 추가가
+> 호환성 깨짐(semver major)이 아닙니다. 하위 크레이트는 match에 와일드카드
+> (`_ =>`)를 써야 하고, 구조체 리터럴로는 생성할 수 없습니다:
 > ```rust
 > #[non_exhaustive]
 > pub enum DiagError {
 >     Timeout,
 >     HardwareFault,
->     // Adding a new variant in a future release is NOT a semver break.
+>     // 이후 릴리스에서 변형을 추가해도 semver 위반이 아님
 > }
 > ```
 
-### Ergonomic Parameter Patterns — `impl Into`, `AsRef`, `Cow`
+<a id="ergonomic-parameter-patterns"></a>
 
-One of Rust's most impactful API patterns is accepting the **most general type** in
-function parameters, so callers don't need repetitive `.to_string()`, `&*s`, or `.as_ref()`
-at every call site. This is the Rust-specific version of "be liberal in what you accept."
+### 인체공학적 매개변수 — `impl Into`, `AsRef`, `Cow`
 
-#### `impl Into<T>` — Accept Anything Convertible
+Rust에서 영향이 큰 API 패턴 중 하나는 함수 매개변수에 **가장 일반적인 타입**을 받아
+호출부에서 매번 `.to_string()`, `&*s`, `.as_ref()`를 반복하지 않게 하는 것입니다.
+“받을 때는 관대하게”의 Rust 버전입니다.
+
+#### `impl Into<T>` — 변환 가능한 것은 무엇이든
 
 ```rust
-// ❌ Friction: callers must convert manually
+// ❌ 마찰: 호출자가 직접 변환해야 함
 fn connect(host: String, port: u16) -> Connection {
     // ...
 }
-connect("localhost".to_string(), 5432);  // Annoying .to_string()
-connect(hostname.clone(), 5432);          // Unnecessary clone if we already have String
+connect("localhost".to_string(), 5432);  // 귀찮은 .to_string()
+connect(hostname.clone(), 5432);       // 이미 String이면 불필요한 clone
 
-// ✅ Ergonomic: accept anything that converts to String
+// ✅ 인체공학: String으로 변환 가능한 것이면 무엇이든
 fn connect(host: impl Into<String>, port: u16) -> Connection {
-    let host = host.into();  // Convert once, inside the function
+    let host = host.into();  // 함수 안에서 한 번만 변환
     // ...
 }
-connect("localhost", 5432);     // &str — zero friction
-connect(hostname, 5432);        // String — moved, no clone
-connect(arc_str, 5432);         // Arc<str> if From is implemented
+connect("localhost", 5432);     // &str — 마찰 없음
+connect(hostname, 5432);        // String — 이동, clone 없음
+connect(arc_str, 5432);         // Arc<str> — From이 구현된 경우
 ```
 
-This works because Rust's `From`/`Into` trait pair provides blanket conversions.
-When you accept `impl Into<T>`, you're saying: "give me anything that knows how to
-become a `T`."
+`From`/`Into` 쌍의 blanket 구현 덕분에 동작합니다. `impl Into<T>`는 “`T`가 될 수 있는 것”을 달라는 뜻입니다.
 
-#### `AsRef<T>` — Borrow as a Reference
+#### `AsRef<T>` — 참조로 빌리기
 
-`AsRef<T>` is the borrowing counterpart to `Into<T>`. Use it when you only need
-to *read* the data, not take ownership:
+`AsRef<T>`는 `Into<T>`의 빌리기 쪽입니다. 소유가 아니라 *읽기만* 할 때 씁니다:
 
 ```rust
 use std::path::Path;
 
-// ❌ Forces callers to convert to &Path
+// ❌ 호출자를 &Path로 강제
 fn file_exists(path: &Path) -> bool {
     path.exists()
 }
-file_exists(Path::new("/tmp/test.txt"));  // Awkward
+file_exists(Path::new("/tmp/test.txt"));  // 어색함
 
-// ✅ Accept anything that can behave as a &Path
+// ✅ &Path처럼 쓸 수 있는 것이면 무엇이든
 fn file_exists(path: impl AsRef<Path>) -> bool {
     path.as_ref().exists()
 }
@@ -158,7 +162,7 @@ file_exists(String::from("/tmp/test.txt"));      // String ✅
 file_exists(Path::new("/tmp/test.txt"));         // &Path ✅
 file_exists(PathBuf::from("/tmp/test.txt"));     // PathBuf ✅
 
-// Same pattern for string-like parameters:
+// 문자열 계열도 같은 패턴:
 fn log_message(msg: impl AsRef<str>) {
     println!("[LOG] {}", msg.as_ref());
 }
@@ -166,73 +170,69 @@ log_message("hello");                    // &str ✅
 log_message(String::from("hello"));      // String ✅
 ```
 
-#### `Cow<T>` — Clone on Write
+#### `Cow<T>` — 쓸 때만 복제
 
-`Cow<'a, T>` (Clone on Write) delays allocation until mutation is needed.
-It holds either a borrowed `&T` or an owned `T::Owned`. This is perfect when
-most calls don't need to modify the data:
+`Cow<'a, T>`(Clone on Write)는 수정이 필요할 때까지 할당을 미룹니다.
+`&T`를 빌리거나 `T::Owned`를 가집니다. 대부분의 호출에서 데이터를 바꾸지 않을 때 적합합니다:
 
 ```rust
 use std::borrow::Cow;
 
-/// Normalizes a diagnostic message — only allocates if changes are needed.
+/// 진단 메시지 정규화 — 바꿀 필요가 있을 때만 할당
 fn normalize_message(msg: &str) -> Cow<'_, str> {
     if msg.contains('\t') || msg.contains('\r') {
-        // Must allocate — we need to modify the content
         Cow::Owned(msg.replace('\t', "    ").replace('\r', ""))
     } else {
-        // No allocation — just borrow the original
         Cow::Borrowed(msg)
     }
 }
 
-// Most messages pass through without allocation:
-let clean = normalize_message("All tests passed");          // Borrowed — free
-let fixed = normalize_message("Error:\tfailed\r\n");        // Owned — allocated
+// 대부분의 메시지는 할당 없이 통과:
+let clean = normalize_message("All tests passed");          // 빌림 — 비용 없음
+let fixed = normalize_message("Error:\tfailed\r\n");        // 소유 — 할당됨
 
-// Cow<str> implements Deref<Target=str>, so it works like &str:
+// Cow<str>는 Deref<Target=str>이므로 &str처럼 씁니다:
 println!("{}", clean);
 println!("{}", fixed.to_uppercase());
 ```
 
-#### Quick Reference: Which to Use
+#### 빠른 참고: 무엇을 쓸까
 
 ```text
-Do you need ownership of the data inside the function?
-├── YES → impl Into<T>
-│         "Give me anything that can become a T"
-└── NO  → Do you only need to read it?
-     ├── YES → impl AsRef<T> or &T
-     │         "Give me anything I can borrow as a &T"
-     └── MAYBE (might need to modify sometimes?)
+함수 안에서 데이터 소유가 필요한가?
+├── 예 → impl Into<T>
+│         "`T`가 될 수 있는 것을 달라"
+└── 아니오 → 읽기만 하나?
+     ├── 예 → impl AsRef<T> 또는 &T
+     │         "`&T`로 빌릴 수 있는 것을 달라"
+     └── 가끔 수정?
           └── Cow<'_, T>
-              "Borrow if possible, clone only when you must"
+              "가능하면 빌리고, 꼭 필요할 때만 복제"
 ```
 
-| Pattern | Ownership | Allocation | When to use |
+| 패턴 | 소유 | 할당 | 쓸 때 |
 |---------|-----------|------------|-------------|
-| `&str` | Borrowed | Never | Simple string params |
-| `impl AsRef<str>` | Borrowed | Never | Accept String, &str, etc. — read only |
-| `impl Into<String>` | Owned | On conversion | Accept &str, String — will store/own |
-| `Cow<'_, str>` | Either | Only if modified | Processing that usually doesn't modify |
-| `&[u8]` / `impl AsRef<[u8]>` | Borrowed | Never | Byte-oriented APIs |
+| `&str` | 빌림 | 없음 | 단순 문자열 인자 |
+| `impl AsRef<str>` | 빌림 | 없음 | String, &str 등 — 읽기만 |
+| `impl Into<String>` | 소유 | 변환 시 | &str, String — 저장/소유 |
+| `Cow<'_, str>` | 둘 다 | 수정 시만 | 대개 수정 없는 처리 |
+| `&[u8]` / `impl AsRef<[u8]>` | 빌림 | 없음 | 바이트 지향 API |
 
-> **`Borrow<T>` vs `AsRef<T>`**: Both provide `&T`, but `Borrow<T>` additionally
-> guarantees that `Eq`, `Ord`, and `Hash` are **consistent** between the original
-> and borrowed form. This is why `HashMap<String, V>::get()` accepts `&Q where String: Borrow<Q>` — not `AsRef`. Use `Borrow` when the borrowed form is used
-> as a lookup key; use `AsRef` for general "give me a reference" parameters.
+> **`Borrow<T>` vs `AsRef<T>`**: 둘 다 `&T`를 주지만 `Borrow<T>`는 원본과 빌린 형태에서
+> `Eq`, `Ord`, `Hash`가 **일치**함을 추가로 보장합니다. 그래서 `HashMap<String, V>::get()`은
+> `String: Borrow<Q>`인 `&Q`를 받고 `AsRef`가 아닙니다. 조회 키에는 `Borrow`, 일반적인 “참조 달라”에는 `AsRef`를 쓰세요.
 
-#### Composing Conversions in APIs
+#### API에서 변환 조합하기
 
 ```rust
-/// A well-designed diagnostic API using ergonomic parameters:
+/// 인체공학적 매개변수를 쓴 진단 API 예:
 pub struct DiagRunner {
     name: String,
     config_path: PathBuf,
 }
 
 impl DiagRunner {
-    /// Accept any string-like type for name, any path-like type for config.
+    /// 이름은 문자열 계열, 설정 경로는 경로 계열 아무거나
     pub fn new(
         name: impl Into<String>,
         config_path: impl Into<PathBuf>,
@@ -243,13 +243,13 @@ impl DiagRunner {
         }
     }
 
-    /// Accept any AsRef<str> for read-only lookup.
+    /// 읽기 전용 조회에는 AsRef<str>
     pub fn get_result(&self, test_name: impl AsRef<str>) -> Option<&TestResult> {
         self.results.get(test_name.as_ref())
     }
 }
 
-// All of these work with zero caller friction:
+// 호출부 마찰 없음:
 let runner = DiagRunner::new("GPU Diag", "/etc/diag_tool/config.json");
 let runner = DiagRunner::new(format!("Diag-{}", node_id), config_path);
 let runner = DiagRunner::new(name_string, path_buf);
@@ -257,103 +257,103 @@ let runner = DiagRunner::new(name_string, path_buf);
 
 ***
 
-## Case Study: Designing a Public Crate API — Before & After
+<a id="case-study-designing-a-public-crate-api"></a>
 
-A real-world example of evolving a stringly-typed internal API into an ergonomic, type-safe public API. Consider a configuration parser crate:
+## 사례 연구: 공개 크레이트 API 설계 — 전과 후
 
-**Before** (stringly-typed, easy to misuse):
+문자열에 의존하던 내부 API를 인체공학적이고 타입 안전한 공개 API로 바꾸는 예입니다. 설정 파서 크레이트를 가정합니다.
+
+**전** (문자열 중심, 오용하기 쉬움):
 
 ```rust
-// ❌ All parameters are strings — no compile-time validation
+// ❌ 매개변수가 모두 문자열 — 컴파일 타임 검증 없음
 pub fn parse_config(path: &str, format: &str, strict: bool) -> Result<Config, String> {
-    // What formats are valid? "json"? "JSON"? "Json"?
-    // Is path a file path or URL?
-    // What does "strict" even mean?
+    // 허용 포맷이 "json"? "JSON"? "Json"?
+    // path는 파일 경로인가 URL인가?
+    // strict는 정확히 무슨 뜻인가?
     todo!()
 }
 ```
 
-**After** (type-safe, self-documenting):
+**후** (타입 안전, 자기 설명적):
 
 ```rust
 use std::path::Path;
 
-/// Supported configuration formats.
+/// 지원하는 설정 포맷
 #[derive(Debug, Clone, Copy)]
-#[non_exhaustive]  // Adding formats won't break downstream
+#[non_exhaustive]  // 포맷 추가 시 하위 호환 유지
 pub enum Format {
     Json,
     Toml,
     Yaml,
 }
 
-/// Controls parsing strictness.
+/// 파싱 엄격도
 #[derive(Debug, Clone, Copy, Default)]
 pub enum Strictness {
-    /// Reject unknown fields (default for libraries)
+    /// 알 수 없는 필드 거부(라이브러리 기본)
     #[default]
     Strict,
-    /// Ignore unknown fields (useful for forward-compatible configs)
+    /// 알 수 없는 필드 무시(앞으로 호환되는 설정에 유용)
     Lenient,
 }
 
 pub fn parse_config(
-    path: &Path,          // Type-enforced: must be a filesystem path
-    format: Format,       // Enum: impossible to pass invalid format
-    strictness: Strictness,  // Named alternatives, not a bare bool
+    path: &Path,          // 타입으로 강제: 파일 시스템 경로
+    format: Format,       // enum: 잘못된 포맷 문자열 불가
+    strictness: Strictness,  // 이름 있는 대안, raw bool 아님
 ) -> Result<Config, ConfigError> {
     todo!()
 }
 ```
 
-**What improved**:
+**개선된 점**:
 
-| Aspect | Before | After |
+| 측면 | 전 | 후 |
 |--------|--------|-------|
-| Format validation | Runtime string comparison | Compile-time enum |
-| Path type | Raw `&str` (could be anything) | `&Path` (filesystem-specific) |
-| Strictness | Mystery `bool` | Self-documenting enum |
-| Error type | `String` (opaque) | `ConfigError` (structured) |
-| Extensibility | Breaking changes | `#[non_exhaustive]` |
+| 포맷 검증 | 런타임 문자열 비교 | 컴파일 타임 enum |
+| 경로 타입 | raw `&str` (무엇이든 될 수 있음) | `&Path` (파일 시스템 전용) |
+| 엄격도 | 의미 불명 `bool` | 자기 설명 enum |
+| 에러 타입 | 불투명 `String` | 구조화된 `ConfigError` |
+| 확장성 | 호환 깨지는 변경 | `#[non_exhaustive]` |
 
-> **Rule of thumb**: If you find yourself writing a `match` on string values,
-> consider replacing the parameter with an enum. If a parameter is a boolean
-> that isn't obvious from context, use a two-variant enum instead.
+> **경험칙**: 문자열에 `match`를 쓰고 있다면 매개변수를 enum으로 바꿔 보라는 신호입니다.
+> 문맥 없이 bool이 불명확하면 두 변형 enum을 쓰세요.
 
 ***
 
-### Parse Don't Validate — `TryFrom` and Validated Types
+<a id="parse-dont-validate"></a>
 
-"Parse, don't validate" is a principle that says: **don't check data and then pass
-around the raw unchecked form — instead, parse it into a type that can only exist
-if the data is valid.** Rust's `TryFrom` trait is the standard tool for this.
+### 파싱하고 검증하지 말 것 — `TryFrom`과 검증된 타입
 
-#### The Problem: Validation Without Enforcement
+“Parse, don't validate”는 **데이터를 검사한 뒤에도 raw 형태로 돌려보내지 말고,
+유효할 때만 존재할 수 있는 타입으로 파싱하라**는 원칙입니다. Rust에서는 `TryFrom`이 표준 도구입니다.
+
+#### 문제: 검증만 하고 강제는 없음
 
 ```rust
-// ❌ Validate-then-use: nothing prevents using an invalid value after the check
+// ❌ 검증 후 사용: 검사 후에도 잘못된 값 사용을 막지 못함
 fn process_port(port: u16) {
     if port == 0 || port > 65535 {
-        panic!("Invalid port");           // We checked, but...
+        panic!("Invalid port");
     }
-    start_server(port);                    // What if someone calls start_server(0) directly?
+    start_server(port);  // 그런데 누가 start_server(0)를 직접 부르면?
 }
 
-// ❌ Stringly-typed: an email is just a String — any garbage gets through
+// ❌ 문자열 중심: 이메일이 String일 뿐 — 쓰레기도 통과
 fn send_email(to: String, body: String) {
-    // Is `to` actually a valid email? We don't know.
-    // Someone could pass "not-an-email" and we only find out at the SMTP server.
+    // `to`가 진짜 이메일인지 알 수 없음
 }
 ```
 
-#### The Solution: Parse Into Validated Newtypes with `TryFrom`
+#### 해결: `TryFrom`으로 검증된 뉴타입
 
 ```rust
 use std::convert::TryFrom;
 use std::fmt;
 
-/// A validated TCP port number (1–65535).
-/// If you have a `Port`, it is guaranteed valid.
+/// 검증된 TCP 포트(1–65535). `Port`를 가지면 유효하다고 가정할 수 있음
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Port(u16);
 
@@ -390,27 +390,24 @@ impl fmt::Display for PortError {
 
 impl std::error::Error for PortError {}
 
-// Now the type system enforces validity:
+// 타입 시스템이 유효성을 강제:
 fn start_server(port: Port) {
-    // No validation needed — Port can only be constructed via TryFrom,
-    // which already verified it's valid.
     println!("Listening on port {}", port.get());
 }
 
-// Usage:
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let port = Port::try_from(8080)?;   // ✅ Validated once at the boundary
-    start_server(port);                  // No re-validation anywhere downstream
+    let port = Port::try_from(8080)?;   // 경계에서 한 번만 검증
+    start_server(port);
 
-    let bad = Port::try_from(0);         // ❌ Err(PortError::Zero)
+    let bad = Port::try_from(0);        // ❌ Err(PortError::Zero)
     Ok(())
 }
 ```
 
-#### Real-World Example: Validated IPMI Address
+#### 실무 예: 검증된 IPMI 주소
 
 ```rust
-/// A validated IPMI slave address (0x20–0xFE, even only).
+/// 검증된 IPMI 슬레이브 주소(0x20–0xFE, 짝수만)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IpmiAddr(u8);
 
@@ -449,16 +446,14 @@ impl IpmiAddr {
     pub fn get(&self) -> u8 { self.0 }
 }
 
-// Downstream code never needs to re-check:
 fn send_ipmi_command(addr: IpmiAddr, cmd: u8, data: &[u8]) -> Result<Vec<u8>, IpmiError> {
-    // addr.get() is guaranteed to be a valid, even IPMI address
     raw_ipmi_send(addr.get(), cmd, data)
 }
 ```
 
-#### Parsing Strings with `FromStr`
+#### `FromStr`로 문자열 파싱
 
-For types that are commonly parsed from text (CLI args, config files), implement `FromStr`:
+CLI·설정 파일에서 자주 쓰이면 `FromStr`을 구현합니다:
 
 ```rust
 use std::str::FromStr;
@@ -472,22 +467,20 @@ impl FromStr for Port {
     }
 }
 
-// Now works with .parse():
-let port: Port = "8080".parse()?;   // Validates in one step
+let port: Port = "8080".parse()?;
 
-// And with clap CLI parsing:
+// clap:
 // #[derive(Parser)]
 // struct Args {
 //     #[arg(short, long)]
-//     port: Port,   // clap calls FromStr automatically
+//     port: Port,
 // }
 ```
 
-#### `TryFrom` Chain for Complex Validation
+#### 복합 검증의 `TryFrom` 체인
 
 ```rust
-// Stub types for this example — in production these would be in
-// separate modules with their own TryFrom implementations.
+// 이 예의 스텁 타입 — 실제로는 모듈별 TryFrom이 있음
 ```
 
 ```rust
@@ -516,7 +509,7 @@ let port: Port = "8080".parse()?;   // Validates in one step
 # impl From<serde_json::Error> for ConfigError {
 #     fn from(e: serde_json::Error) -> Self { ConfigError::InvalidHost(e.to_string()) }
 # }
-/// A validated configuration that can only exist if all fields are valid.
+/// 모든 필드가 유효할 때만 존재할 수 있는 설정
 pub struct ValidConfig {
     pub host: Hostname,
     pub port: Port,
@@ -538,36 +531,35 @@ impl TryFrom<RawConfig> for ValidConfig {
     }
 }
 
-// Parse once at the boundary, use the validated type everywhere:
 fn load_config(path: &str) -> Result<ValidConfig, ConfigError> {
     let raw: RawConfig = serde_json::from_str(&std::fs::read_to_string(path)?)?;
-    ValidConfig::try_from(raw)  // All validation happens here
+    ValidConfig::try_from(raw)
 }
 ```
 
-#### Summary: Validate vs Parse
+#### 요약: 검증 vs 파싱
 
-| Approach | Data checked? | Compiler enforces validity? | Re-validation needed? |
+| 접근 | 데이터 검사? | 컴파일러가 유효성 강제? | 재검증? |
 |----------|:---:|:---:|:---:|
-| Runtime checks (if/assert) | ✅ | ❌ | Every function boundary |
-| Validated newtype + `TryFrom` | ✅ | ✅ | Never — type is proof |
+| 런타임 검사(if/assert) | ✅ | ❌ | 함수 경계마다 |
+| 검증 뉴타입 + `TryFrom` | ✅ | ✅ | 없음 — 타입이 증명 |
 
-The rule: **parse at the boundary, use validated types everywhere inside.**
-Raw strings, integers, and byte slices enter your system, get parsed into
-validated types via `TryFrom`/`FromStr`, and from that point forward the type
-system guarantees they're valid.
+규칙: **경계에서 파싱하고, 내부에서는 검증된 타입만 씁니다.**
+raw 문자열·정수·바이트 슬라이스는 `TryFrom`/`FromStr`로 파싱된 뒤부터 타입이 보장합니다.
 
-### Feature Flags and Conditional Compilation
+<a id="feature-flags-and-conditional-compilation"></a>
+
+### 기능 플래그와 조건부 컴파일
 
 ```toml
 ```
 
 # Cargo.toml
 [features]
-default = ["json"]          # Enabled by default
-json = ["dep:serde_json"]   # Enables JSON support
-xml = ["dep:quick-xml"]     # Enables XML support
-full = ["json", "xml"]      # Meta-feature: enables all
+default = ["json"]          # 기본 활성화
+json = ["dep:serde_json"]   # JSON 지원
+xml = ["dep:quick-xml"]     # XML 지원
+full = ["json", "xml"]      # 메타 기능: 전부
 
 [dependencies]
 serde = "1"
@@ -575,7 +567,6 @@ serde_json = { version = "1", optional = true }
 quick-xml = { version = "0.31", optional = true }
 
 ```rust
-// Conditional compilation based on features:
 #[cfg(feature = "json")]
 pub fn to_json<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_string(value).unwrap()
@@ -586,112 +577,108 @@ pub fn to_xml<T: serde::Serialize>(value: &T) -> String {
     quick_xml::se::to_string(value).unwrap()
 }
 
-// Compile error if a required feature isn't enabled:
 #[cfg(not(any(feature = "json", feature = "xml")))]
 compile_error!("At least one format feature (json, xml) must be enabled");
 ```
 
-**Best practices**:
-- Keep `default` features minimal — users can opt in
-- Use `dep:` syntax (Rust 1.60+) for optional dependencies to avoid creating implicit features
-- Document features in your README and crate-level docs
+**권장 사항**:
+- `default` 기능은 최소로 — 사용자가 옵트인
+- 선택 의존성에는 Rust 1.60+ `dep:` 문법으로 암시적 기능 생성 방지
+- README와 크레이트 문서에 기능을 설명
 
-### Workspace Organization
+<a id="workspace-organization"></a>
 
-For large projects, use a Cargo workspace to share dependencies and build artifacts:
+### 워크스페이스 구성
+
+큰 프로젝트는 Cargo 워크스페이스로 의존성과 빌드 산출물을 공유합니다:
 
 ```toml
 ```
 
-# Root Cargo.toml
+# 루트 Cargo.toml
 [workspace]
 members = [
-    "core",         # Shared types and traits
-    "parser",       # Parsing library
-    "server",       # Binary — the main application
-    "client",       # Client library
-    "cli",          # CLI binary
+    "core",         # 공유 타입·트레잇
+    "parser",       # 파싱 라이브러리
+    "server",       # 바이너리 — 메인 앱
+    "client",       # 클라이언트 라이브러리
+    "cli",          # CLI 바이너리
 ]
 
-# Shared dependency versions:
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 
-# In each member's Cargo.toml:
+# 각 멤버 Cargo.toml:
 # [dependencies]
 # serde = { workspace = true }
 
 ```rust
 
-**Benefits**:
+**이점**:
 ```
 
-- Single `Cargo.lock` — all crates use the same dependency versions
-- `cargo test --workspace` runs all tests
-- Shared build cache — compiling one crate benefits all
-- Clean dependency boundaries between components
+- 하나의 `Cargo.lock` — 모든 크레이트가 같은 의존성 버전
+- `cargo test --workspace`로 전체 테스트
+- 공유 빌드 캐시 — 한 크레이트 컴파일이 모두에 도움
+- 구성 요소 간 의존 경계가 명확
 
-### `.cargo/config.toml`: Project-Level Configuration
+<a id="cargoconfigtoml-project-level-configuration"></a>
 
-The `.cargo/config.toml` file (at the workspace root or in `$HOME/.cargo/`)
-customizes Cargo behavior without modifying `Cargo.toml`:
+### `.cargo/config.toml`: 프로젝트 단위 설정
+
+워크스페이스 루트나 `$HOME/.cargo/`의 `.cargo/config.toml`로
+`Cargo.toml`을 바꾸지 않고 Cargo 동작을 조정합니다:
 
 ```toml
 ```
 
 # .cargo/config.toml
 
-# Default target for this workspace
 [build]
 target = "x86_64-unknown-linux-gnu"
 
-# Custom runner — e.g., run via QEMU for cross-compiled binaries
 [target.aarch64-unknown-linux-gnu]
 runner = "qemu-aarch64-static"
 linker = "aarch64-linux-gnu-gcc"
 
-# Cargo aliases — custom shortcut commands
 [alias]
-xt = "test --workspace --release"        # cargo xt = run all tests in release
-ci = "clippy --workspace -- -D warnings" # cargo ci = lint with errors on warnings
-cov = "llvm-cov --workspace"             # cargo cov = coverage (requires cargo-llvm-cov)
+xt = "test --workspace --release"
+ci = "clippy --workspace -- -D warnings"
+cov = "llvm-cov --workspace"
 
-# Environment variables for build scripts
 [env]
 IPMI_LIB_PATH = "/usr/lib/bmc"
 
-# Use a custom registry (for internal packages)
 # [registries.internal]
 # index = "https://gitlab.internal/crates/index"
 
 ```rust
 
-Common configuration patterns:
+자주 쓰는 설정:
 
 ```
 
-| Setting | Purpose | Example |
+| 설정 | 목적 | 예 |
 |---------|---------|---------|
-| `[build] target` | Default compilation target | `x86_64-unknown-linux-musl` for static builds |
-| `[target.X] runner` | How to run the binary | `"qemu-aarch64-static"` for cross-compiled |
-| `[target.X] linker` | Which linker to use | `"aarch64-linux-gnu-gcc"` |
-| `[alias]` | Custom `cargo` subcommands | `xt = "test --workspace"` |
-| `[env]` | Build-time environment variables | Library paths, feature toggles |
-| `[net] offline` | Prevent network access | `true` for air-gapped builds |
+| `[build] target` | 기본 컴파일 타깃 | 정적 빌드에 `x86_64-unknown-linux-musl` |
+| `[target.X] runner` | 바이너리 실행 방법 | 크로스 빌드에 `"qemu-aarch64-static"` |
+| `[target.X] linker` | 사용할 링커 | `"aarch64-linux-gnu-gcc"` |
+| `[alias]` | `cargo` 하위 명령 단축 | `xt = "test --workspace"` |
+| `[env]` | 빌드 시 환경 변수 | 라이브러리 경로, 기능 토글 |
+| `[net] offline` | 네트워크 차단 | 에어갭 빌드에 `true` |
 
-### Compile-Time Environment Variables: `env!()` and `option_env!()`
+<a id="compile-time-environment-variables"></a>
 
-Rust can embed environment variables into the binary at compile time — useful for
-version strings, build metadata, and configuration:
+### 컴파일 타임 환경 변수: `env!()`와 `option_env!()`
+
+버전 문자열, 빌드 메타데이터에 바이너리 안에 환경 변수를 넣을 수 있습니다:
 
 ```rust
-// env!() — panics at compile time if the variable is missing
-const VERSION: &str = env!("CARGO_PKG_VERSION"); // "0.1.0" from Cargo.toml
-const PKG_NAME: &str = env!("CARGO_PKG_NAME");   // Crate name from Cargo.toml
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
-// option_env!() — returns Option<&str>, doesn't panic if missing
 const BUILD_SHA: Option<&str> = option_env!("GIT_SHA");
 const BUILD_TIME: Option<&str> = option_env!("BUILD_TIMESTAMP");
 
@@ -706,33 +693,33 @@ fn print_version() {
 }
 ```
 
-Cargo automatically sets many useful environment variables:
+Cargo가 자주 쓰는 변수:
 
-| Variable | Value | Use case |
+| 변수 | 값 | 용도 |
 |----------|-------|----------|
-| `CARGO_PKG_VERSION` | `"1.2.3"` | Version reporting |
-| `CARGO_PKG_NAME` | `"diag_tool"` | Binary identification |
-| `CARGO_PKG_AUTHORS` | From `Cargo.toml` | About/help text |
-| `CARGO_MANIFEST_DIR` | Absolute path to `Cargo.toml` | Locating test data files |
-| `OUT_DIR` | Build output directory | `build.rs` code generation target |
-| `TARGET` | Target triple | Platform-specific logic in `build.rs` |
+| `CARGO_PKG_VERSION` | `"1.2.3"` | 버전 표시 |
+| `CARGO_PKG_NAME` | `"diag_tool"` | 바이너리 식별 |
+| `CARGO_PKG_AUTHORS` | `Cargo.toml`에서 | 도움말 등 |
+| `CARGO_MANIFEST_DIR` | `Cargo.toml` 절대 경로 | 테스트 데이터 위치 |
+| `OUT_DIR` | 빌드 출력 | `build.rs` 생성물 |
+| `TARGET` | 타깃 트리플 | `build.rs`에서 플랫폼 분기 |
 
-You can set custom env vars from `build.rs`:
+`build.rs`에서 사용자 정의 env 출력:
+
 ```rust
-// build.rs
 fn main() {
     println!("cargo::rustc-env=GIT_SHA={}", git_sha());
     println!("cargo::rustc-env=BUILD_TIMESTAMP={}", timestamp());
 }
 ```
 
-### `cfg_attr`: Conditional Attributes
+<a id="cfg_attr-conditional-attributes"></a>
 
-`cfg_attr` applies an attribute **only when** a condition is true. This is more
-targeted than `#[cfg()]`, which includes/excludes entire items:
+### `cfg_attr`: 조건부 어트리뷰트
+
+조건이 참일 때만 어트리뷰트를 붙입니다. 항목 전체를 넣거나 빼는 `#[cfg()]`보다 세밀합니다:
 
 ```rust
-// Derive Serialize only when the "serde" feature is enabled:
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct DiagResult {
@@ -740,44 +727,39 @@ pub struct DiagResult {
     pub passed: bool,
     pub message: String,
 }
-// Without "serde" feature: no serde dependency needed at all
-// With "serde" feature: DiagResult is serializable
 
-// Conditional attribute for testing:
-#[cfg_attr(test, derive(PartialEq))]  // Only derive PartialEq in test builds
+#[cfg_attr(test, derive(PartialEq))]
 pub struct LargeStruct { /* ... */ }
 
-// Platform-specific function attributes:
 #[cfg_attr(target_os = "linux", link_name = "ioctl")]
 #[cfg_attr(target_os = "freebsd", link_name = "__ioctl")]
 extern "C" fn platform_ioctl(fd: i32, request: u64) -> i32;
 ```
 
-| Pattern | What it does |
+| 패턴 | 동작 |
 |---------|-------------|
-| `#[cfg(feature = "x")]` | Include/exclude the entire item |
-| `#[cfg_attr(feature = "x", derive(Foo))]` | Add `derive(Foo)` only when feature "x" is on |
-| `#[cfg_attr(test, allow(unused))]` | Suppress warnings only in test builds |
-| `#[cfg_attr(doc, doc = "...")]` | Documentation visible only in `cargo doc` |
+| `#[cfg(feature = "x")]` | 항목 전체 포함/제외 |
+| `#[cfg_attr(feature = "x", derive(Foo))]` | 기능 "x"일 때만 `derive(Foo)` |
+| `#[cfg_attr(test, allow(unused))]` | 테스트 빌드에서만 경고 억제 |
+| `#[cfg_attr(doc, doc = "...")]` | `cargo doc`에서만 보이는 문서 |
 
-### `cargo deny` and `cargo audit`: Supply-Chain Security
+<a id="cargo-deny-and-cargo-audit"></a>
+
+### `cargo deny`와 `cargo audit`: 공급망 보안
 
 ```bash
 ```
 
-# Install security audit tools
 cargo install cargo-deny
 cargo install cargo-audit
 
-# Check for known vulnerabilities in dependencies
 cargo audit
 
-# Comprehensive checks: licenses, bans, advisories, sources
 cargo deny check
 
 ```rust
 
-Configure `cargo deny` with a `deny.toml` at the workspace root:
+워크스페이스 루트에 `deny.toml`로 `cargo deny` 설정:
 
 ```
 
@@ -786,40 +768,42 @@ Configure `cargo deny` with a `deny.toml` at the workspace root:
 
 # deny.toml
 [advisories]
-vulnerability = "deny"      # Fail on known vulnerabilities
-unmaintained = "warn"        # Warn on unmaintained crates
+vulnerability = "deny"
+unmaintained = "warn"
 
 [licenses]
 allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"]
-deny = ["GPL-3.0"]          # Reject copyleft licenses
+deny = ["GPL-3.0"]
 
 [bans]
-multiple-versions = "warn"  # Warn if multiple versions of same crate
+multiple-versions = "warn"
 deny = [
 
 ```rust
-    { name = "openssl" },   # Force use of rustls instead
+    { name = "openssl" },
 ]
 
 [sources]
-allow-git = []              # No git dependencies in production
+allow-git = []
 ```
 
-| Tool | Purpose | When to run |
+| 도구 | 목적 | 실행 시점 |
 |------|---------|-------------|
-| `cargo audit` | Check for known CVEs in dependencies | CI pipeline, pre-release |
-| `cargo deny check` | Licenses, bans, advisories, sources | CI pipeline |
-| `cargo deny check licenses` | License compliance only | Before open-sourcing |
-| `cargo deny check bans` | Prevent specific crates | Enforce architecture decisions |
+| `cargo audit` | 의존성의 알려진 CVE | CI, 릴리스 전 |
+| `cargo deny check` | 라이선스, 금지, 권고, 소스 | CI |
+| `cargo deny check licenses` | 라이선스만 | 오픈소스 전 |
+| `cargo deny check bans` | 특정 크레이트 차단 | 아키텍처 정책 |
 
-### Doc Tests: Tests Inside Documentation
+<a id="doc-tests-tests-inside-documentation"></a>
 
-Rust doc comments (`///`) can contain code blocks that are **compiled and run as tests**:
+### 문서 테스트: 문서 안의 테스트
+
+`///` 안의 코드 블록은 **컴파일되어 테스트로 실행**됩니다:
 
 ```rust
-/// Parses a diagnostic fault code from a string.
+/// 문자열에서 진단 fault 코드를 파싱합니다.
 ///
-/// # Examples
+/// # 예제
 ///
 /// ```
 /// use my_crate::parse_fc;
@@ -828,7 +812,7 @@ Rust doc comments (`///`) can contain code blocks that are **compiled and run as
 /// assert_eq!(fc, 12345);
 /// ```
 ///
-/// Invalid input returns an error:
+/// 잘못된 입력은 에러:
 ///
 /// ```
 /// use my_crate::parse_fc;
@@ -844,18 +828,16 @@ pub fn parse_fc(input: &str) -> Result<u32, ParseError> {
 ```
 
 ```bash
-cargo test --doc  # Run only doc tests
-cargo test        # Runs unit + integration + doc tests
+cargo test --doc
+cargo test
 ```
 
-**Module-level documentation** uses `//!` at the top of a file:
+**모듈 수준 문서**는 파일 맨 위 `//!`:
 
 ```rust
 //! # Diagnostic Framework
 //!
-//! This crate provides the core diagnostic execution engine.
-//! It supports running diagnostic tests, collecting results,
-//! and reporting to the BMC via IPMI.
+//! 이 크레이트는 진단 실행 엔진을 제공합니다.
 //!
 //! ## Quick Start
 //!
@@ -867,46 +849,47 @@ cargo test        # Runs unit + integration + doc tests
 //! ```
 ```
 
-### Benchmarking with Criterion
+<a id="benchmarking-with-criterion-architecture"></a>
 
-> **Full coverage**: See the [Benchmarking with criterion](ch13-testing-and-benchmarking-patterns.md#benchmarking-with-criterion)
-> section in Chapter 13 (Testing and Benchmarking Patterns) for complete
-> `criterion` setup, API examples, and a comparison table vs `cargo bench`.
-> Below is a quick-reference for architecture-specific usage.
+### Criterion으로 벤치마킹
 
-When benchmarking your crate's public API, place benchmarks in `benches/` and
-keep them focused on the hot path — typically parsers, serializers, or
-validation boundaries:
+> **전체 설명**: [criterion으로 벤치마킹](ch14-testing-and-benchmarking-patterns.md#benchmarking-with-criterion)(14장 테스트와 벤치마킹 패턴)에
+> `criterion` 설정, API 예, `cargo bench`와의 비교 표가 있습니다.
+> 여기서는 아키텍처 관점 요약만 다룹니다.
+
+공개 API를 벤치마크할 때는 `benches/`에 두고 핫 패스(파서, 직렬화, 검증 경계)에 집중합니다:
 
 ```bash
-cargo bench                  # Run all benchmarks
-cargo bench -- parse_config  # Run specific benchmark
-# Results in target/criterion/ with HTML reports
+cargo bench
+cargo bench -- parse_config
+# 결과: target/criterion/ HTML 리포트
 ```
 
-> **Key Takeaways — Architecture & API Design**
-> - Accept the most general type (`impl Into`, `impl AsRef`, `Cow`); return the most specific
-> - Parse Don't Validate: use `TryFrom` to create types that are valid by construction
-> - `#[non_exhaustive]` on public enums prevents breaking changes when adding variants
-> - `#[must_use]` catches silent discards of important values
+> **핵심 정리 — 아키텍처와 API 설계**
+> - 받을 때는 가장 일반적인 타입(`impl Into`, `impl AsRef`, `Cow`), 돌려줄 때는 가장 구체적으로
+> - 파싱하고 검증하지 말 것: `TryFrom`으로 “구성 시점에 유효한” 타입 만들기
+> - 공개 enum에는 `#[non_exhaustive]`로 변형 추가 시 호환 유지
+> - `#[must_use]`로 중요한 값의 묵시적 폐기 방지
 
-> **See also:** [Ch 9 — Error Handling](ch09-error-handling-patterns.md) for error type design in public APIs. [Ch 13 — Testing](ch13-testing-and-benchmarking-patterns.md) for testing your crate's public API.
+> **참고:** 공개 API의 에러 타입은 [9장 — 에러 처리](ch09-error-handling-patterns.md). 크레이트 공개 API 테스트는 [14장 — 테스트](ch14-testing-and-benchmarking-patterns.md).
 
 ---
 
-### Exercise: Crate API Refactoring ★★ (~30 min)
+<a id="exercise-crate-api-refactoring"></a>
 
-Refactor the following "stringly-typed" API into one that uses `TryFrom`, newtypes, and builder pattern:
+### 연습: 크레이트 API 리팩터링 ★★ (~30분)
+
+아래 “문자열 중심” API를 `TryFrom`, 뉴타입, 빌더 패턴을 쓰도록 바꾸세요:
 
 ```rust,ignore
-// BEFORE: Easy to misuse
+// 전: 오용하기 쉬움
 fn create_server(host: &str, port: &str, max_conn: &str) -> Server { ... }
 ```
 
-Design a `ServerConfig` with validated types `Host`, `Port` (1–65535), and `MaxConnections` (1–10000) that reject invalid values at parse time.
+`Host`, `Port`(1–65535), `MaxConnections`(1–10000)로 검증된 `ServerConfig`를 설계하고, 잘못된 값은 파싱 시점에 거절하게 하세요.
 
 <details>
-<summary>🔑 Solution</summary>
+<summary>🔑 해답</summary>
 
 ```rust
 #[derive(Debug, Clone)]
@@ -966,7 +949,6 @@ fn main() {
     );
     println!("{config:?}");
 
-    // Invalid values caught at parse time:
     assert!(Host::try_from("").is_err());
     assert!(Port::try_from(0).is_err());
     assert!(MaxConnections::try_from(99999).is_err());
