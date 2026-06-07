@@ -95,7 +95,7 @@ class User:
 
 # Nothing stops you from accessing _age or even __secret
 print(user._age)                  # Works fine
-print(user._User__secret)        # Works too (name mangling)
+print(user._User.__secret)        # Works too (name mangling)
 ```
 
 ```rust
