@@ -279,6 +279,9 @@ Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only i
    those. Anything else — including a bare `fn create() -> Self` — must carry
    `where Self: Sized` to be excluded from the vtable
 5. **All supertraits must themselves be dyn compatible** — the property is inherited
+6. **No associated constants**, and **no associated types with generics** (GATs).
+   Plain associated types are fine, but must be pinned down at the use site:
+   `dyn Iterator<Item = u32>`, never a bare `dyn Iterator`
 
 ```rust
 // ✅ Dyn compatible — can be used as dyn Drawable
@@ -347,6 +350,25 @@ trait Derived: Base {
     fn show(&self);
 }
 // let d: &dyn Derived = ...; // ❌ Compile error, blamed on `Base::make`
+
+// ❌ NOT dyn compatible — an associated const has no vtable representation
+trait Sensor {
+    const MAX: f64;
+    //    ^^^ "...because it contains associated const `MAX`"
+    fn read(&self) -> f64;
+}
+// Workaround: make it a method — `fn max_reading(&self) -> f64`. Note there is
+// NO `where Self: Sized` escape hatch here; `const MAX: f64 where Self: Sized;`
+// isn't even accepted syntax on stable (generic const items are unstable).
+
+// ❌ NOT dyn compatible — a GAT is a family of types, not one type
+trait LendingIterator {
+    type Item<'a> where Self: 'a;
+    //   ^^^^ "...because it contains generic associated type `Item`"
+    fn next(&mut self) -> Option<Self::Item<'_>>;
+}
+// This is the same LendingIterator from the GATs section above: the price of
+// a lending iterator is that `dyn LendingIterator` can never exist.
 
 // ⚠️ `self` by value is NOT a dispatchable receiver — it implies
 //    `where Self: Sized`. The trait stays dyn compatible, but the method
