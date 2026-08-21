@@ -266,6 +266,13 @@ This connects directly to the **type-state pattern** in Chapter 3.
 
 ### Dyn Compatibility (formerly "Object Safety")
 
+> **A note on the name**: this was called *object safety* until Rust 1.84. The
+> term was misleading on both halves — Rust has no "objects" in the OOP sense, and
+> nothing here is about memory safety. The question is simply "can this trait be
+> used as `dyn Trait`?". The compiler now says `the trait 'X' is not dyn
+> compatible` (still error `E0038`), but most existing articles, crate docs and
+> Stack Overflow answers you'll find still say "object safe" — same concept.
+
 Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only if:
 
 1. **`Sized` must not be a supertrait** — i.e. the trait must not require `Self: Sized`
