@@ -2,7 +2,7 @@
 
 > **What you'll learn:**
 > - Associated types vs generic parameters — and when to use each
-> - GATs, blanket impls, marker traits, and trait object safety rules
+> - GATs, blanket impls, marker traits, and dyn compatibility rules
 > - How vtables and fat pointers work under the hood
 > - Extension traits, enum dispatch, and typed command patterns
 
@@ -264,9 +264,9 @@ fn record_measurement<S: Calibrated>(sensor: &S) {
 
 This connects directly to the **type-state pattern** in Chapter 3.
 
-### Trait Object Safety Rules
+### Dyn Compatibility (formerly "Object Safety")
 
-Not every trait can be used as `dyn Trait`. A trait is **object-safe** only if:
+Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only if:
 
 1. **No `Self: Sized` bound** on the trait itself
 2. **No generic type parameters** on methods
@@ -274,7 +274,7 @@ Not every trait can be used as `dyn Trait`. A trait is **object-safe** only if:
 4. **No associated functions** (methods must have `&self`, `&mut self`, or `self`)
 
 ```rust
-// ✅ Object-safe — can be used as dyn Drawable
+// ✅ Dyn compatible — can be used as dyn Drawable
 trait Drawable {
     fn draw(&self);
     fn bounding_box(&self) -> (f64, f64, f64, f64);
@@ -282,20 +282,20 @@ trait Drawable {
 
 let shapes: Vec<Box<dyn Drawable>> = vec![/* ... */]; // ✅ Works
 
-// ❌ NOT object-safe — uses Self in return position
+// ❌ NOT dyn compatible — uses Self in return position
 trait Cloneable {
     fn clone_self(&self) -> Self;
     //                       ^^^^ Can't know the concrete size at runtime
 }
 // let items: Vec<Box<dyn Cloneable>> = ...; // ❌ Compile error
 
-// ❌ NOT object-safe — generic method
+// ❌ NOT dyn compatible — generic method
 trait Converter {
     fn convert<T>(&self) -> T;
     //        ^^^ The vtable can't contain infinite monomorphizations
 }
 
-// ❌ NOT object-safe — associated function (no self)
+// ❌ NOT dyn compatible — associated function (no self)
 trait Factory {
     fn create() -> Self;
     // No &self — how would you call this through a trait object?
@@ -546,7 +546,7 @@ Do you know the concrete type at compile time?
 | Performance | Best — inlinable | One indirection per call |
 | Heterogeneous collections | ❌ | ✅ |
 | Binary size per type | One copy each | Shared code |
-| Trait must be object-safe? | No | Yes |
+| Trait must be dyn compatible? | No | Yes |
 | Works in trait definitions | ✅ (Rust 1.75+) | Always |
 
 ***
@@ -917,7 +917,7 @@ Is the set of types closed (known at compile time)?
 | Cache-friendly | No (pointer chasing) | Yes (contiguous) |
 | Open to new types | ✅ (anyone can impl) | ❌ (closed set) |
 | Code size | Shared | One copy per variant |
-| Trait must be object-safe | Yes | No |
+| Trait must be dyn compatible | Yes | No |
 | Adding a variant | No code changes | Update enum + match arms |
 
 ### When to Use Enum Dispatch
