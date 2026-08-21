@@ -358,9 +358,12 @@ trait MyTrait {
 // when the concrete type is known.
 ```
 
-> **Rule of thumb**: If you plan to use `dyn Trait`, keep methods simple —
-> no generics, no `Self` in return types, no `Sized` bounds. When in doubt,
-> try `let _: Box<dyn YourTrait>;` and let the compiler tell you.
+> **Rule of thumb**: If you plan to use `dyn Trait`, keep methods simple — no
+> generic type parameters, no `Self` outside the receiver, and no `Sized`
+> **supertrait**. Note the asymmetry: `trait Widget: Sized` is fatal, while
+> `where Self: Sized` on an individual method is the sanctioned opt-out shown
+> above. When in doubt, try `let _: Box<dyn YourTrait>;` and let the compiler
+> tell you.
 
 ### Trait Objects Under the Hood — vtables and Fat Pointers
 
