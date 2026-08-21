@@ -270,7 +270,8 @@ Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only i
 
 1. **No `Self: Sized` bound** on the trait itself
 2. **No generic type parameters** on methods
-3. **No use of `Self` in return position** (except via indirection like `Box<Self>`)
+3. **No use of `Self`** anywhere in a method signature except in the type of the
+   receiver — this covers parameters as well as return types
 4. **No associated functions** (methods must have `&self`, `&mut self`, or `self`)
 
 ```rust
@@ -282,12 +283,30 @@ trait Drawable {
 
 let shapes: Vec<Box<dyn Drawable>> = vec![/* ... */]; // ✅ Works
 
-// ❌ NOT dyn compatible — uses Self in return position
+// ❌ NOT dyn compatible — mentions Self outside the receiver
 trait Cloneable {
     fn clone_self(&self) -> Self;
-    //                       ^^^^ Can't know the concrete size at runtime
+    //                      ^^^^ "...because method `clone_self` references
+    //                            the `Self` type in its return type"
 }
 // let items: Vec<Box<dyn Cloneable>> = ...; // ❌ Compile error
+
+// ❌ Same rule, argument position — this is why PartialEq isn't dyn compatible
+trait Comparable {
+    fn equals(&self, other: &Self) -> bool;
+    //                       ^^^^ "...references the `Self` type in this parameter"
+}
+
+// ⚠️ Wrapping in Box does NOT help — Box<Self> still names Self
+trait Spawner {
+    fn spawn(&self) -> Box<Self>; // ❌ Still not dyn compatible
+}
+
+// ✅ Return Box<dyn Trait> instead — that's a concrete type, not Self.
+// This is the standard "clone through a trait object" idiom:
+trait CloneableDyn {
+    fn clone_box(&self) -> Box<dyn CloneableDyn>;
+}
 
 // ❌ NOT dyn compatible — generic method
 trait Converter {
