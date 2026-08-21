@@ -269,7 +269,8 @@ This connects directly to the **type-state pattern** in Chapter 3.
 Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only if:
 
 1. **No `Self: Sized` bound** on the trait itself
-2. **No generic type parameters** on methods
+2. **No generic type parameters** on methods — lifetime parameters *are* allowed,
+   since they're erased before codegen and need no extra vtable slot
 3. **No use of `Self`** anywhere in a method signature except in the type of the
    receiver — this covers parameters as well as return types
 4. **Every associated function must be dispatchable or opted out.** A dispatchable
@@ -316,6 +317,12 @@ trait CloneableDyn {
 trait Converter {
     fn convert<T>(&self) -> T;
     //        ^^^ The vtable can't contain infinite monomorphizations
+}
+
+// ✅ Dyn compatible — a generic LIFETIME is fine, only type params are barred
+trait Tokenizer {
+    fn first_token<'a>(&self, input: &'a str) -> &'a str;
+    //            ^^^^ One vtable slot is enough: lifetimes are erased
 }
 
 // ❌ NOT dyn compatible — associated function with no receiver
