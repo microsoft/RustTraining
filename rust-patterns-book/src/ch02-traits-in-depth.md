@@ -272,7 +272,11 @@ Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only i
 2. **No generic type parameters** on methods
 3. **No use of `Self`** anywhere in a method signature except in the type of the
    receiver — this covers parameters as well as return types
-4. **No associated functions** (methods must have `&self`, `&mut self`, or `self`)
+4. **Every associated function must be dispatchable or opted out.** A dispatchable
+   method needs a receiver of type `&self`, `&mut self`, `self: Box<Self>`,
+   `self: Rc<Self>`, `self: Arc<Self>`, or `self: Pin<P>` where `P` is one of
+   those. Anything else — including a bare `fn create() -> Self` — must carry
+   `where Self: Sized` to be excluded from the vtable
 
 ```rust
 // ✅ Dyn compatible — can be used as dyn Drawable
@@ -314,11 +318,28 @@ trait Converter {
     //        ^^^ The vtable can't contain infinite monomorphizations
 }
 
-// ❌ NOT dyn compatible — associated function (no self)
+// ❌ NOT dyn compatible — associated function with no receiver
 trait Factory {
     fn create() -> Self;
-    // No &self — how would you call this through a trait object?
+    // "...because associated function `create` has no `self` parameter"
 }
+
+// ✅ Same function, opted out of the vtable — the trait is dyn compatible again
+trait FactoryFixed {
+    fn describe(&self) -> String;      // dispatchable
+    fn create() -> Self where Self: Sized; // excluded from the vtable
+}
+
+// ⚠️ `self` by value is NOT a dispatchable receiver — it implies
+//    `where Self: Sized`. The trait stays dyn compatible, but the method
+//    simply isn't in the vtable and can't be called through `dyn Trait`:
+trait Consume {
+    fn describe(&self) -> String; // in the vtable
+    fn consume(self) -> String;   // implicitly `where Self: Sized`
+}
+// let t: &dyn Consume = &token;  // ✅ the trait object is fine
+// boxed.consume();               // ❌ error[E0161]: cannot move a value
+//                                //    of type `dyn Consume`
 ```
 
 **Workarounds**:
