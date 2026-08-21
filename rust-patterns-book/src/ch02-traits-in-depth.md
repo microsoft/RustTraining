@@ -282,6 +282,8 @@ Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only i
 6. **No associated constants**, and **no associated types with generics** (GATs).
    Plain associated types are fine, but must be pinned down at the use site:
    `dyn Iterator<Item = u32>`, never a bare `dyn Iterator`
+7. **No opaque return types** on dispatchable methods — neither `async fn` (which
+   hides a `Future` type) nor return-position `impl Trait`
 
 ```rust
 // ✅ Dyn compatible — can be used as dyn Drawable
@@ -370,6 +372,22 @@ trait LendingIterator {
 // This is the same LendingIterator from the GATs section above: the price of
 // a lending iterator is that `dyn LendingIterator` can never exist.
 
+// ❌ NOT dyn compatible — opaque return type (RPITIT)
+trait Container {
+    fn items(&self) -> impl Iterator<Item = u32>;
+    //                 ^^^^ "...references an `impl Trait` type in its return type"
+}
+
+// ❌ NOT dyn compatible — `async fn` is the same problem with sugar on top
+trait DataStore {
+    async fn get(&self, key: &str) -> Option<String>;
+    // "...because method `get` is `async`"
+}
+// Workaround for both: erase the type yourself and return a concrete boxed
+// trait object — `Box<dyn Iterator<Item = u32> + '_>` and
+// `Pin<Box<dyn Future<Output = Option<String>> + '_>>` are ordinary types,
+// so they get ordinary vtable slots.
+
 // ⚠️ `self` by value is NOT a dispatchable receiver — it implies
 //    `where Self: Sized`. The trait stays dyn compatible, but the method
 //    simply isn't in the vtable and can't be called through `dyn Trait`:
@@ -404,6 +422,18 @@ trait MyTrait {
 > `where Self: Sized` on an individual method is the sanctioned opt-out shown
 > above. When in doubt, try `let _: Box<dyn YourTrait>;` and let the compiler
 > tell you.
+
+> **Why `AsyncFn` isn't dyn compatible**: the Reference lists `AsyncFn`,
+> `AsyncFnMut` and `AsyncFnOnce` as a separate rule, but the compiler shows it's
+> really a corollary of the GAT rule above — it blames
+> `AsyncFnMut::CallRefFuture<'a>`, a generic associated type in the std
+> definition. Plain `Fn`/`FnMut`/`FnOnce` have no such member and are dyn
+> compatible, which is why `Box<dyn Fn(u32) -> u32>` works fine.
+
+> **See also**: the RPITIT section below uses `-> impl Trait` in a trait
+> definition — convenient, but it costs the trait its dyn compatibility.
+> [Async Book — Ch 10](../async-book/ch10-async-traits.html) covers the
+> `async fn` half and the `Pin<Box<dyn Future>>` workaround in depth.
 
 ### Trait Objects Under the Hood — vtables and Fat Pointers
 
@@ -610,6 +640,11 @@ impl Container for FixedFields {
 
 > **Before Rust 1.75**, you had to use `Box<dyn Iterator>` or an associated
 > type to achieve this in traits. RPITIT removes the allocation.
+>
+> **But it costs dyn compatibility**: `-> impl Trait` is an opaque return type,
+> so `dyn Container` is rejected (see [Dyn Compatibility](#dyn-compatibility-formerly-object-safety),
+> rule 7). If you need the trait object, keep returning
+> `Box<dyn Iterator<Item = &str> + '_>` and pay the allocation.
 
 #### `impl Trait` vs `dyn Trait` — Decision Guide
 
