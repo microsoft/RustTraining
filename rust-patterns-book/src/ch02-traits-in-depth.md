@@ -268,7 +268,7 @@ This connects directly to the **type-state pattern** in Chapter 3.
 
 Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only if:
 
-1. **No `Self: Sized` bound** on the trait itself
+1. **`Sized` must not be a supertrait** — i.e. the trait must not require `Self: Sized`
 2. **No generic type parameters** on methods — lifetime parameters *are* allowed,
    since they're erased before codegen and need no extra vtable slot
 3. **No use of `Self`** anywhere in a method signature except in the type of the
@@ -278,6 +278,7 @@ Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only i
    `self: Rc<Self>`, `self: Arc<Self>`, or `self: Pin<P>` where `P` is one of
    those. Anything else — including a bare `fn create() -> Self` — must carry
    `where Self: Sized` to be excluded from the vtable
+5. **All supertraits must themselves be dyn compatible** — the property is inherited
 
 ```rust
 // ✅ Dyn compatible — can be used as dyn Drawable
@@ -336,6 +337,16 @@ trait FactoryFixed {
     fn describe(&self) -> String;      // dispatchable
     fn create() -> Self where Self: Sized; // excluded from the vtable
 }
+
+// ❌ NOT dyn compatible — inherited from a supertrait that isn't.
+//    Nothing is wrong with Derived itself; the compiler points at Base::make.
+trait Base {
+    fn make() -> Self;
+}
+trait Derived: Base {
+    fn show(&self);
+}
+// let d: &dyn Derived = ...; // ❌ Compile error, blamed on `Base::make`
 
 // ⚠️ `self` by value is NOT a dispatchable receiver — it implies
 //    `where Self: Sized`. The trait stays dyn compatible, but the method
