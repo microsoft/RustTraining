@@ -2,7 +2,7 @@
 
 > **What you'll learn:**
 > - Associated types vs generic parameters — and when to use each
-> - GATs, blanket impls, marker traits, and trait object safety rules
+> - GATs, blanket impls, marker traits, and dyn compatibility rules
 > - How vtables and fat pointers work under the hood
 > - Extension traits, enum dispatch, and typed command patterns
 
@@ -264,17 +264,36 @@ fn record_measurement<S: Calibrated>(sensor: &S) {
 
 This connects directly to the **type-state pattern** in Chapter 3.
 
-### Trait Object Safety Rules
+### Dyn Compatibility (formerly "Object Safety")
 
-Not every trait can be used as `dyn Trait`. A trait is **object-safe** only if:
+> **A note on the name**: this was called *object safety* until Rust 1.84. The
+> term was misleading on both halves — Rust has no "objects" in the OOP sense, and
+> nothing here is about memory safety. The question is simply "can this trait be
+> used as `dyn Trait`?". The compiler now says `the trait 'X' is not dyn
+> compatible` (still error `E0038`), but most existing articles, crate docs and
+> Stack Overflow answers you'll find still say "object safe" — same concept.
 
-1. **No `Self: Sized` bound** on the trait itself
-2. **No generic type parameters** on methods
-3. **No use of `Self` in return position** (except via indirection like `Box<Self>`)
-4. **No associated functions** (methods must have `&self`, `&mut self`, or `self`)
+Not every trait can be used as `dyn Trait`. A trait is **dyn compatible** only if:
+
+1. **`Sized` must not be a supertrait** — i.e. the trait must not require `Self: Sized`
+2. **No generic type parameters** on methods — lifetime parameters *are* allowed,
+   since they're erased before codegen and need no extra vtable slot
+3. **No use of `Self`** anywhere in a method signature except in the type of the
+   receiver — this covers parameters as well as return types
+4. **Every associated function must be dispatchable or opted out.** A dispatchable
+   method needs a receiver of type `&self`, `&mut self`, `self: Box<Self>`,
+   `self: Rc<Self>`, `self: Arc<Self>`, or `self: Pin<P>` where `P` is one of
+   those. Anything else — including a bare `fn create() -> Self` — must carry
+   `where Self: Sized` to be excluded from the vtable
+5. **All supertraits must themselves be dyn compatible** — the property is inherited
+6. **No associated constants**, and **no associated types with generics** (GATs).
+   Plain associated types are fine, but must be pinned down at the use site:
+   `dyn Iterator<Item = u32>`, never a bare `dyn Iterator`
+7. **No opaque return types** on dispatchable methods — neither `async fn` (which
+   hides a `Future` type) nor return-position `impl Trait`
 
 ```rust
-// ✅ Object-safe — can be used as dyn Drawable
+// ✅ Dyn compatible — can be used as dyn Drawable
 trait Drawable {
     fn draw(&self);
     fn bounding_box(&self) -> (f64, f64, f64, f64);
@@ -282,24 +301,110 @@ trait Drawable {
 
 let shapes: Vec<Box<dyn Drawable>> = vec![/* ... */]; // ✅ Works
 
-// ❌ NOT object-safe — uses Self in return position
+// ❌ NOT dyn compatible — mentions Self outside the receiver
 trait Cloneable {
     fn clone_self(&self) -> Self;
-    //                       ^^^^ Can't know the concrete size at runtime
+    //                      ^^^^ "...because method `clone_self` references
+    //                            the `Self` type in its return type"
 }
 // let items: Vec<Box<dyn Cloneable>> = ...; // ❌ Compile error
 
-// ❌ NOT object-safe — generic method
+// ❌ Same rule, argument position — this is why PartialEq isn't dyn compatible
+trait Comparable {
+    fn equals(&self, other: &Self) -> bool;
+    //                       ^^^^ "...references the `Self` type in this parameter"
+}
+
+// ⚠️ Wrapping in Box does NOT help — Box<Self> still names Self
+trait Spawner {
+    fn spawn(&self) -> Box<Self>; // ❌ Still not dyn compatible
+}
+
+// ✅ Return Box<dyn Trait> instead — that's a concrete type, not Self.
+// This is the standard "clone through a trait object" idiom:
+trait CloneableDyn {
+    fn clone_box(&self) -> Box<dyn CloneableDyn>;
+}
+
+// ❌ NOT dyn compatible — generic method
 trait Converter {
     fn convert<T>(&self) -> T;
     //        ^^^ The vtable can't contain infinite monomorphizations
 }
 
-// ❌ NOT object-safe — associated function (no self)
+// ✅ Dyn compatible — a generic LIFETIME is fine, only type params are barred
+trait Tokenizer {
+    fn first_token<'a>(&self, input: &'a str) -> &'a str;
+    //            ^^^^ One vtable slot is enough: lifetimes are erased
+}
+
+// ❌ NOT dyn compatible — associated function with no receiver
 trait Factory {
     fn create() -> Self;
-    // No &self — how would you call this through a trait object?
+    // "...because associated function `create` has no `self` parameter"
 }
+
+// ✅ Same function, opted out of the vtable — the trait is dyn compatible again
+trait FactoryFixed {
+    fn describe(&self) -> String;      // dispatchable
+    fn create() -> Self where Self: Sized; // excluded from the vtable
+}
+
+// ❌ NOT dyn compatible — inherited from a supertrait that isn't.
+//    Nothing is wrong with Derived itself; the compiler points at Base::make.
+trait Base {
+    fn make() -> Self;
+}
+trait Derived: Base {
+    fn show(&self);
+}
+// let d: &dyn Derived = ...; // ❌ Compile error, blamed on `Base::make`
+
+// ❌ NOT dyn compatible — an associated const has no vtable representation
+trait Sensor {
+    const MAX: f64;
+    //    ^^^ "...because it contains associated const `MAX`"
+    fn read(&self) -> f64;
+}
+// Workaround: make it a method — `fn max_reading(&self) -> f64`. Note there is
+// NO `where Self: Sized` escape hatch here; `const MAX: f64 where Self: Sized;`
+// isn't even accepted syntax on stable (generic const items are unstable).
+
+// ❌ NOT dyn compatible — a GAT is a family of types, not one type
+trait LendingIterator {
+    type Item<'a> where Self: 'a;
+    //   ^^^^ "...because it contains generic associated type `Item`"
+    fn next(&mut self) -> Option<Self::Item<'_>>;
+}
+// This is the same LendingIterator from the GATs section above: the price of
+// a lending iterator is that `dyn LendingIterator` can never exist.
+
+// ❌ NOT dyn compatible — opaque return type (RPITIT)
+trait Container {
+    fn items(&self) -> impl Iterator<Item = u32>;
+    //                 ^^^^ "...references an `impl Trait` type in its return type"
+}
+
+// ❌ NOT dyn compatible — `async fn` is the same problem with sugar on top
+trait DataStore {
+    async fn get(&self, key: &str) -> Option<String>;
+    // "...because method `get` is `async`"
+}
+// Workaround for both: erase the type yourself and return a concrete boxed
+// trait object — `Box<dyn Iterator<Item = u32> + '_>` and
+// `Pin<Box<dyn Future<Output = Option<String>> + '_>>` are ordinary types,
+// so they get ordinary vtable slots.
+
+// ⚠️ `self` by value is NOT a dispatchable receiver — it implies
+//    `where Self: Sized`. The trait stays dyn compatible, but the method
+//    simply isn't in the vtable and can't be called through `dyn Trait`:
+trait Consume {
+    fn describe(&self) -> String; // in the vtable
+    fn consume(self) -> String;   // implicitly `where Self: Sized`
+}
+// let t: &dyn Consume = &token;  // ✅ the trait object is fine
+// boxed.consume();               // ❌ error[E0161]: cannot move a value
+//                                //    of type `dyn Consume`
 ```
 
 **Workarounds**:
@@ -318,9 +423,24 @@ trait MyTrait {
 // when the concrete type is known.
 ```
 
-> **Rule of thumb**: If you plan to use `dyn Trait`, keep methods simple —
-> no generics, no `Self` in return types, no `Sized` bounds. When in doubt,
-> try `let _: Box<dyn YourTrait>;` and let the compiler tell you.
+> **Rule of thumb**: If you plan to use `dyn Trait`, keep methods simple — no
+> generic type parameters, no `Self` outside the receiver, and no `Sized`
+> **supertrait**. Note the asymmetry: `trait Widget: Sized` is fatal, while
+> `where Self: Sized` on an individual method is the sanctioned opt-out shown
+> above. When in doubt, try `let _: Box<dyn YourTrait>;` and let the compiler
+> tell you.
+
+> **Why `AsyncFn` isn't dyn compatible**: the Reference lists `AsyncFn`,
+> `AsyncFnMut` and `AsyncFnOnce` as a separate rule, but the compiler shows it's
+> really a corollary of the GAT rule above — it blames
+> `AsyncFnMut::CallRefFuture<'a>`, a generic associated type in the std
+> definition. Plain `Fn`/`FnMut`/`FnOnce` have no such member and are dyn
+> compatible, which is why `Box<dyn Fn(u32) -> u32>` works fine.
+
+> **See also**: the RPITIT section below uses `-> impl Trait` in a trait
+> definition — convenient, but it costs the trait its dyn compatibility.
+> [Async Book — Ch 10](../async-book/ch10-async-traits.html) covers the
+> `async fn` half and the `Pin<Box<dyn Future>>` workaround in depth.
 
 ### Trait Objects Under the Hood — vtables and Fat Pointers
 
@@ -527,6 +647,11 @@ impl Container for FixedFields {
 
 > **Before Rust 1.75**, you had to use `Box<dyn Iterator>` or an associated
 > type to achieve this in traits. RPITIT removes the allocation.
+>
+> **But it costs dyn compatibility**: `-> impl Trait` is an opaque return type,
+> so `dyn Container` is rejected (see [Dyn Compatibility](#dyn-compatibility-formerly-object-safety),
+> rule 7). If you need the trait object, keep returning
+> `Box<dyn Iterator<Item = &str> + '_>` and pay the allocation.
 
 #### `impl Trait` vs `dyn Trait` — Decision Guide
 
@@ -546,7 +671,7 @@ Do you know the concrete type at compile time?
 | Performance | Best — inlinable | One indirection per call |
 | Heterogeneous collections | ❌ | ✅ |
 | Binary size per type | One copy each | Shared code |
-| Trait must be object-safe? | No | Yes |
+| Trait must be dyn compatible? | No | Yes |
 | Works in trait definitions | ✅ (Rust 1.75+) | Always |
 
 ***
@@ -917,7 +1042,7 @@ Is the set of types closed (known at compile time)?
 | Cache-friendly | No (pointer chasing) | Yes (contiguous) |
 | Open to new types | ✅ (anyone can impl) | ❌ (closed set) |
 | Code size | Shared | One copy per variant |
-| Trait must be object-safe | Yes | No |
+| Trait must be dyn compatible | Yes | No |
 | Adding a variant | No code changes | Update enum + match arms |
 
 ### When to Use Enum Dispatch

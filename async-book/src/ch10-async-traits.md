@@ -140,7 +140,7 @@ async fn spawn_lookup<S: SendDataStore + 'static>(store: Arc<S>) {
 
 // ⚠️ Note: trait_variant does NOT enable dyn dispatch.
 // The generated trait still uses `impl Future`, so `dyn SendDataStore`
-// is not object-safe. For dyn dispatch, you still need manual boxing
+// is not dyn compatible. For dyn dispatch, you still need manual boxing
 // (see the Box::pin approach above) or the `async-trait` crate.
 ```
 
